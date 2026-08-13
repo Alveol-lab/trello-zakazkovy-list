@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zakázkový list</title>
+<link rel="stylesheet" href="https://p.trellocdn.com/power-up.css">
+<script src="https://p.trellocdn.com/power-up.min.js"></script>
+<style>
+:root{--b:var(--ds-border,#dfe1e6);--s:var(--ds-surface,#fff);--r:var(--ds-surface-raised,#fff);--t:var(--ds-text,#172b4d);--m:var(--ds-text-subtlest,#626f86);--n:var(--ds-background-neutral,#f1f2f4);--d:var(--ds-background-danger,#ffebe6)}
+*{box-sizing:border-box}html,body{background:var(--s);color:var(--t)}body{margin:0;padding:8px;font-size:12px}.app{display:grid;gap:10px}.panel{border:1px solid var(--b);border-radius:7px;background:var(--r);padding:8px}.grid-top{display:grid;grid-template-columns:42px minmax(82px,1fr) 64px 62px;gap:5px}.grid-mid{display:grid;grid-template-columns:42px minmax(0,1fr) 62px;gap:5px;margin-top:5px}.grid-lot{display:grid;grid-template-columns:88px minmax(0,1fr) 42px 42px;gap:5px;margin-top:10px}.title{font-size:11px;font-weight:700;margin-bottom:5px;color:var(--m)}input,select,button{font-size:11px!important;margin:0!important;min-height:28px!important}input,select{padding:4px 6px!important;width:100%}.readonly{background:var(--n)!important;color:var(--m)!important}.outs{display:flex;gap:3px;align-items:center}.outs button{min-width:0!important;padding:3px 5px!important;min-height:28px!important}.outs-menu{position:relative}.outs-pop{display:none;position:absolute;right:0;top:31px;z-index:10;border:1px solid var(--b);border-radius:6px;background:var(--r);padding:6px;width:112px;box-shadow:0 4px 12px rgba(9,30,66,.2)}.outs-pop.show{display:grid;gap:5px}.outs-pop label{font-size:11px;display:flex;gap:5px;align-items:center}.lots{display:grid;gap:4px;margin-top:6px}.lot-item{display:grid;grid-template-columns:88px 36px minmax(0,1fr) 28px;gap:5px;align-items:center;border-top:1px solid var(--b);padding-top:4px;font-size:10px}.lot-item button{min-height:24px!important;padding:1px 5px!important}.footer{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}.status{font-size:10px;color:var(--m);align-self:center;margin-right:auto}.table{overflow:hidden;border:1px solid var(--b);border-radius:6px}.th,.row{display:grid;grid-template-columns:57px 31px minmax(0,1fr) 50px 48px 28px;gap:0}.th{background:var(--n);color:var(--m);font-size:10px;font-weight:700}.th span,.row span{padding:5px;border-right:1px solid var(--b);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row{border-top:1px solid var(--b);font-size:10px}.row button{min-height:24px!important;padding:1px 5px!important;margin:2px!important}.empty{padding:12px;color:var(--m);font-size:11px}.menu{position:relative}.menu-pop{display:none;position:absolute;right:0;top:27px;z-index:20;width:116px;padding:4px;background:var(--r);border:1px solid var(--b);border-radius:6px;box-shadow:0 4px 12px rgba(9,30,66,.2)}.menu-pop.show{display:grid;gap:2px}.menu-pop button{width:100%;text-align:left;background:transparent;color:var(--t);border:0;min-height:27px!important}.detail{display:none;border-top:1px solid var(--b);padding:7px;font-size:10px;color:var(--m);line-height:1.55}.detail.show{display:block}.edit-note{font-size:10px;color:var(--m);margin-bottom:5px}.cancel{display:none}.cancel.show{display:inline-block}@media(max-width:420px){.grid-top{grid-template-columns:42px 1fr 56px 58px}.grid-lot{grid-template-columns:78px 1fr 38px 38px}.th,.row{grid-template-columns:49px 27px minmax(0,1fr) 42px 42px 27px}.lot-item{grid-template-columns:78px 32px minmax(0,1fr) 25px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="panel">
+    <div class="title">Zakázkový list <span id="uidState"></span></div>
+    <div id="editNote" class="edit-note"></div>
+    <div class="grid-top">
+      <input id="qa" type="text" inputmode="decimal" placeholder="QA">
+      <input id="anid" list="productList" placeholder="ANID">
+      <input id="prc" class="readonly" readonly placeholder="PRC">
+      <div class="outs outs-menu"><button id="prctBtn" type="button">PRCT ▾</button><div id="prctPop" class="outs-pop"><label><input type="radio" name="prct" value="STD" checked> STD</label><label><input type="radio" name="prct" value="XKK"> XKK</label><label><input type="radio" name="prct" value="INT"> INT</label></div></div>
+    </div>
+    <div class="grid-mid">
+      <input id="prcy" list="priceList" placeholder="PRCY" value="26.2">
+      <input id="productName" class="readonly" readonly placeholder="popis výrobku">
+      <div class="outs outs-menu"><button id="outsBtn" type="button">OUTS ▾</button><div id="outsPop" class="outs-pop"><label><input type="checkbox" value="MB" data-outs> MB</label><label><input type="checkbox" value="DE" data-outs> DE</label><label><input type="checkbox" value="CN" data-outs> CN</label><label><input type="checkbox" value="FN" data-outs> FN</label></div></div>
+    </div>
+    <div class="grid-lot">
+      <input id="mnlot" list="lotList" placeholder="MNLOT">
+      <input id="lotName" class="readonly" readonly placeholder="název přísl. materiálu">
+      <input id="qnl" type="text" inputmode="decimal" placeholder="QNL">
+      <button id="addLot" class="mod-primary" type="button">+</button>
+    </div>
+    <div id="lots" class="lots"></div>
+    <div class="footer"><span id="status" class="status"></span><button id="cancelEdit" class="cancel" type="button">Zrušit</button><button id="saveEntry" class="mod-primary" type="button">Vložit</button></div>
+  </section>
+  <section class="panel">
+    <div class="title">Seznam výkonů</div>
+    <div id="entries" class="table"></div>
+  </section>
+</div>
+<datalist id="productList"></datalist><datalist id="lotList"></datalist><datalist id="priceList"><option value="26"><option value="26.2"></datalist>
+<script>
+const t=window.TrelloPowerUp.iframe();
+const PRODUCTS=[{anid:'30513P',name:'Korunka zirkonová A2',e:1260,f:1090},{anid:'30508P',name:'Fazeta lithium disilikát',e:980,f:850},{anid:'30520P',name:'Můstkový člen zirkon',e:1120,f:970}];
+const LOTS=[{lot:'LOT-26-0142',name:'Disk zirkonu A2 Ø98 × 18 mm'},{lot:'LOT-26-0308',name:'Barvicí kapalina A2'},{lot:'LOT-26-0460',name:'Kompozitní blok A3'}];
+let uid='',entries=[],pendingLots=[],editingId=null;
+const $=id=>document.getElementById(id); const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function n(v){const x=String(v??'').trim().replace(',','.');return /^\d+(\.\d)?$/.test(x)?Number(x):null} function fmt(v){return Number(v).toLocaleString('cs-CZ',{maximumFractionDigits:1})}
+function selectedPRCT(){return document.querySelector('input[name="prct"]:checked').value}function selectedOUTS(){return [...document.querySelectorAll('[data-outs]:checked')].map(x=>x.value)}
+function findProduct(){return PRODUCTS.find(x=>x.anid.toLowerCase()===$('anid').value.trim().toLowerCase())}function findLot(){return LOTS.find(x=>x.lot.toLowerCase()===$('mnlot').value.trim().toLowerCase())}
+function updateProduct(){const p=findProduct();$('productName').value=p?p.name:'';$('prc').value=p?fmt(selectedPRCT()==='XKK'?p.f:p.e):''}function updateLot(){const l=findLot();$('lotName').value=l?l.name:'';if(!$('qnl').dataset.dirty&&n($('qa').value)!==null)$('qnl').value=fmt(n($('qa').value))}
+function renderLots(){const root=$('lots');root.innerHTML='';pendingLots.forEach((l,i)=>{const d=document.createElement('div');d.className='lot-item';d.innerHTML=`<span>${esc(l.mnlot)}</span><span>${fmt(l.qnl)}</span><span>${esc(l.name)}</span><button class="mod-danger" data-lot-remove="${i}">−</button>`;root.appendChild(d)});root.querySelectorAll('[data-lot-remove]').forEach(b=>b.onclick=()=>{pendingLots.splice(Number(b.dataset.lotRemove),1);renderLots()});t.sizeTo(document.body)}
+function clearForm(){editingId=null;pendingLots=[];$('qa').value='';$('anid').value='';$('prc').value='';$('prcy').value='26.2';$('productName').value='';$('mnlot').value='';$('lotName').value='';$('qnl').value='';$('qnl').dataset.dirty='';document.querySelector('input[name="prct"][value="STD"]').checked=true;document.querySelectorAll('[data-outs]').forEach(x=>x.checked=false);$('saveEntry').textContent='Vložit';$('cancelEdit').classList.remove('show');$('editNote').textContent='';renderLots()}
+function setStatus(x){$('status').textContent=x||'';t.sizeTo(document.body)}
+function addLot(){const l=findLot(),q=n($('qnl').value);if(!l)return setStatus('Vyber platný MNLOT.');if(q===null||q<=0)return setStatus('QNL musí být větší než 0.');pendingLots.push({mnlot:l.lot,qnl:q,name:l.name});$('mnlot').value='';$('lotName').value='';$('qnl').value=fmt(n($('qa').value)??'');$('qnl').dataset.dirty='';setStatus('Šarže přidána.');renderLots()}
+function entryData(){const qa=n($('qa').value),p=findProduct();if(qa===null||qa<=0)throw Error('QA musí být číslo větší než 0.');if(!p)throw Error('Vyber platný ANID.');return{id:editingId||crypto.randomUUID(),order_uid:uid,qa,anid:p.anid,name:p.name,prc:selectedPRCT()==='XKK'?p.f:p.e,prct:selectedPRCT(),prcy:$('prcy').value.trim()||'26.2',outs:selectedOUTS(),lots:structuredClone(pendingLots),updated_at:new Date().toISOString()}}
+async function save(){try{const x=entryData();const i=entries.findIndex(e=>e.id===x.id);if(i>=0)entries[i]=x;else entries.push(x);await t.set('card','shared','zakazkovyListEntries',entries);setStatus(i>=0?'Zápis upraven.':'Zápis vložen.');clearForm();renderEntries()}catch(e){setStatus(e.message)}}
+function detail(e){return `<div class="detail" id="detail-${e.id}"><b>UID:</b> ${esc(e.order_uid)}<br><b>PRC:</b> ${fmt(e.prc)} · <b>PRCT:</b> ${esc(e.prct)} · <b>PRCY:</b> ${esc(e.prcy)}<br><b>OUTS:</b> ${e.outs.length?esc(e.outs.join(', ')):'—'}<br><b>MNLOT:</b> ${e.lots.length?e.lots.map(l=>esc(l.mnlot)+' · '+fmt(l.qnl)+' ks · '+esc(l.name)).join('<br>'):'—'}</div>`}
+function renderEntries(){const root=$('entries');if(!entries.length){root.innerHTML='<div class="empty">Zatím bez výkonů.</div>';t.sizeTo(document.body);return}root.innerHTML=`<div class="th"><span>ANID</span><span>QA</span><span>název</span><span>MNLOT</span><span>OUTS</span><span></span></div>`+entries.map(e=>`<div><div class="row"><span>${esc(e.anid)}</span><span>${fmt(e.qa)}</span><span>${esc(e.name)}</span><span>${e.lots.length?e.lots.length:'—'}</span><span>${e.outs.length?esc(e.outs.join(',')):'—'}</span><span class="menu"><button data-menu="${e.id}">☰</button><div id="menu-${e.id}" class="menu-pop"><button data-edit="${e.id}">Upravit</button><button data-detail="${e.id}">Detail</button><button data-delete="${e.id}">Smazat</button></div></span></div>${detail(e)}</div>`).join('');root.querySelectorAll('[data-menu]').forEach(b=>b.onclick=()=>$('menu-'+b.dataset.menu).classList.toggle('show'));root.querySelectorAll('[data-edit]').forEach(b=>edit(b.dataset.edit));root.querySelectorAll('[data-detail]').forEach(b=>b.onclick=()=>{$('detail-'+b.dataset.detail).classList.toggle('show');t.sizeTo(document.body)});root.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>remove(b.dataset.delete));t.sizeTo(document.body)}
+function edit(id){return()=>{const e=entries.find(x=>x.id===id);if(!e)return;editingId=e.id;$('qa').value=fmt(e.qa);$('anid').value=e.anid;$('prcy').value=e.prcy;document.querySelector(`input[name="prct"][value="${e.prct}"]`).checked=true;document.querySelectorAll('[data-outs]').forEach(x=>x.checked=e.outs.includes(x.value));pendingLots=structuredClone(e.lots);updateProduct();renderLots();$('saveEntry').textContent='Uložit';$('cancelEdit').classList.add('show');$('editNote').textContent='Upravuješ výkon '+e.anid+'.';setStatus('');window.scrollTo({top:0,behavior:'smooth'});t.sizeTo(document.body)}}
+async function remove(id){if(!confirm('Smazat tento výkon?'))return;entries=entries.filter(x=>x.id!==id);await t.set('card','shared','zakazkovyListEntries',entries);if(editingId===id)clearForm();renderEntries();setStatus('Zápis smazán.')}
+async function loadUID(){try{const c=await t.card('customFieldItems'),b=await t.board('customFields');const f=(b.customFields||[]).find(x=>{const z=(x.name||'').toLowerCase();return z==='uid'||z.includes('uid')})||b.customFields?.[0];const x=(c.customFieldItems||[]).find(v=>v.idCustomField===f?.id);uid=x?.value?.text?.trim()||'';$('uidState').textContent=uid?'· UID '+uid:'· UID chybí'}catch(e){$('uidState').textContent='· UID nelze načíst'}}
+function lists(){const p=$('productList'),l=$('lotList');p.innerHTML=PRODUCTS.map(x=>`<option value="${x.anid}">${x.name}</option>`).join('');l.innerHTML=LOTS.map(x=>`<option value="${x.lot}">${x.name}</option>`).join('')}
+$('anid').addEventListener('input',updateProduct);document.querySelectorAll('input[name="prct"]').forEach(x=>x.onchange=()=>{updateProduct();$('prctPop').classList.remove('show')});$('qa').oninput=()=>{if(!$('qnl').dataset.dirty)updateLot()};$('mnlot').oninput=updateLot;$('qnl').oninput=()=>{$('qnl').dataset.dirty='1'};$('addLot').onclick=addLot;$('saveEntry').onclick=save;$('cancelEdit').onclick=()=>{clearForm();setStatus('Úprava zrušena.')};$('prctBtn').onclick=()=>$('prctPop').classList.toggle('show');$('outsBtn').onclick=()=>$('outsPop').classList.toggle('show');document.addEventListener('click',e=>{if(!e.target.closest('.outs-menu'))document.querySelectorAll('.outs-pop').forEach(x=>x.classList.remove('show'));if(!e.target.closest('.menu'))document.querySelectorAll('.menu-pop').forEach(x=>x.classList.remove('show'))});
+t.render(async()=>{lists();await loadUID();entries=await t.get('card','shared','zakazkovyListEntries',[]);renderLots();renderEntries();t.sizeTo(document.body)});
+</script>
+</body>
+</html>

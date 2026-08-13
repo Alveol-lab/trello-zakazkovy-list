@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Zakázkový list — Trello Power-Up</title>
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+</head>
+<body>
+<script>
+window.TrelloPowerUp.initialize({
+  'card-back-section': function (t) {
+    return {
+      title: 'Zakázkový list',
+      icon: 'https://cdn.jsdelivr.net/npm/lucide-static@0.468.0/icons/clipboard-list.svg',
+      content: {
+        type: 'iframe',
+        url: './section.html',
+        height: 560
+      }
+    };
+  }
+});
+</script>
+</body>
+</html>
