@@ -752,7 +752,11 @@ body{
   function clearForm(){
     fill({}); state.editIndex = null;
     clearMatRow();
+    updateInsertLabel();
     resize();
+  }
+  function updateInsertLabel(){
+    $('insert').textContent = (state.editIndex != null) ? 'přepsat' : 'vložit';
   }
   /* výchozí stav formuláře: Cen = dvojčíslí roku, ORD z vlastního pole karty */
   function resetDefaults(){
@@ -767,7 +771,7 @@ body{
       });
     }
   }
-  function loadRow(i){ fill(state.rows[i]); state.editIndex = i; resetDefaults(); resize(); }
+  function loadRow(i){ fill(state.rows[i]); state.editIndex = i; updateInsertLabel(); resetDefaults(); resize(); }
 
   $('clear').addEventListener('click', function(){ clearForm(); resetDefaults(); });
   /* stejný kód produktu se slučuje do jednoho řádku:
