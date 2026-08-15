@@ -724,10 +724,10 @@ body{
         + '</div>';
     }).join('');
     Array.prototype.forEach.call(b.querySelectorAll('[data-menu]'), function(btn){
-      btn.addEventListener('click', function(){
+      btn.addEventListener('click', function(e){
         var i = parseInt(btn.getAttribute('data-menu'),10);
         if (!t) return;
-        t.popup({ title:'Výkon', items:[
+        t.popup({ title:'Výkon', mouseEvent:e, items:[
           { text:'Upravit', callback:function(tt){ loadRow(i); return tt.closePopup(); } },
           { text:'Smazat',  callback:function(tt){
               state.rows.splice(i,1); renderRows(); save(); resize(); return tt.closePopup(); } }
