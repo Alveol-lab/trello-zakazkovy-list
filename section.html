@@ -804,23 +804,28 @@ body{
     sumRows();
   }
 
-  /* --- cena celkem: součet ctot všech uložených řádků ---
+  /* --- cena celkem / zálohované komp.: součet ctot všech uložených řádků ---
      ctot se v seznamu nezobrazuje, ale je součástí každého řádku
      v state.rows (viz FIELDS) - stačí ho tam sečíst, nič dalšího
      se záznamu do EVIDENCE ani jinam zatím nezapisuje.
      Řádky, jejichž kód produktu (anid) začíná na "ZANA"
-     (např. ZANAD, ZANAE), se do součtu NEzahrnují.                    */
+     (např. ZANAD, ZANAE), jsou zálohované komponenty - jejich
+     hodnota se NEzčitává do "cena celkem", ale tvoří součet
+     samostatného pole "zálohované komp.".                             */
   function isZana(anid){
     return String(anid || '').toUpperCase().indexOf('ZANA') === 0;
   }
   function sumRows(){
-    var total = 0, any = false;
+    var total = 0, anyTotal = false;
+    var zaloha = 0, anyZaloha = false;
     state.rows.forEach(function(r){
-      if (isZana(r.anid)) return;
       var n = numParse(r.ctot);
-      if (!isNaN(n)) { total += n; any = true; }
+      if (isNaN(n)) return;
+      if (isZana(r.anid)) { zaloha += n; anyZaloha = true; }
+      else { total += n; anyTotal = true; }
     });
-    $('sumCena').textContent = any ? numFmt(total) : '';
+    $('sumCena').textContent = anyTotal ? numFmt(total) : '';
+    $('sumZaloha').textContent = anyZaloha ? numFmt(zaloha) : '';
   }
 
   function collect(){
