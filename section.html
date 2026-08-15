@@ -8,7 +8,7 @@
 <style>
 /* =========================================================
    ZAKÁZKOVÝ LIST — vlastní styl, TMAVÝ BUILD
-   Rozložení i barvy odečteny přímo z Formular-zakazek-2.pdf
+   Rozložení i barvy odečteny přímo z Case-form-01.pdf
    (žádné globální tokeny Trella — ty se v kartě neprosadily).
    Referenční plocha PDF: šířka obsahu 73,70 pt, písmo 2,00 pt
    -> 1rem = 2,00 pt = 2,7137 % šířky sekce (nastavuje JS).
@@ -47,10 +47,12 @@ body{
              "Helvetica Neue",sans-serif;
   font-size:1rem;color:var(--txt);-webkit-font-smoothing:antialiased;
 }
-#app{width:100%;background:var(--bg)}
+#app{width:100%;background:var(--bg);padding-top:1.31rem}
 
 /* ---------- záhlaví ---------- */
-.hdr{display:flex;align-items:center;padding:1.60rem 0 1.27rem}
+/* Case-form-01.pdf hlavičku ani logo neobsahuje. Pro vrácení stačí
+   smazat řádek s display:none a vrátit padding 1.60rem 0 1.27rem. */
+.hdr{display:none;align-items:center;padding:1.60rem 0 1.27rem}
 .hdr svg{width:2.04rem;height:2.04rem;display:block;flex:none;margin-left:.27rem}
 .hdr svg .bgr{fill:none}
 .hdr svg .mark{fill:var(--txt)}
@@ -84,7 +86,7 @@ body{
   padding-left:1.60rem;line-height:normal;cursor:pointer;
 }
 .selwrap::before{
-  content:"▾";position:absolute;left:.83rem;top:50%;transform:translateY(-50%);
+  content:"▾";position:absolute;left:.85rem;top:50%;transform:translateY(-50%);
   color:var(--arrow);font-size:.85rem;pointer-events:none;z-index:1;
 }
 
@@ -99,88 +101,88 @@ body{
 .btn.primary{background:var(--accent);color:var(--accent-txt)}
 
 /* ---------- řádek 1 ---------- */
-.r1 .c1{width:14.650%}
-.r1 .g1{width:1.452%}
+.r1 .c1{width:14.654%}
+.r1 .g1{width:1.341%}
 .r1 .c2{width:20.330%}
-.r1 .g2{width:1.682%}
-.r1 .c3{width:61.886%}
+.r1 .g2{width:1.862%}
+.r1 .c3{width:61.556%}
 
 /* ---------- řádek 2 ---------- */
-.r2{margin-top:.395rem}
-.r2 .c1{width:14.650%}
-.r2 .g1{width:1.438%}
-.r2 .c2{width:20.326%}
-.r2 .g2{width:1.859%}
-.r2 .c3{width:9.715%}
-.r2 .g3{width:4.600%}
+.r2{margin-top:.394rem}
+.r2 .c1{width:14.654%}
+.r2 .g1{width:1.319%}
+.r2 .c2{width:20.335%}
+.r2 .g2{width:2.049%}
+.r2 .c3{width:9.712%}
+.r2 .g3{width:4.596%}
 .r2 .c4{width:22.795%}
-.r2 .g4{width:1.397%}
-.r2 .c5{width:23.220%}
+.r2 .g4{width:1.400%}
+.r2 .c5{width:22.795%}
 
 /* ---------- materiálový pás ---------- */
-.band{margin-top:1.69rem;padding:.95rem 0 1.055rem;background:var(--bg-band)}
-.rm .m1{width:28.710%}
-.rm .gm1{width:1.710%}
-.rm .m2{width:38.010%}
-.rm .gm2{width:1.791%}
-.rm .m3{width:14.360%}
-.rm .gm3{width:1.764%}
-.rm .m4{width:13.655%}
+.band{margin-top:1.712rem;padding:.926rem 0 1.043rem;background:var(--bg-band)}
+.rm .m1{width:28.703%}
+.rm .gm1{width:1.706%}
+.rm .m2{width:38.015%}
+.rm .gm2{width:1.774%}
+.rm .m3{width:14.352%}
+.rm .gm3{width:1.768%}
+.rm .m4{width:13.669%}
 
-.mpanel{position:relative;margin-top:.915rem;padding:.445rem 0 1.325rem;
+.mpanel{position:relative;margin-top:.938rem;padding:.443rem 0 1.327rem;
         background:var(--bg);border-radius:.50rem}
-.mrules{position:absolute;left:0;right:0;top:.965rem;bottom:1.815rem;
+.mrules{position:absolute;left:0;right:0;top:.964rem;bottom:1.818rem;
         pointer-events:none}
 .mrules i{position:absolute;top:0;bottom:0;width:1px;background:var(--rule-mat)}
-.mrules i:nth-child(1){left:16.560%}
-.mrules i:nth-child(2){left:25.300%}
+.mrules i:nth-child(1){left:16.567%}
+.mrules i:nth-child(2){left:25.309%}
 .mpanel.empty-state .mrules{display:none}
 
 .mrow{display:flex;align-items:center;height:2.48rem}
 .mrow + .mrow{margin-top:.40rem}
 .mrow .cell{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
             padding:0 .35rem 0 .79rem}
-.mrow .k1{width:16.510%}
-.mrow .k2{width:8.820%}
-.mrow .k3{width:67.970%;font-size:.85rem}
-.mrow .btn{width:6.700%}
+.mrow .k1{width:16.567%}
+.mrow .k2{width:8.742%}
+.mrow .k3{width:67.977%;font-size:.85rem}
+.mrow .btn{width:6.708%}
 .empty{color:var(--txt);font-size:.85rem;padding:.60rem .79rem}
 
 /* ---------- akční řádek ---------- */
-.acts{display:flex;margin-top:.375rem}
+.acts{display:flex;margin-top:.387rem}
 .acts .sp{flex:1 1 auto}
-.acts .x{width:7.040%}
-.acts .ga{width:1.680%}
-.acts .ok{width:18.450%}
+.acts .x{width:7.044%}
+.acts .ga{width:1.684%}
+.acts .ok{width:19.900%}
 
 /* ---------- seznam výkonů ---------- */
 .caption{color:var(--txt);font-size:1rem;line-height:1rem;
-         margin:.345rem 0 1.11rem;padding-left:.21rem}
+         margin:.350rem 0 1.109rem;padding-left:.21rem}
 
 .tbl{background:var(--panel-tbl);border-radius:.50rem;overflow:hidden}
-.thead{display:flex;align-items:center;height:2.30rem;background:var(--bg-band)}
+.thead{display:flex;align-items:center;height:2.302rem;background:var(--bg-band)}
 .thead div,.trow div{min-width:0;overflow:hidden;white-space:nowrap;
                      text-overflow:ellipsis;padding:0 .35rem 0 .83rem}
 .thead div{color:var(--txt-head)}
 .thead .h3{font-size:.85rem}
 
 /* jedna mřížka pro hlavičku, oddělovače i tělo */
-.t1{width:15.290%}
-.t2{width:9.230%}
-.t3{width:26.860%}
-.t4{width:23.750%}
-.t5{width:18.170%}
-.t6{width:6.700%}
+.t1{width:15.234%}
+.t2{width:9.314%}
+.t3{width:26.835%}
+.t4{width:23.745%}
+.t5{width:18.158%}
+.t6{width:6.708%}
 
-#tbody{position:relative;min-height:20.445rem}
-.rules{position:absolute;left:0;right:0;top:.80rem;bottom:1.00rem;pointer-events:none}
+#tbody{position:relative;min-height:20.443rem}
+.rules{position:absolute;left:0;right:0;top:.91rem;bottom:.99rem;pointer-events:none}
 .rules i{position:absolute;top:0;bottom:0;width:1px;background:var(--rule)}
-.rules i:nth-child(1){left:15.290%}
-.rules i:nth-child(2){left:24.520%}
-.rules i:nth-child(3){left:51.380%}
-.rules i:nth-child(4){left:75.130%}
+.rules i:nth-child(1){left:15.234%}
+.rules i:nth-child(2){left:24.548%}
+.rules i:nth-child(3){left:51.383%}
+.rules i:nth-child(4){left:75.128%}
 
-.trow{display:flex;align-items:center;height:3.34rem;position:relative}
+.trow{display:flex;align-items:center;height:3.343rem;position:relative}
 .trow .t6{display:flex;align-items:center;justify-content:center;padding:0}
 .menu{background:var(--bg-band);border:0;color:var(--txt);border-radius:.35rem;
       width:100%;height:2.48rem;cursor:pointer;font-size:1rem;line-height:1;padding:0}
@@ -218,7 +220,7 @@ body{
       </select>
     </span>
     <span class="gap g2"></span>
-    <input class="f c3 hi" id="ceny" placeholder="CenY">
+    <input class="f c3 hi" id="ceny" placeholder="Cen">
     <span class="gap g3"></span>
     <input class="f c4 sm bare" id="cjed" placeholder="CENA JEDNOTKY" readonly>
     <span class="gap g4"></span>
