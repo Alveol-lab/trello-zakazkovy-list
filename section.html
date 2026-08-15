@@ -389,7 +389,8 @@ body{
     v = qaClean(v);
     if (v === '' || v === '.') return '';
     var n = parseFloat(v);
-    return isNaN(n) ? '' : n.toFixed(1);
+    if (isNaN(n)) return '';
+    return (n % 1 === 0) ? String(n) : n.toFixed(1);
   }
   function qaValid(v){ var n = parseFloat(v); return !isNaN(n) && n !== 0; }
 
@@ -525,7 +526,7 @@ body{
   function numFmt(v){
     var n = numParse(v);
     if (isNaN(n)) return '';
-    return n.toFixed(2).replace('.', ',') + CURRENCY;
+    return (n % 1 === 0 ? String(n) : n.toFixed(2).replace('.', ',')) + CURRENCY;
   }
   function recalcTotal(){
     var q = numParse($('qa').value), c = numParse($('cjed').value);
