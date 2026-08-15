@@ -10,13 +10,18 @@
 <script>
 window.TrelloPowerUp.initialize({
   'card-back-section': function (t) {
+    var theme = 'dark';
+    try {
+      var ctx = t.getContext();
+      if (ctx && ctx.theme) theme = ctx.theme;
+    } catch (e) {}
     return {
       title: 'Zakázkový list',
       icon: 'https://cdn.jsdelivr.net/npm/lucide-static@0.468.0/icons/clipboard-list.svg',
       content: {
         type: 'iframe',
-        url: './section.html',
-        height: 560
+        url: t.signUrl('./section.html', { theme: theme }),
+        height: 300
       }
     };
   }

@@ -1,80 +1,73 @@
 <!doctype html>
-<html lang="cs">
+<html lang="cs" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Zakázkový list</title>
 <script src="https://p.trellocdn.com/power-up.min.js"></script>
 <style>
-  :root{
-    --txt:#c7ccd6;
-    --txt-dim:#8b93a5;
-    --line:rgba(255,255,255,.22);
+  html[data-theme="dark"]{
+    --txt:#c7ccd6; --txt-dim:#9aa2b1;
+    --line:rgba(255,255,255,.26);
     --fill:rgba(255,255,255,.05);
-    --fill-2:rgba(255,255,255,.08);
-    --fill-3:rgba(255,255,255,.13);
-    --panel:rgba(255,255,255,.03);
-    --panel-2:rgba(0,0,0,.14);
-    --accent:#7aa5f0;
-    --hd:#7f93b5;
-    --r:.55em;
+    --fill-3:rgba(255,255,255,.14);
+    --panel:rgba(255,255,255,.035);
+    --panel-2:rgba(0,0,0,.20);
+    --accent:#7aa5f0; --accent-txt:#10131a; --hd:#8fa3c4;
   }
-  @media (prefers-color-scheme: light){
-    :root{
-      --txt:#33383f; --txt-dim:#6b7280;
-      --line:rgba(0,0,0,.26);
-      --fill:rgba(0,0,0,.04); --fill-2:rgba(0,0,0,.07); --fill-3:rgba(0,0,0,.11);
-      --panel:rgba(0,0,0,.03); --panel-2:rgba(0,0,0,.05);
-      --accent:#4f7fe0; --hd:#5c6b85;
-    }
+  html[data-theme="light"]{
+    --txt:#22272b; --txt-dim:#626f86;
+    --line:rgba(0,0,0,.28);
+    --fill:rgba(9,30,66,.05);
+    --fill-3:rgba(9,30,66,.12);
+    --panel:rgba(9,30,66,.04);
+    --panel-2:rgba(9,30,66,.08);
+    --accent:#4f7fe0; --accent-txt:#ffffff; --hd:#5c6b85;
   }
+
   *{box-sizing:border-box}
-  html,body{margin:0;padding:0;background:transparent;overflow:hidden}
+  html,body{margin:0!important;padding:0!important;background:transparent!important;overflow:hidden!important}
   body{
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    color:var(--txt);
+    color:var(--txt); line-height:1.2;
   }
 
-  /* Celá plocha se poměrově škáluje podle šířky sekce karty,
-     takže rozložení z předlohy se nikdy nerozpadá do dalších řádků. */
-  #app{
-    container-type:inline-size;
-    width:100%;
-  }
-  #scale{ font-size:clamp(8.5px, 3.15cqw, 14px); }
+  #app{width:100%;background:transparent}
+  /* velikost písma nastavuje JS podle skutečné šířky sekce karty */
+  #scale{font-size:12px}
 
-  .hdr{display:flex;align-items:center;gap:.65em;padding:.55em .2em .85em}
-  .hdr svg{width:1.9em;height:1.9em;display:block;flex:none}
-  .hdr svg #Artboard3{fill:none}
-  .hdr svg #HATCH{fill:var(--txt-dim)}
-  .hdr span{font-size:1.35em;color:var(--txt-dim);letter-spacing:.01em}
+  .hdr{display:flex;align-items:center;gap:.6em;padding:.3em .2em .7em}
+  .hdr svg{width:1.85em;height:1.85em;display:block;flex:none}
+  .hdr svg .bgr{fill:none}
+  .hdr svg .mark{fill:var(--txt-dim)}
+  .hdr span{font-size:1.3em;color:var(--txt-dim)}
 
-  .block{padding:.7em .55em;border-radius:.7em}
+  .block{padding:.6em .5em;border-radius:.6em}
   .block.a{background:var(--panel)}
-  .block.b{background:var(--panel-2);margin-top:.35em}
-  .block.c{margin-top:.35em;padding-top:.55em}
+  .block.b{background:var(--panel-2);margin-top:.3em}
+  .block.c{margin-top:.3em;padding:.5em}
 
-  .row{display:flex;gap:.6em;align-items:stretch}
-  .row + .row{margin-top:.6em}
+  .row{display:flex;gap:.5em;align-items:stretch}
+  .row + .row{margin-top:.5em}
 
   .f{
-    min-width:0;flex:none;height:2.6em;
-    border:1px solid var(--line);border-radius:var(--r);
+    display:block;min-width:0;flex:none;
+    height:2.35em;line-height:2.2em;
+    border:1px solid var(--line);border-radius:.45em;
     background:transparent;color:var(--txt);
-    font:inherit;font-size:1.05em;padding:0 .6em;
-    line-height:2.4em;
+    font-family:inherit;font-size:1em;font-weight:400;
+    padding:0 .55em;margin:0;
   }
-  .f::placeholder{color:var(--txt-dim)}
+  .f::placeholder{color:var(--txt-dim);opacity:1}
   .f:focus{outline:none;border-color:var(--accent)}
-  select.f{appearance:none;background:var(--fill-3);border-color:var(--fill-3);cursor:pointer;
-    background-image:linear-gradient(transparent,transparent);padding-left:1.6em}
-  .selwrap{position:relative;min-width:0}
-  .selwrap::before{content:"▾";position:absolute;left:.55em;top:50%;transform:translateY(-50%);
-    color:var(--txt-dim);font-size:.95em;pointer-events:none}
-  .selwrap .f{width:100%}
-  .ro{border-color:transparent;background:var(--fill);color:var(--txt-dim);text-align:left}
+  .selwrap{position:relative;min-width:0;display:flex}
+  .selwrap select{appearance:none;-webkit-appearance:none;width:100%;
+    background:var(--fill-3);border-color:transparent;padding-left:1.5em;cursor:pointer}
+  .selwrap::before{content:"▾";position:absolute;left:.5em;top:50%;transform:translateY(-50%);
+    color:var(--txt-dim);font-size:.9em;pointer-events:none;z-index:1}
+  .ro{border-color:transparent;background:var(--fill);color:var(--txt-dim)}
 
-  /* --- poměry sloupců podle předlohy --- */
+  /* poměry sloupců přesně podle předlohy */
   .r1 .c1{flex:0 0 14.6%}
   .r1 .c2{flex:0 0 20.2%}
   .r1 .c3{flex:1 1 auto}
@@ -83,55 +76,53 @@
   .r2 .c3{flex:0 0 9.6%}
   .r2 .c4{flex:1 1 22%}
   .r2 .c5{flex:1 1 22%}
-
   .rm .m1{flex:0 0 29.8%}
   .rm .m2{flex:1 1 auto}
   .rm .m3{flex:0 0 14.4%}
   .rm .m4{flex:0 0 13.4%}
 
   .btn{
-    min-width:0;height:2.6em;border:0;border-radius:var(--r);
+    min-width:0;height:2.35em;border:0;border-radius:.45em;
     background:var(--fill-3);color:var(--txt);
-    font:inherit;font-size:1.05em;cursor:pointer;line-height:1;
+    font-family:inherit;font-size:1em;cursor:pointer;line-height:1;padding:0;
     display:flex;align-items:center;justify-content:center;
   }
-  .btn:hover{filter:brightness(1.18)}
-  .btn.plus{font-size:1.5em;height:1.82em}
-  .btn.primary{background:var(--accent);color:#10131a;font-weight:600}
+  .btn:hover{filter:brightness(1.2)}
+  .btn.plus{font-size:1.4em;height:1.68em}
+  .btn.primary{background:var(--accent);color:var(--accent-txt);font-weight:600}
 
-  .mlist{margin-top:.6em;background:var(--fill);border-radius:.7em;padding:.45em .55em;min-height:3.2em}
-  .mlist .empty{color:var(--txt-dim);font-size:.95em;padding:.75em .35em}
-  .mrow{display:flex;align-items:center;gap:0;padding:.35em 0}
-  .mrow .cell{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    font-size:1.02em;padding:0 .6em}
+  .mlist{margin-top:.5em;background:var(--fill);border-radius:.6em;padding:.35em .5em}
+  .mlist .empty{color:var(--txt-dim);padding:.55em .3em;font-size:.95em}
+  .mrow{display:flex;align-items:center;padding:.28em 0}
+  .mrow .cell{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 .55em}
   .mrow .k1{flex:0 0 22%}
   .mrow .k2{flex:0 0 11%;border-left:1px solid var(--line)}
   .mrow .k3{flex:1 1 auto;border-left:1px solid var(--line);color:var(--txt-dim)}
-  .mrow .btn{flex:0 0 13.4%;height:2.3em;font-size:1.2em}
+  .mrow .btn{flex:0 0 13.4%;height:2em;font-size:1.15em}
 
-  .acts{display:flex;justify-content:flex-end;gap:.6em;margin-bottom:.5em}
+  .acts{display:flex;justify-content:flex-end;gap:.5em;margin-bottom:.45em}
   .acts .btn{flex:0 0 auto;padding:0 .9em}
-  .acts .btn.x{width:3.3em;padding:0}
-  .acts .btn.primary{min-width:7.5em}
+  .acts .btn.x{width:3em;padding:0}
+  .acts .btn.primary{min-width:7em}
 
-  .caption{color:var(--txt-dim);font-size:1.1em;margin:.2em .2em .5em}
+  .caption{color:var(--txt-dim);font-size:1.05em;margin:.1em .2em .45em}
 
-  .tbl{background:var(--fill);border-radius:.7em;overflow:hidden}
+  .tbl{background:var(--fill);border-radius:.6em;overflow:hidden}
   .thead,.trow{display:flex;align-items:center}
-  .thead{background:var(--panel-2);color:var(--hd);font-size:1.05em}
-  .thead div{padding:.75em .6em;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .thead{background:var(--panel-2);color:var(--hd)}
+  .thead div{padding:.6em .55em;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .trow{border-top:1px solid var(--line)}
-  .trow div{padding:.6em;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:1.02em}
+  .trow div{padding:.5em .55em;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .t1{flex:0 0 14%}
   .t2{flex:0 0 8%}
   .t3{flex:1 1 auto}
   .t4{flex:0 0 21%}
   .t5{flex:0 0 12%}
   .t6{flex:0 0 9%;display:flex;justify-content:flex-end}
-  .menu{background:var(--panel-2);border:0;color:var(--txt-dim);border-radius:.4em;
-    width:2.2em;height:2em;cursor:pointer;font-size:1em;line-height:1}
+  .menu{background:var(--panel-2);border:0;color:var(--txt-dim);border-radius:.35em;
+    width:2.1em;height:1.9em;cursor:pointer;font-size:1em;line-height:1;padding:0}
   .menu:hover{color:var(--txt)}
-  .tempty{padding:1.4em .8em;color:var(--txt-dim);font-size:1em}
+  .tempty{padding:.9em .6em;color:var(--txt-dim);font-size:.95em}
 </style>
 </head>
 <body>
@@ -139,20 +130,20 @@
 
   <div class="hdr">
     <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <rect id="Artboard3" x="0" y="0" width="15.36" height="15.36"/>
-      <path id="HATCH" d="M14.914,7.379l-1.418,-1.46c-0.029,-0.03 -0.074,-0.036 -0.11,-0.016c-0.439,0.249 -1.211,0.854 -1.889,0.854c-0.145,0 -0.306,-0.027 -0.471,-0.069c-0.072,-0.018 -0.122,-0.083 -0.122,-0.157l-0,-5.959c-0,-0.081 -0.066,-0.147 -0.147,-0.147l-3.291,0c-0.081,0 -0.147,0.066 -0.147,0.147l0,4.34c0,0.076 -0.072,0.133 -0.146,0.113c-0.51,-0.135 -1.123,-0.218 -1.886,-0.218c-2.828,0 -4.74,1.912 -4.74,5.099c0,3.267 1.872,4.9 4.143,4.9c1.07,0 1.952,-0.34 2.647,-0.876c0.314,-0.242 0.756,-0.214 1.039,0.064c0.621,0.612 1.425,0.772 2.13,0.772c0.888,0 1.239,-0.108 1.442,-0.153c0.012,-0.015 0.02,-0.025 0.032,-0.04l0.039,-2.614c0,-0.023 -0.019,-0.042 -0.042,-0.042c-0.384,-0.002 -0.676,-0.036 -0.991,-0.102c-0.048,-0.01 -0.082,-0.052 -0.082,-0.101l-0,-1.344c-0,-0.032 0.026,-0.057 0.058,-0.057c0.701,0.002 1.353,-0.288 1.889,-0.58c1.328,-0.722 1.875,-1.862 2.077,-2.251c0.018,-0.034 0.012,-0.076 -0.015,-0.104Zm-7.594,2.368c0,1.434 -0.837,2.111 -1.793,2.111c-0.876,0 -1.394,-0.598 -1.394,-1.952c0,-1.633 0.717,-2.151 1.673,-2.151c0.617,0 1.135,0.179 1.514,0.418l-0,1.574Z"/>
+      <rect class="bgr" x="0" y="0" width="15.36" height="15.36"/>
+      <path class="mark" d="M14.914,7.379l-1.418,-1.46c-0.029,-0.03 -0.074,-0.036 -0.11,-0.016c-0.439,0.249 -1.211,0.854 -1.889,0.854c-0.145,0 -0.306,-0.027 -0.471,-0.069c-0.072,-0.018 -0.122,-0.083 -0.122,-0.157l-0,-5.959c-0,-0.081 -0.066,-0.147 -0.147,-0.147l-3.291,0c-0.081,0 -0.147,0.066 -0.147,0.147l0,4.34c0,0.076 -0.072,0.133 -0.146,0.113c-0.51,-0.135 -1.123,-0.218 -1.886,-0.218c-2.828,0 -4.74,1.912 -4.74,5.099c0,3.267 1.872,4.9 4.143,4.9c1.07,0 1.952,-0.34 2.647,-0.876c0.314,-0.242 0.756,-0.214 1.039,0.064c0.621,0.612 1.425,0.772 2.13,0.772c0.888,0 1.239,-0.108 1.442,-0.153c0.012,-0.015 0.02,-0.025 0.032,-0.04l0.039,-2.614c0,-0.023 -0.019,-0.042 -0.042,-0.042c-0.384,-0.002 -0.676,-0.036 -0.991,-0.102c-0.048,-0.01 -0.082,-0.052 -0.082,-0.101l-0,-1.344c-0,-0.032 0.026,-0.057 0.058,-0.057c0.701,0.002 1.353,-0.288 1.889,-0.58c1.328,-0.722 1.875,-1.862 2.077,-2.251c0.018,-0.034 0.012,-0.076 -0.015,-0.104Zm-7.594,2.368c0,1.434 -0.837,2.111 -1.793,2.111c-0.876,0 -1.394,-0.598 -1.394,-1.952c0,-1.633 0.717,-2.151 1.673,-2.151c0.617,0 1.135,0.179 1.514,0.418l-0,1.574Z"/>
     </svg>
     <span>zakázkový list</span>
   </div>
 
   <div class="block a">
     <div class="row r1">
-      <input class="f c1" id="qa"    placeholder="množství">
-      <input class="f c2" id="anid"  placeholder="kód produktu">
-      <input class="f c3" id="anam"  placeholder="popis výrobku">
+      <input class="f c1" id="qa"   placeholder="množství">
+      <input class="f c2" id="anid" placeholder="kód produktu">
+      <input class="f c3" id="anam" placeholder="popis výrobku">
     </div>
     <div class="row r2">
-      <input class="f c1" id="ord"   placeholder="ORD">
+      <input class="f c1" id="ord"  placeholder="ORD">
       <span class="selwrap c2">
         <select class="f" id="outs">
           <option value="">OUT</option>
@@ -181,9 +172,7 @@
       <button class="btn x" id="clear" title="zrušit">✕</button>
       <button class="btn primary" id="insert">vložit</button>
     </div>
-
     <div class="caption">seznam výkonů</div>
-
     <div class="tbl">
       <div class="thead">
         <div class="t1">ANID</div>
@@ -201,29 +190,49 @@
 
 <script>
 (function () {
-  var t = window.TrelloPowerUp && window.TrelloPowerUp.iframe ? window.TrelloPowerUp.iframe() : null;
-
-  var state = { mats: [], rows: [], editIndex: null };
+  var t = (window.TrelloPowerUp && window.TrelloPowerUp.iframe) ? window.TrelloPowerUp.iframe() : null;
   var $ = function (id) { return document.getElementById(id); };
+  var state = { mats: [], rows: [], editIndex: null };
   var FIELDS = ['qa','anid','anam','ord','outs','ceny','cjed','ctot'];
+
+  /* ---------- motiv podle Trella ---------- */
+  function applyTheme(){
+    var th = null;
+    try { th = new URLSearchParams(location.search).get('theme'); } catch(e) {}
+    if (!th && t) { try { var c = t.getContext(); if (c && c.theme) th = c.theme; } catch(e) {} }
+    if (th !== 'light' && th !== 'dark') th = 'dark';
+    document.documentElement.setAttribute('data-theme', th);
+  }
+  applyTheme();
+
+  /* ---------- měřítko + výška iframe ---------- */
+  var lastH = 0;
+  function scaleAndSize(){
+    var w = $('app').clientWidth || document.documentElement.clientWidth || 356;
+    var fs = Math.max(9, Math.min(13, w * 0.0165));
+    $('scale').style.fontSize = fs.toFixed(2) + 'px';
+    if (!t) return;
+    var h = Math.ceil($('app').getBoundingClientRect().height) + 4;
+    if (h > 0 && Math.abs(h - lastH) > 1) {
+      lastH = h;
+      try { t.sizeTo(h); } catch(e) {}
+    }
+  }
+  var pending = false;
+  function resize(){
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(function(){ pending = false; scaleAndSize(); });
+  }
+  if (window.ResizeObserver) new ResizeObserver(resize).observe($('app'));
+  window.addEventListener('resize', resize);
+  window.addEventListener('load', resize);
+  [80, 250, 600, 1200].forEach(function(ms){ setTimeout(resize, ms); });
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 
-  /* --- výška iframe --- */
-  var sizing = false;
-  function resize(){
-    if (!t || sizing) return;
-    sizing = true;
-    requestAnimationFrame(function(){
-      sizing = false;
-      try { t.sizeTo('#app'); } catch(e) {}
-    });
-  }
-  if (window.ResizeObserver) new ResizeObserver(resize).observe($('app'));
-  window.addEventListener('load', resize);
-
-  /* --- materiály --- */
+  /* ---------- materiály ---------- */
   function renderMats(){
     var el = $('mlist');
     if (!state.mats.length){ el.innerHTML = '<div class="empty">zatím žádný materiál</div>'; return; }
@@ -252,7 +261,7 @@
     renderMats(); resize();
   });
 
-  /* --- seznam výkonů --- */
+  /* ---------- seznam výkonů ---------- */
   function renderRows(){
     var b = $('tbody');
     if (!state.rows.length){ b.innerHTML = '<div class="tempty">zatím žádný výkon</div>'; return; }
@@ -268,18 +277,14 @@
         + '</div>';
     }).join('');
     Array.prototype.forEach.call(b.querySelectorAll('[data-menu]'), function(btn){
-      btn.addEventListener('click', function(){ openMenu(btn, parseInt(btn.getAttribute('data-menu'),10)); });
-    });
-  }
-
-  function openMenu(anchor, i){
-    if (!t) return;
-    t.popup({
-      title: 'Výkon',
-      items: [
-        { text: 'Upravit', callback: function(tt){ loadRow(i); return tt.closePopup(); } },
-        { text: 'Smazat',  callback: function(tt){ state.rows.splice(i,1); renderRows(); save(); resize(); return tt.closePopup(); } }
-      ]
+      btn.addEventListener('click', function(){
+        var i = parseInt(btn.getAttribute('data-menu'),10);
+        if (!t) return;
+        t.popup({ title:'Výkon', items:[
+          { text:'Upravit', callback:function(tt){ loadRow(i); return tt.closePopup(); } },
+          { text:'Smazat',  callback:function(tt){ state.rows.splice(i,1); renderRows(); save(); resize(); return tt.closePopup(); } }
+        ]});
+      });
     });
   }
 
@@ -298,32 +303,28 @@
     $('mnlot').value = ''; $('mnam').value = ''; $('qnl').value = '';
     resize();
   }
-  function loadRow(i){
-    fill(state.rows[i]); state.editIndex = i; resize();
-  }
+  function loadRow(i){ fill(state.rows[i]); state.editIndex = i; resize(); }
 
   $('clear').addEventListener('click', clearForm);
-
   $('insert').addEventListener('click', function(){
     var r = collect();
     if (!r.anid && !r.anam) return;
-    if (state.editIndex != null) state.rows[state.editIndex] = r;
-    else state.rows.push(r);
+    if (state.editIndex != null) state.rows[state.editIndex] = r; else state.rows.push(r);
     state.editIndex = null;
     clearForm(); renderRows(); save(); resize();
   });
 
-  /* --- perzistence na kartě --- */
+  /* ---------- perzistence ---------- */
   function save(){
     if (!t) return;
     t.set('card','shared','zakazkovyList',{ rows: state.rows }).catch(function(){});
   }
   function load(){
-    if (!t) { renderMats(); renderRows(); return; }
+    if (!t) { renderMats(); renderRows(); resize(); return; }
     t.get('card','shared','zakazkovyList').then(function(d){
       state.rows = (d && d.rows) || [];
       renderMats(); renderRows(); resize();
-    }).catch(function(){ renderMats(); renderRows(); });
+    }).catch(function(){ renderMats(); renderRows(); resize(); });
   }
 
   load();
