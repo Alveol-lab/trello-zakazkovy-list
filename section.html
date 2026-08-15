@@ -324,7 +324,7 @@ body{
      Dokud není zdroj nastavený, pole "popis výrobku" zůstává prázdné
      a zápis do seznamu se tím neblokuje.
      ================================================================= */
-  var PRICEBOOK_URL = 'https://script.google.com/macros/s/AKfycbznePFzglKk5BZ4bFaVnGZEJI4yz_B3xQMnvRC298PHTJ0lpBrGvnV-2SAmcU53RRqh/exec';
+  var PRICEBOOK_URL = 'https://script.google.com/macros/s/AKfycbyoF5oQtNIh8YktGX9lNcwj1OwSKbthQovlYIr-vbi2fJ6CN1heJYJxnB96zTVZDQpz/exec';
   var pbCache = {};           /* 'kód|verze' -> {anam, cjed} nebo null */
 
   function pricebookLookup(code, ver){
@@ -352,7 +352,7 @@ body{
   /* ---- načítání názvu materiálu podle šarže (MNLOT) ------------------
      zdroj: EVIDENCE, list a sloupce ještě nejsou určené;
      adaptér očekává odpověď { mnam: 'název materiálu' }              */
-  var MATERIAL_URL = null;    /* doplní se, až bude zdroj vybraný */
+  var MATERIAL_URL = 'https://script.google.com/macros/s/AKfycbyoF5oQtNIh8YktGX9lNcwj1OwSKbthQovlYIr-vbi2fJ6CN1heJYJxnB96zTVZDQpz/exec';
   var mtCache = {};           /* 'šarže' -> {mnam} nebo null */
 
   function materialLookup(lot){
