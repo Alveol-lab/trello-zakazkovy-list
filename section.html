@@ -36,6 +36,9 @@
   --bd-faint:#38383C;    /* CENA JEDNOTKY, CENA TOTAL              */
   --rule:#575E6E;        /* oddělovače v tabulce výkonů            */
   --rule-mat:#3D4451;    /* oddělovače v seznamu materiálu         */
+  /* stavy polí (v PDF nejsou, hodnoty lze změnit) */
+  --bd-bad:#E2686B;      /* rámeček pole, které blokuje zápis      */
+  --txt-wait:#6E6F72;    /* text pole, které se právě načítá       */
 }
 
 *{box-sizing:border-box}
@@ -78,6 +81,9 @@ body{
 .f.dim{color:var(--txt-dim)}                            /* popis výrobku    */
 .f.soft{--bd-c:var(--bd-soft)}                    /* mat. název, QNL  */
 .f.bare{background:transparent;--bd-c:var(--bd-faint);color:var(--txt-dim)}
+.f.bad{--bd-c:var(--bd-bad)}                      /* blokuje zápis    */
+.f.wait{color:var(--txt-wait)}                    /* načítá se        */
+.f[readonly]{cursor:default}
 
 .selwrap{position:relative;min-width:0;display:flex;flex:none}
 .selwrap select{
@@ -207,7 +213,7 @@ body{
     <span class="gap g1"></span>
     <input class="f c2" id="anid" placeholder="kód produktu">
     <span class="gap g2"></span>
-    <input class="f c3 sm dim" id="anam" placeholder="popis výrobku">
+    <input class="f c3 sm dim" id="anam" placeholder="popis výrobku" readonly>
   </div>
 
   <div class="row r2">
@@ -279,6 +285,130 @@ body{
   var $ = function (id) { return document.getElementById(id); };
   var state = { mats: [], rows: [], editIndex: null };
   var FIELDS = ['qa','anid','anam','ord','outs','ceny','cjed','ctot'];
+
+  /* =================================================================
+     CENÍK — zdroj dat pro pole "popis výrobku" a "CENA JEDNOTKY"
+     Sada ceníku se každý rok generuje znovu, proto se hledá vždy
+     kombinací kódu produktu (pole "kód produktu") a verze ceníku
+     (pole "Cen", např. 26 nebo 26B).
+     Dokud není zdroj nastavený, pole "popis výrobku" zůstává prázdné
+     a zápis do seznamu se tím neblokuje.
+     ================================================================= */
+  var PRICEBOOK_URL = null;   /* doplní se, až bude zdroj vybraný */
+  var pbCache = {};           /* 'kód|verze' -> {anam, cjed} nebo null */
+
+  function pricebookLookup(code, ver){
+    var key = code + '|' + ver;
+    if (Object.prototype.hasOwnProperty.call(pbCache, key)) {
+      return Promise.resolve(pbCache[key]);
+    }
+    if (!PRICEBOOK_URL) return Promise.resolve(undefined);
+    var url = PRICEBOOK_URL
+            + (PRICEBOOK_URL.indexOf('?') < 0 ? '?' : '&')
+            + 'code=' + encodeURIComponent(code)
+            + '&ver='  + encodeURIComponent(ver);
+    return fetch(url, { cache: 'no-store' })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        var hit = (d && d.anam != null) ? { anam: d.anam, cjed: d.cjed } : null;
+        pbCache[key] = hit;
+        return hit;
+      })
+      .catch(function(){ return undefined; });
+  }
+
+  /* =================================================================
+     DEFINICE POLÍ
+     ================================================================= */
+
+  /* --- 1. množství -------------------------------------------------
+     číslo s jedním desetinným místem, nesmí být nula ani prázdné    */
+  function qaClean(v){
+    v = String(v).replace(/,/g, '.').replace(/[^0-9.]/g, '');
+    var i = v.indexOf('.');
+    if (i >= 0) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/\./g, '').slice(0, 1);
+    return v;
+  }
+  function qaNorm(v){
+    v = qaClean(v);
+    if (v === '' || v === '.') return '';
+    var n = parseFloat(v);
+    return isNaN(n) ? '' : n.toFixed(1);
+  }
+  function qaValid(v){ var n = parseFloat(v); return !isNaN(n) && n !== 0; }
+
+  /* --- 2. kód produktu ---------------------------------------------
+     číslice, velká písmena a znaky - ; | _ / ; nesmí být prázdné    */
+  function anidClean(v){
+    return String(v).toUpperCase().replace(/[^0-9A-Z\-;|_\/]/g, '');
+  }
+  function anidValid(v){ return anidClean(v).length > 0; }
+
+  /* --- 6. Cen (verze ceníku) ---------------------------------------
+     dvě číslice + nepovinné velké písmeno, např. 26 nebo 26B;
+     výchozí hodnota je poslední dvojčíslí aktuálního roku,
+     lze ji přepsat ručně; nesmí být prázdné                        */
+  function cenyClean(v){
+    v = String(v).toUpperCase().replace(/[^0-9A-Z]/g, '');
+    var d = v.replace(/[^0-9]/g, '').slice(0, 2);
+    var a = v.replace(/[^A-Z]/g, '').slice(0, 1);
+    return d.length === 2 ? d + a : d;
+  }
+  function cenyValid(v){ return /^[0-9]{2}[A-Z]?$/.test(v); }
+  function cenyDefault(){ return String(new Date().getFullYear()).slice(-2); }
+
+  /* --- průběžné hlídání zápisu ------------------------------------- */
+  function mark(el, ok){ el.classList.toggle('bad', !ok); }
+  function formValid(){
+    var a = qaValid($('qa').value), b = anidValid($('anid').value),
+        c = cenyValid($('ceny').value);
+    mark($('qa'), a); mark($('anid'), b); mark($('ceny'), c);
+    return a && b && c;
+  }
+
+  /* --- 3. popis výrobku -------------------------------------------
+     načítá se z ceníku podle kódu produktu a verze ceníku          */
+  var pbSeq = 0;
+  function refreshAnam(){
+    var code = anidClean($('anid').value), ver = $('ceny').value, el = $('anam');
+    if (!code || !cenyValid(ver)) { el.classList.remove('wait'); el.value = ''; return; }
+    var seq = ++pbSeq;
+    el.classList.add('wait');
+    pricebookLookup(code, ver).then(function(hit){
+      if (seq !== pbSeq) return;                 /* mezitím se to změnilo */
+      el.classList.remove('wait');
+      el.value = hit ? hit.anam : '';
+      if (hit && hit.cjed != null) $('cjed').value = hit.cjed;
+      resize();
+    });
+  }
+
+  /* --- navázání na pole ------------------------------------------- */
+  $('qa').addEventListener('input', function(){
+    var c = qaClean(this.value);
+    if (c !== this.value) this.value = c;
+    mark(this, qaValid(this.value));
+  });
+  $('qa').addEventListener('blur', function(){
+    this.value = qaNorm(this.value);
+    mark(this, qaValid(this.value));
+  });
+
+  $('anid').addEventListener('input', function(){
+    var p = this.selectionStart, c = anidClean(this.value);
+    if (c !== this.value) { this.value = c; try { this.setSelectionRange(p, p); } catch(e){} }
+    mark(this, anidValid(this.value));
+  });
+  $('anid').addEventListener('change', refreshAnam);
+  $('anid').addEventListener('blur', refreshAnam);
+
+  $('ceny').addEventListener('input', function(){
+    var c = cenyClean(this.value);
+    if (c !== this.value) this.value = c;
+    mark(this, cenyValid(this.value));
+  });
+  $('ceny').addEventListener('change', refreshAnam);
+  $('ceny').addEventListener('blur', refreshAnam);
 
   /* ---- tmavý build: barvy jsou pevné dle PDF, nic se nedetekuje ---- */
   document.documentElement.setAttribute('data-theme', 'dark');
@@ -382,15 +512,22 @@ body{
     $('mnlot').value = ''; $('mnam').value = ''; $('qnl').value = '';
     resize();
   }
-  function loadRow(i){ fill(state.rows[i]); state.editIndex = i; resize(); }
+  /* výchozí stav formuláře: Cen = dvojčíslí aktuálního roku */
+  function resetDefaults(){
+    if (!$('ceny').value) $('ceny').value = cenyDefault();
+    ['qa','anid','ceny'].forEach(function(f){ $(f).classList.remove('bad'); });
+    $('anam').classList.remove('wait');
+  }
+  function loadRow(i){ fill(state.rows[i]); state.editIndex = i; resetDefaults(); resize(); }
 
-  $('clear').addEventListener('click', clearForm);
+  $('clear').addEventListener('click', function(){ clearForm(); resetDefaults(); });
   $('insert').addEventListener('click', function(){
+    $('qa').value = qaNorm($('qa').value);
+    if (!formValid()) return;
     var r = collect();
-    if (!r.anid && !r.anam) return;
     if (state.editIndex != null) state.rows[state.editIndex] = r; else state.rows.push(r);
     state.editIndex = null;
-    clearForm(); renderRows(); save(); resize();
+    clearForm(); resetDefaults(); renderRows(); save(); resize();
   });
 
   /* ---- perzistence v kartě ---- */
@@ -399,6 +536,7 @@ body{
     t.set('card','shared','zakazkovyList',{ rows: state.rows }).catch(function(){});
   }
   function load(){
+    resetDefaults();
     if (!t) { renderMats(); renderRows(); resize(); return; }
     t.get('card','shared','zakazkovyList').then(function(d){
       state.rows = (d && d.rows) || [];
