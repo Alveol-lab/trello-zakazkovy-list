@@ -93,8 +93,29 @@ body{
 }
 .selwrap::before{
   content:"▾";position:absolute;left:.85rem;top:50%;transform:translateY(-50%);
-  color:var(--arrow);font-size:.85rem;pointer-events:none;z-index:1;
+  color:var(--arrow);font-size:.85rem;pointer-events:none;z-index:2;
 }
+/* OUT — vícenásobný výběr; zavřený stav vypadá jako pole z PDF */
+.outsbtn{
+  width:100%;text-align:left;cursor:pointer;
+  background:var(--btn);color:var(--txt);--bd-c:var(--bd);
+  padding-left:1.60rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+}
+.outsbtn.ph{color:var(--txt-dim)}          /* nic nevybráno */
+.outsmenu{
+  position:absolute;z-index:3;top:calc(100% + .30rem);left:0;min-width:100%;
+  background:var(--btn);border-radius:.35rem;
+  box-shadow:inset 0 0 0 1px var(--bd), 0 .4rem 1.2rem rgba(0,0,0,.45);
+  padding:.35rem 0;
+}
+.outsmenu label{
+  display:flex;align-items:center;gap:.55rem;
+  padding:.30rem .85rem;font-size:1rem;color:var(--txt);cursor:pointer;
+  white-space:nowrap;
+}
+.outsmenu label:hover{background:rgba(255,255,255,.06)}
+.outsmenu input{width:1.1rem;height:1.1rem;margin:0;accent-color:var(--accent);
+                flex:none;cursor:pointer}
 
 .btn{
   min-width:0;flex:none;height:2.48rem;border:0;border-radius:.35rem;
@@ -220,10 +241,14 @@ body{
     <input class="f c1 hi" id="ord" placeholder="ORD">
     <span class="gap g1"></span>
     <span class="selwrap c2">
-      <select class="f" id="outs">
-        <option value="OUT">OUT</option>
-        <option value="IN">IN</option>
-      </select>
+      <button type="button" class="f outsbtn" id="outsBtn" aria-expanded="false"></button>
+      <input type="hidden" id="outs">
+      <div class="outsmenu" id="outsMenu" hidden>
+        <label><input type="checkbox" value="MB"><span>MB</span></label>
+        <label><input type="checkbox" value="DE"><span>DE</span></label>
+        <label><input type="checkbox" value="CN"><span>CN</span></label>
+        <label><input type="checkbox" value="FN"><span>FN</span></label>
+      </div>
     </span>
     <span class="gap g2"></span>
     <input class="f c3 hi" id="ceny" placeholder="Cen">
@@ -288,9 +313,14 @@ body{
 
   /* =================================================================
      CENÍK — zdroj dat pro pole "popis výrobku" a "CENA JEDNOTKY"
+     Zdroj: EVIDENCE, list CEN
+       sloupec A .. kód produktu
+       sloupec B .. popis výrobku
+       sloupec E .. cena jednotky (běžná)
+       sloupec F .. cena jednotky, pokud ORD == 'XKK'
+       sloupec Y .. rok / verze ceníku
      Sada ceníku se každý rok generuje znovu, proto se hledá vždy
-     kombinací kódu produktu (pole "kód produktu") a verze ceníku
-     (pole "Cen", např. 26 nebo 26B).
+     kombinací kódu produktu a verze ceníku (pole "Cen", např. 26 nebo 26B).
      Dokud není zdroj nastavený, pole "popis výrobku" zůstává prázdné
      a zápis do seznamu se tím neblokuje.
      ================================================================= */
@@ -310,7 +340,9 @@ body{
     return fetch(url, { cache: 'no-store' })
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
-        var hit = (d && d.anam != null) ? { anam: d.anam, cjed: d.cjed } : null;
+        /* očekávaná odpověď: { anam: 'B', cjedE: 'E', cjedF: 'F' } */
+        var hit = (d && d.anam != null)
+                ? { anam: d.anam, cjedE: d.cjedE, cjedF: d.cjedF } : null;
         pbCache[key] = hit;
         return hit;
       })
@@ -344,6 +376,68 @@ body{
   }
   function anidValid(v){ return anidClean(v).length > 0; }
 
+  /* --- 4. ORD --------------------------------------------------------
+     výchozí hodnota se načte z vlastního pole karty (Custom Field),
+     ručně ji lze přepsat; jen velká písmena, nejvýše 3 znaky,
+     nesmí být prázdné                                               */
+  var ORD_FIELD_NAME = '\uD83D\uDC68\u200D\u2695\uFE0F';   /* 👨‍⚕️ */
+  var ORD_FIELD_ID   = '67235a6d2934ab21b9be0d77';            /* DTO_Produkce */
+
+  function ordClean(v){ return String(v).toUpperCase().replace(/[^A-Z]/g,'').slice(0,3); }
+  function ordValid(v){ return ordClean(v).length > 0; }
+
+  function ordFromCustomField(){
+    if (!t) return Promise.resolve('');
+    return Promise.all([ t.board('customFields'), t.card('customFieldItems') ])
+      .then(function(r){
+        var flds  = (r[0] && r[0].customFields) || [];
+        var items = (r[1] && r[1].customFieldItems) || [];
+        var f = null, i;
+        for (i = 0; i < flds.length; i++) if (flds[i].name === ORD_FIELD_NAME) { f = flds[i]; break; }
+        if (!f) for (i = 0; i < flds.length; i++) if (flds[i].id === ORD_FIELD_ID) { f = flds[i]; break; }
+        if (!f) return '';
+        for (i = 0; i < items.length; i++) {
+          if (items[i].idCustomField !== f.id) continue;
+          var v = items[i].value || {};
+          return String(v.text != null ? v.text : (v.number != null ? v.number : ''));
+        }
+        return '';
+      })
+      .catch(function(){ return ''; });
+  }
+
+  /* --- 5. OUT --------------------------------------------------------
+     vícenásobný výběr ze čtyř hodnot; vybráno může být vše i nic     */
+  var OUT_VALUES = ['MB','DE','CN','FN'];
+
+  function outsGet(){
+    return $('outs').value ? $('outs').value.split(', ') : [];
+  }
+  function outsSet(arr){
+    var sel = OUT_VALUES.filter(function(v){ return arr.indexOf(v) >= 0; });
+    $('outs').value = sel.join(', ');
+    var b = $('outsBtn');
+    b.textContent = sel.length ? sel.join(', ') : 'OUT';
+    b.classList.toggle('ph', !sel.length);
+    Array.prototype.forEach.call($('outsMenu').querySelectorAll('input'), function(c){
+      c.checked = sel.indexOf(c.value) >= 0;
+    });
+  }
+  function outsMenu(open){
+    $('outsMenu').hidden = !open;
+    $('outsBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  $('outsBtn').addEventListener('click', function(e){
+    e.stopPropagation(); outsMenu($('outsMenu').hidden);
+  });
+  $('outsMenu').addEventListener('click', function(e){ e.stopPropagation(); });
+  $('outsMenu').addEventListener('change', function(){
+    outsSet(Array.prototype.filter.call(this.querySelectorAll('input'), function(c){
+      return c.checked; }).map(function(c){ return c.value; }));
+  });
+  document.addEventListener('click', function(){ outsMenu(false); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') outsMenu(false); });
+
   /* --- 6. Cen (verze ceníku) ---------------------------------------
      dvě číslice + nepovinné velké písmeno, např. 26 nebo 26B;
      výchozí hodnota je poslední dvojčíslí aktuálního roku,
@@ -360,10 +454,10 @@ body{
   /* --- průběžné hlídání zápisu ------------------------------------- */
   function mark(el, ok){ el.classList.toggle('bad', !ok); }
   function formValid(){
-    var a = qaValid($('qa').value), b = anidValid($('anid').value),
-        c = cenyValid($('ceny').value);
-    mark($('qa'), a); mark($('anid'), b); mark($('ceny'), c);
-    return a && b && c;
+    var a = qaValid($('qa').value),  b = anidValid($('anid').value),
+        c = cenyValid($('ceny').value), d = ordValid($('ord').value);
+    mark($('qa'), a); mark($('anid'), b); mark($('ceny'), c); mark($('ord'), d);
+    return a && b && c && d;
   }
 
   /* --- 3. popis výrobku -------------------------------------------
@@ -378,9 +472,18 @@ body{
       if (seq !== pbSeq) return;                 /* mezitím se to změnilo */
       el.classList.remove('wait');
       el.value = hit ? hit.anam : '';
-      if (hit && hit.cjed != null) $('cjed').value = hit.cjed;
+      applyPrice(hit);
       resize();
     });
+  }
+  /* cena jednotky: běžně sloupec E, u ORD == 'XKK' sloupec F */
+  var lastHit = null;
+  function applyPrice(hit){
+    lastHit = hit || null;
+    if (!lastHit) { $('cjed').value = ''; return; }
+    var xkk = ordClean($('ord').value) === 'XKK';
+    var v = xkk ? lastHit.cjedF : lastHit.cjedE;
+    $('cjed').value = (v == null ? '' : v);
   }
 
   /* --- navázání na pole ------------------------------------------- */
@@ -401,6 +504,13 @@ body{
   });
   $('anid').addEventListener('change', refreshAnam);
   $('anid').addEventListener('blur', refreshAnam);
+
+  $('ord').addEventListener('input', function(){
+    var c = ordClean(this.value);
+    if (c !== this.value) this.value = c;
+    mark(this, ordValid(this.value));
+    applyPrice(lastHit);       /* XKK přepíná sloupec ceny */
+  });
 
   $('ceny').addEventListener('input', function(){
     var c = cenyClean(this.value);
@@ -504,6 +614,8 @@ body{
   }
   function fill(o){
     FIELDS.forEach(function(f){ $(f).value = (o && o[f]) || ''; });
+    outsSet(outsGet());
+    lastHit = null;
     state.mats = (o && o.mats) ? o.mats.slice() : [];
     renderMats();
   }
@@ -512,11 +624,17 @@ body{
     $('mnlot').value = ''; $('mnam').value = ''; $('qnl').value = '';
     resize();
   }
-  /* výchozí stav formuláře: Cen = dvojčíslí aktuálního roku */
+  /* výchozí stav formuláře: Cen = dvojčíslí roku, ORD z vlastního pole karty */
   function resetDefaults(){
     if (!$('ceny').value) $('ceny').value = cenyDefault();
-    ['qa','anid','ceny'].forEach(function(f){ $(f).classList.remove('bad'); });
+    ['qa','anid','ceny','ord'].forEach(function(f){ $(f).classList.remove('bad'); });
     $('anam').classList.remove('wait');
+    outsSet(outsGet());
+    if (!$('ord').value) {
+      ordFromCustomField().then(function(v){
+        if (!$('ord').value && v) { $('ord').value = ordClean(v); applyPrice(lastHit); }
+      });
+    }
   }
   function loadRow(i){ fill(state.rows[i]); state.editIndex = i; resetDefaults(); resize(); }
 
