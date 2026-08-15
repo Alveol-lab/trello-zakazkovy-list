@@ -292,6 +292,8 @@ body{
     <input class="f c4 sm bare" id="cjed" placeholder="CENA JEDNOTKY" readonly>
     <span class="gap g4"></span>
     <input class="f c5 sm bare" id="ctot" placeholder="CENA TOTAL" readonly>
+    <input type="hidden" id="odmj">
+    <input type="hidden" id="odmt">
   </div>
 
   <div class="band">
@@ -375,7 +377,7 @@ body{
 
   var $ = function (id) { return document.getElementById(id); };
   var state = { mats: [], rows: [], editIndex: null };
-  var FIELDS = ['qa','anid','anam','ord','outs','ceny','cjed','ctot'];
+  var FIELDS = ['qa','anid','anam','ord','outs','ceny','cjed','ctot','odmj','odmt'];
 
   /* =================================================================
      CENÍK — zdroj dat pro pole "popis výrobku" a "CENA JEDNOTKY"
@@ -406,9 +408,9 @@ body{
     return fetch(url, { cache: 'no-store' })
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
-        /* očekávaná odpověď: { anam: 'B', cjedE: 'E', cjedF: 'F' } */
+        /* očekávaná odpověď: { anam:'B', cjedE:'E', cjedF:'F', odmI:'I', odmJ:'J' } */
         var hit = (d && d.anam != null)
-                ? { anam: d.anam, cjedE: d.cjedE, cjedF: d.cjedF } : null;
+                ? { anam: d.anam, cjedE: d.cjedE, cjedF: d.cjedF, odmI: d.odmI, odmJ: d.odmJ } : null;
         pbCache[key] = hit;
         return hit;
       })
@@ -570,12 +572,18 @@ body{
   /* --- 7. CENA JEDNOTKY ---------------------------------------------
      načítá se z ceníku: běžně sloupec E,
      pokud ORD == 'XKK', pak ze sloupce F                            */
+  /* --- odměna lab. (jednotka) --------------------------------------
+     načítá se z ceníku: běžně sloupec I,
+     pokud ORD == 'XKK', pak ze sloupce J - uloženo v skrytém poli
+     #odmj, aby přežilo i editaci řádku (loadRow/fill nemaží lastHit) */
   var lastHit = null;
   function applyPrice(hit){
     lastHit = hit || null;
-    var v = null;
-    if (lastHit) v = (ordClean($('ord').value) === 'XKK') ? lastHit.cjedF : lastHit.cjedE;
+    var isXKK = ordClean($('ord').value) === 'XKK';
+    var v  = lastHit ? (isXKK ? lastHit.cjedF : lastHit.cjedE) : null;
+    var ov = lastHit ? (isXKK ? lastHit.odmJ  : lastHit.odmI)  : null;
     $('cjed').value = numFmt(v);
+    $('odmj').value = numFmt(ov);
     recalcTotal();
   }
 
@@ -597,6 +605,8 @@ body{
   function recalcTotal(){
     var q = numParse($('qa').value), c = numParse($('cjed').value);
     $('ctot').value = (isNaN(q) || isNaN(c)) ? '' : numFmt(q * c);
+    var o = numParse($('odmj').value);
+    $('odmt').value = (isNaN(q) || isNaN(o)) ? '' : numFmt(q * o);
   }
 
   /* --- navázání na pole ------------------------------------------- */
@@ -804,28 +814,34 @@ body{
     sumRows();
   }
 
-  /* --- cena celkem / zálohované komp.: součet ctot všech uložených řádků ---
-     ctot se v seznamu nezobrazuje, ale je součástí každého řádku
-     v state.rows (viz FIELDS) - stačí ho tam sečíst, nič dalšího
+  /* --- cena celkem / zálohované komp. / odměny lab.: součty pro sumář ---
+     ctot i odmt se v seznamu nezobrazují, ale jsou součástí každého
+     řádku v state.rows (viz FIELDS) - stačí je tam sečíst, nič dalšího
      se záznamu do EVIDENCE ani jinam zatím nezapisuje.
      Řádky, jejichž kód produktu (anid) začíná na "ZANA"
      (např. ZANAD, ZANAE), jsou zálohované komponenty - jejich
      hodnota se NEzčitává do "cena celkem", ale tvoří součet
-     samostatného pole "zálohované komp.".                             */
+     samostatného pole "zálohované komp.".
+     "odměny lab." = součet odmt všech řádků (bez ohledu na ZANA).       */
   function isZana(anid){
     return String(anid || '').toUpperCase().indexOf('ZANA') === 0;
   }
   function sumRows(){
     var total = 0, anyTotal = false;
     var zaloha = 0, anyZaloha = false;
+    var odmeny = 0, anyOdmeny = false;
     state.rows.forEach(function(r){
       var n = numParse(r.ctot);
-      if (isNaN(n)) return;
-      if (isZana(r.anid)) { zaloha += n; anyZaloha = true; }
-      else { total += n; anyTotal = true; }
+      if (!isNaN(n)) {
+        if (isZana(r.anid)) { zaloha += n; anyZaloha = true; }
+        else { total += n; anyTotal = true; }
+      }
+      var od = numParse(r.odmt);
+      if (!isNaN(od)) { odmeny += od; anyOdmeny = true; }
     });
     $('sumCena').textContent = anyTotal ? numFmt(total) : '';
     $('sumZaloha').textContent = anyZaloha ? numFmt(zaloha) : '';
+    $('sumOdmeny').textContent = anyOdmeny ? numFmt(odmeny) : '';
   }
 
   function collect(){
@@ -883,6 +899,7 @@ body{
     target.qa   = qaNorm(String(numParse(target.qa) + numParse(add.qa)));
     target.mats = mergeMats(target.mats, add.mats);
     target.ctot = numFmt(numParse(target.qa) * numParse(target.cjed));
+    target.odmt = numFmt(numParse(target.qa) * numParse(target.odmj));
     return target;
   }
   function findSameCode(anid, skipIndex){
