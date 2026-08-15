@@ -2,33 +2,333 @@
 <html lang="cs">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://p.trellocdn.com/power-up.min.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Zakázkový list</title>
+<script src="https://p.trellocdn.com/power-up.min.js"></script>
 <style>
-:root{color-scheme:dark;--text:#f1f2f4;--muted:#b6c2cf;--field:#22272b;--line:#738496;--line-soft:#3e4954;--blue:#579dff;--blue2:#4c86dc;--danger:#ae4c45;--ok:#7ee2b8}
-*{box-sizing:border-box}html,body{width:100%;min-width:0;margin:0;padding:0;overflow:hidden;background:transparent;color:var(--text);font:13px/1.25 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.form{width:100%;min-width:0;max-width:none}.head{display:flex;align-items:center;gap:7px;margin:0 0 12px}.head img{display:block;width:26px;height:26px;object-fit:contain}.head h1{margin:0;font-size:14px;font-weight:700}.grid{display:grid;gap:7px;width:100%;margin-bottom:7px}.top{grid-template-columns:minmax(0,.8fr) minmax(0,1fr) minmax(0,2.8fr)}.price{grid-template-columns:70px minmax(84px,1fr) 64px minmax(0,1.25fr) minmax(0,1.25fr)}.material{grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) 68px 64px;align-items:end}label{display:none}input,select,button{width:100%;min-width:0;height:29px;border-radius:4px;font:inherit}input,select{padding:5px 8px;background:var(--field);color:var(--text);border:1px solid var(--line);outline:0}input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}button{padding:4px 8px;border:0;background:#435168;color:var(--text);font-weight:700;cursor:pointer}button:hover{background:#56677f}.plus{font-size:21px;line-height:1;background:#53698b}.section-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:12px 0 7px}.section-title{font-weight:700;font-size:13px}.inline-actions{display:flex;gap:7px}.inline-actions button{width:40px}.save{width:84px;background:var(--blue)}.save:hover{background:#85b8ff;color:#172b4d}.lots{width:100%;border-collapse:collapse;table-layout:fixed;background:rgba(79,94,113,.28);margin-top:7px}.lots td{height:25px;padding:4px 7px;border-bottom:1px solid var(--line-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lots tr:last-child td{border-bottom:0}.lots td:nth-child(1){width:17%}.lots td:nth-child(2){width:12%}.lots td:nth-child(3){width:auto}.lots td:nth-child(4){width:45px;padding:3px}.remove{height:21px;padding:0;background:var(--danger)}.empty{text-align:center;color:var(--muted)}.list-title{margin:20px 0 7px;color:var(--muted);font-size:12px;font-weight:700}.works{width:100%;border-collapse:collapse;table-layout:fixed;background:rgba(79,94,113,.28)}.works th{height:25px;padding:5px 7px;text-align:left;color:var(--muted);font-size:11px;font-weight:700}.works td{height:150px;border-right:2px solid #728198;vertical-align:top;padding:7px}.works td:last-child{border:0;width:45px;padding:5px;border-left:0}.works th:nth-child(1){width:15%}.works th:nth-child(2){width:10%}.works th:nth-child(3){width:28%}.works th:nth-child(4){width:23%}.works th:nth-child(5){width:auto}.work-btn{height:26px;margin-bottom:5px;background:#2f3947}.status{min-height:17px;margin-top:7px;color:var(--muted);font-size:12px}.status.ok{color:var(--ok)}@media(max-width:520px){.top{grid-template-columns:1fr 1fr}.top input:last-child{grid-column:span 2}.price{grid-template-columns:1fr 1fr}.price input:nth-child(4),.price input:nth-child(5){grid-column:span 1}.material{grid-template-columns:1fr 1fr}.material input:nth-child(2){grid-column:span 2}.works td{height:120px}}
+  :root{
+    --txt:#c7ccd6;
+    --txt-dim:#8b93a5;
+    --line:rgba(255,255,255,.22);
+    --fill:rgba(255,255,255,.05);
+    --fill-2:rgba(255,255,255,.08);
+    --fill-3:rgba(255,255,255,.13);
+    --panel:rgba(255,255,255,.03);
+    --panel-2:rgba(0,0,0,.14);
+    --accent:#7aa5f0;
+    --hd:#7f93b5;
+    --r:.55em;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --txt:#33383f; --txt-dim:#6b7280;
+      --line:rgba(0,0,0,.26);
+      --fill:rgba(0,0,0,.04); --fill-2:rgba(0,0,0,.07); --fill-3:rgba(0,0,0,.11);
+      --panel:rgba(0,0,0,.03); --panel-2:rgba(0,0,0,.05);
+      --accent:#4f7fe0; --hd:#5c6b85;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:transparent;overflow:hidden}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--txt);
+  }
+
+  /* Celá plocha se poměrově škáluje podle šířky sekce karty,
+     takže rozložení z předlohy se nikdy nerozpadá do dalších řádků. */
+  #app{
+    container-type:inline-size;
+    width:100%;
+  }
+  #scale{ font-size:clamp(8.5px, 3.15cqw, 14px); }
+
+  .hdr{display:flex;align-items:center;gap:.65em;padding:.55em .2em .85em}
+  .hdr svg{width:1.9em;height:1.9em;display:block;flex:none}
+  .hdr svg #Artboard3{fill:none}
+  .hdr svg #HATCH{fill:var(--txt-dim)}
+  .hdr span{font-size:1.35em;color:var(--txt-dim);letter-spacing:.01em}
+
+  .block{padding:.7em .55em;border-radius:.7em}
+  .block.a{background:var(--panel)}
+  .block.b{background:var(--panel-2);margin-top:.35em}
+  .block.c{margin-top:.35em;padding-top:.55em}
+
+  .row{display:flex;gap:.6em;align-items:stretch}
+  .row + .row{margin-top:.6em}
+
+  .f{
+    min-width:0;flex:none;height:2.6em;
+    border:1px solid var(--line);border-radius:var(--r);
+    background:transparent;color:var(--txt);
+    font:inherit;font-size:1.05em;padding:0 .6em;
+    line-height:2.4em;
+  }
+  .f::placeholder{color:var(--txt-dim)}
+  .f:focus{outline:none;border-color:var(--accent)}
+  select.f{appearance:none;background:var(--fill-3);border-color:var(--fill-3);cursor:pointer;
+    background-image:linear-gradient(transparent,transparent);padding-left:1.6em}
+  .selwrap{position:relative;min-width:0}
+  .selwrap::before{content:"▾";position:absolute;left:.55em;top:50%;transform:translateY(-50%);
+    color:var(--txt-dim);font-size:.95em;pointer-events:none}
+  .selwrap .f{width:100%}
+  .ro{border-color:transparent;background:var(--fill);color:var(--txt-dim);text-align:left}
+
+  /* --- poměry sloupců podle předlohy --- */
+  .r1 .c1{flex:0 0 14.6%}
+  .r1 .c2{flex:0 0 20.2%}
+  .r1 .c3{flex:1 1 auto}
+  .r2 .c1{flex:0 0 14.6%}
+  .r2 .c2{flex:0 0 20.2%}
+  .r2 .c3{flex:0 0 9.6%}
+  .r2 .c4{flex:1 1 22%}
+  .r2 .c5{flex:1 1 22%}
+
+  .rm .m1{flex:0 0 29.8%}
+  .rm .m2{flex:1 1 auto}
+  .rm .m3{flex:0 0 14.4%}
+  .rm .m4{flex:0 0 13.4%}
+
+  .btn{
+    min-width:0;height:2.6em;border:0;border-radius:var(--r);
+    background:var(--fill-3);color:var(--txt);
+    font:inherit;font-size:1.05em;cursor:pointer;line-height:1;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .btn:hover{filter:brightness(1.18)}
+  .btn.plus{font-size:1.5em;height:1.82em}
+  .btn.primary{background:var(--accent);color:#10131a;font-weight:600}
+
+  .mlist{margin-top:.6em;background:var(--fill);border-radius:.7em;padding:.45em .55em;min-height:3.2em}
+  .mlist .empty{color:var(--txt-dim);font-size:.95em;padding:.75em .35em}
+  .mrow{display:flex;align-items:center;gap:0;padding:.35em 0}
+  .mrow .cell{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-size:1.02em;padding:0 .6em}
+  .mrow .k1{flex:0 0 22%}
+  .mrow .k2{flex:0 0 11%;border-left:1px solid var(--line)}
+  .mrow .k3{flex:1 1 auto;border-left:1px solid var(--line);color:var(--txt-dim)}
+  .mrow .btn{flex:0 0 13.4%;height:2.3em;font-size:1.2em}
+
+  .acts{display:flex;justify-content:flex-end;gap:.6em;margin-bottom:.5em}
+  .acts .btn{flex:0 0 auto;padding:0 .9em}
+  .acts .btn.x{width:3.3em;padding:0}
+  .acts .btn.primary{min-width:7.5em}
+
+  .caption{color:var(--txt-dim);font-size:1.1em;margin:.2em .2em .5em}
+
+  .tbl{background:var(--fill);border-radius:.7em;overflow:hidden}
+  .thead,.trow{display:flex;align-items:center}
+  .thead{background:var(--panel-2);color:var(--hd);font-size:1.05em}
+  .thead div{padding:.75em .6em;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .trow{border-top:1px solid var(--line)}
+  .trow div{padding:.6em;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:1.02em}
+  .t1{flex:0 0 14%}
+  .t2{flex:0 0 8%}
+  .t3{flex:1 1 auto}
+  .t4{flex:0 0 21%}
+  .t5{flex:0 0 12%}
+  .t6{flex:0 0 9%;display:flex;justify-content:flex-end}
+  .menu{background:var(--panel-2);border:0;color:var(--txt-dim);border-radius:.4em;
+    width:2.2em;height:2em;cursor:pointer;font-size:1em;line-height:1}
+  .menu:hover{color:var(--txt)}
+  .tempty{padding:1.4em .8em;color:var(--txt-dim);font-size:1em}
 </style>
 </head>
 <body>
-<main class="form">
-<header class="head"><img src="logo-icon.svg" alt="Zakázkový list"><h1>zakázkový list</h1></header>
-<section>
-<div class="grid top"><input id="manLot" placeholder="man.NLOT"><input id="productCode" placeholder="kód produktu"><input id="productDesc" placeholder="popis výrobku"></div>
-<div class="grid price"><input id="ord" placeholder="ORD"><select id="out"><option>▼ OUT</option><option>IN</option></select><input id="priceType" placeholder="CenY"><input id="unitPrice" placeholder="CENA JEDNOTKY"><input id="totalPrice" placeholder="CENA TOTAL"></div>
-<div class="grid material"><input id="lot" placeholder="MNLOT"><input id="material" placeholder="název přísl. materiálu"><input id="qnl" placeholder="QNL" type="number" min="1"><button id="addLot" class="plus" type="button" aria-label="Přidat materiál">+</button></div>
-<table class="lots"><tbody id="lots"><tr><td class="empty" colspan="4">—</td></tr></tbody></table>
-<div class="section-row"><span></span><div class="inline-actions"><button id="clearLots" type="button" aria-label="Zrušit">×</button><button id="save" class="save" type="button">vložit</button></div></div>
-<div class="list-title">seznam výkonů</div>
-<table class="works"><thead><tr><th>ANID</th><th>QA</th><th>název</th><th>MNLOT</th><th>OUTS</th><th></th></tr></thead><tbody id="works"><tr><td></td><td></td><td></td><td></td><td></td><td><button class="work-btn" type="button">≡</button><button class="work-btn" type="button">≡</button></td></tr></tbody></table>
-<div id="status" class="status" role="status"></div>
-</section>
-</main>
+<div id="app"><div id="scale">
+
+  <div class="hdr">
+    <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect id="Artboard3" x="0" y="0" width="15.36" height="15.36"/>
+      <path id="HATCH" d="M14.914,7.379l-1.418,-1.46c-0.029,-0.03 -0.074,-0.036 -0.11,-0.016c-0.439,0.249 -1.211,0.854 -1.889,0.854c-0.145,0 -0.306,-0.027 -0.471,-0.069c-0.072,-0.018 -0.122,-0.083 -0.122,-0.157l-0,-5.959c-0,-0.081 -0.066,-0.147 -0.147,-0.147l-3.291,0c-0.081,0 -0.147,0.066 -0.147,0.147l0,4.34c0,0.076 -0.072,0.133 -0.146,0.113c-0.51,-0.135 -1.123,-0.218 -1.886,-0.218c-2.828,0 -4.74,1.912 -4.74,5.099c0,3.267 1.872,4.9 4.143,4.9c1.07,0 1.952,-0.34 2.647,-0.876c0.314,-0.242 0.756,-0.214 1.039,0.064c0.621,0.612 1.425,0.772 2.13,0.772c0.888,0 1.239,-0.108 1.442,-0.153c0.012,-0.015 0.02,-0.025 0.032,-0.04l0.039,-2.614c0,-0.023 -0.019,-0.042 -0.042,-0.042c-0.384,-0.002 -0.676,-0.036 -0.991,-0.102c-0.048,-0.01 -0.082,-0.052 -0.082,-0.101l-0,-1.344c-0,-0.032 0.026,-0.057 0.058,-0.057c0.701,0.002 1.353,-0.288 1.889,-0.58c1.328,-0.722 1.875,-1.862 2.077,-2.251c0.018,-0.034 0.012,-0.076 -0.015,-0.104Zm-7.594,2.368c0,1.434 -0.837,2.111 -1.793,2.111c-0.876,0 -1.394,-0.598 -1.394,-1.952c0,-1.633 0.717,-2.151 1.673,-2.151c0.617,0 1.135,0.179 1.514,0.418l-0,1.574Z"/>
+    </svg>
+    <span>zakázkový list</span>
+  </div>
+
+  <div class="block a">
+    <div class="row r1">
+      <input class="f c1" id="qa"    placeholder="množství">
+      <input class="f c2" id="anid"  placeholder="kód produktu">
+      <input class="f c3" id="anam"  placeholder="popis výrobku">
+    </div>
+    <div class="row r2">
+      <input class="f c1" id="ord"   placeholder="ORD">
+      <span class="selwrap c2">
+        <select class="f" id="outs">
+          <option value="">OUT</option>
+          <option value="OUT">OUT</option>
+          <option value="IN">IN</option>
+        </select>
+      </span>
+      <input class="f c3" id="ceny"  placeholder="CenY">
+      <input class="f c4 ro" id="cjed" placeholder="CENA JEDNOTKY" readonly>
+      <input class="f c5 ro" id="ctot" placeholder="CENA TOTAL" readonly>
+    </div>
+  </div>
+
+  <div class="block b">
+    <div class="row rm">
+      <input class="f m1" id="mnlot" placeholder="MNLOT">
+      <input class="f m2" id="mnam"  placeholder="název přísl. materiálu">
+      <input class="f m3" id="qnl"   placeholder="QNL">
+      <button class="btn plus m4" id="addMat" title="přidat materiál">+</button>
+    </div>
+    <div class="mlist" id="mlist"></div>
+  </div>
+
+  <div class="block c">
+    <div class="acts">
+      <button class="btn x" id="clear" title="zrušit">✕</button>
+      <button class="btn primary" id="insert">vložit</button>
+    </div>
+
+    <div class="caption">seznam výkonů</div>
+
+    <div class="tbl">
+      <div class="thead">
+        <div class="t1">ANID</div>
+        <div class="t2">QA</div>
+        <div class="t3">název</div>
+        <div class="t4">MNLOT</div>
+        <div class="t5">OUTS</div>
+        <div class="t6"></div>
+      </div>
+      <div id="tbody"></div>
+    </div>
+  </div>
+
+</div></div>
+
 <script>
-const t=window.TrelloPowerUp?window.TrelloPowerUp.iframe():null;let lots=[];const $=id=>document.getElementById(id);const fields=['manLot','productCode','productDesc','ord','out','priceType','unitPrice','totalPrice'];
-const resize=()=>{if(t)requestAnimationFrame(()=>t.sizeTo(document.documentElement.scrollHeight))};const say=(text,ok=false)=>{$('status').textContent=text;$('status').className='status'+(ok?' ok':'');resize()};const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-function render(){const el=$('lots');el.innerHTML=lots.length?lots.map((x,i)=>`<tr><td>${esc(x.lot)}</td><td>${esc(x.qnl)}</td><td>${esc(x.material)}</td><td><button class="remove" type="button" data-i="${i}">−</button></td></tr>`).join(''):'<tr><td class="empty" colspan="4">—</td></tr>';el.querySelectorAll('.remove').forEach(b=>b.addEventListener('click',()=>{lots.splice(+b.dataset.i,1);render()}));resize()}
-$('addLot').addEventListener('click',()=>{const lot=$('lot').value.trim(),material=$('material').value.trim(),qnl=$('qnl').value.trim();if(!lot||!material||!qnl||+qnl<=0){say('Vyplň MNLOT, název materiálu a QNL.');return}lots.push({lot,material,qnl});$('lot').value='';$('material').value='';$('qnl').value='';render();say('Materiál byl přidán.',true)});$('clearLots').addEventListener('click',()=>{lots=[];render();say('Materiály byly zrušeny.')});$('save').addEventListener('click',async()=>{if(!t){say('Uložení funguje pouze uvnitř Trella.');return}try{const data=Object.fromEntries(fields.map(id=>[id,$(id).value]));await t.set('card','shared','zakazkovyList',{...data,lots,updatedAt:new Date().toISOString()});say('Zakázkový list byl uložen ke kartě.',true)}catch(e){say('Uložení se nepodařilo: '+(e.message||'chyba'))}});(async()=>{if(t)try{const saved=await t.get('card','shared','zakazkovyList',null);if(saved){fields.forEach(id=>{if(saved[id]!==undefined)$(id).value=saved[id]});lots=Array.isArray(saved.lots)?saved.lots:[];say('Načtena data této karty.',true)}}catch(e){say('Data se nepodařilo načíst.')}render();window.addEventListener('resize',resize)})();
+(function () {
+  var t = window.TrelloPowerUp && window.TrelloPowerUp.iframe ? window.TrelloPowerUp.iframe() : null;
+
+  var state = { mats: [], rows: [], editIndex: null };
+  var $ = function (id) { return document.getElementById(id); };
+  var FIELDS = ['qa','anid','anam','ord','outs','ceny','cjed','ctot'];
+
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  /* --- výška iframe --- */
+  var sizing = false;
+  function resize(){
+    if (!t || sizing) return;
+    sizing = true;
+    requestAnimationFrame(function(){
+      sizing = false;
+      try { t.sizeTo('#app'); } catch(e) {}
+    });
+  }
+  if (window.ResizeObserver) new ResizeObserver(resize).observe($('app'));
+  window.addEventListener('load', resize);
+
+  /* --- materiály --- */
+  function renderMats(){
+    var el = $('mlist');
+    if (!state.mats.length){ el.innerHTML = '<div class="empty">zatím žádný materiál</div>'; return; }
+    el.innerHTML = state.mats.map(function(m,i){
+      return '<div class="mrow">'
+        + '<div class="cell k1">' + esc(m.mnlot) + '</div>'
+        + '<div class="cell k2">' + esc(m.qnl) + '</div>'
+        + '<div class="cell k3">' + esc(m.mnam) + '</div>'
+        + '<button class="btn" data-del="' + i + '" title="odebrat">−</button>'
+        + '</div>';
+    }).join('');
+    Array.prototype.forEach.call(el.querySelectorAll('[data-del]'), function(b){
+      b.addEventListener('click', function(){
+        state.mats.splice(parseInt(b.getAttribute('data-del'),10),1);
+        renderMats(); resize();
+      });
+    });
+  }
+
+  $('addMat').addEventListener('click', function(){
+    var mnlot = $('mnlot').value.trim(), mnam = $('mnam').value.trim(), qnl = $('qnl').value.trim();
+    if (!mnlot && !mnam) return;
+    state.mats.push({ mnlot: mnlot, mnam: mnam, qnl: qnl });
+    $('mnlot').value = ''; $('mnam').value = ''; $('qnl').value = '';
+    $('mnlot').focus();
+    renderMats(); resize();
+  });
+
+  /* --- seznam výkonů --- */
+  function renderRows(){
+    var b = $('tbody');
+    if (!state.rows.length){ b.innerHTML = '<div class="tempty">zatím žádný výkon</div>'; return; }
+    b.innerHTML = state.rows.map(function(r,i){
+      var lots = (r.mats||[]).map(function(m){ return m.mnlot; }).filter(Boolean).join(', ');
+      return '<div class="trow">'
+        + '<div class="t1">' + esc(r.anid) + '</div>'
+        + '<div class="t2">' + esc(r.qa) + '</div>'
+        + '<div class="t3">' + esc(r.anam) + '</div>'
+        + '<div class="t4">' + esc(lots) + '</div>'
+        + '<div class="t5">' + esc(r.outs) + '</div>'
+        + '<div class="t6"><button class="menu" data-menu="' + i + '">☰</button></div>'
+        + '</div>';
+    }).join('');
+    Array.prototype.forEach.call(b.querySelectorAll('[data-menu]'), function(btn){
+      btn.addEventListener('click', function(){ openMenu(btn, parseInt(btn.getAttribute('data-menu'),10)); });
+    });
+  }
+
+  function openMenu(anchor, i){
+    if (!t) return;
+    t.popup({
+      title: 'Výkon',
+      items: [
+        { text: 'Upravit', callback: function(tt){ loadRow(i); return tt.closePopup(); } },
+        { text: 'Smazat',  callback: function(tt){ state.rows.splice(i,1); renderRows(); save(); resize(); return tt.closePopup(); } }
+      ]
+    });
+  }
+
+  function collect(){
+    var o = { mats: state.mats.slice() };
+    FIELDS.forEach(function(f){ o[f] = $(f).value.trim(); });
+    return o;
+  }
+  function fill(o){
+    FIELDS.forEach(function(f){ $(f).value = (o && o[f]) || ''; });
+    state.mats = (o && o.mats) ? o.mats.slice() : [];
+    renderMats();
+  }
+  function clearForm(){
+    fill({}); state.editIndex = null;
+    $('mnlot').value = ''; $('mnam').value = ''; $('qnl').value = '';
+    resize();
+  }
+  function loadRow(i){
+    fill(state.rows[i]); state.editIndex = i; resize();
+  }
+
+  $('clear').addEventListener('click', clearForm);
+
+  $('insert').addEventListener('click', function(){
+    var r = collect();
+    if (!r.anid && !r.anam) return;
+    if (state.editIndex != null) state.rows[state.editIndex] = r;
+    else state.rows.push(r);
+    state.editIndex = null;
+    clearForm(); renderRows(); save(); resize();
+  });
+
+  /* --- perzistence na kartě --- */
+  function save(){
+    if (!t) return;
+    t.set('card','shared','zakazkovyList',{ rows: state.rows }).catch(function(){});
+  }
+  function load(){
+    if (!t) { renderMats(); renderRows(); return; }
+    t.get('card','shared','zakazkovyList').then(function(d){
+      state.rows = (d && d.rows) || [];
+      renderMats(); renderRows(); resize();
+    }).catch(function(){ renderMats(); renderRows(); });
+  }
+
+  load();
+  resize();
+})();
 </script>
 </body>
 </html>
