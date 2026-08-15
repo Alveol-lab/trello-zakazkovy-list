@@ -807,14 +807,20 @@ body{
   /* --- cena celkem: součet ctot všech uložených řádků ---
      ctot se v seznamu nezobrazuje, ale je součástí každého řádku
      v state.rows (viz FIELDS) - stačí ho tam sečíst, nič dalšího
-     se záznamu do EVIDENCE ani jinam zatím nezapisuje.               */
+     se záznamu do EVIDENCE ani jinam zatím nezapisuje.
+     Řádky, jejichž kód produktu (anid) začíná na "ZANA"
+     (např. ZANAD, ZANAE), se do součtu NEzahrnují.                    */
+  function isZana(anid){
+    return String(anid || '').toUpperCase().indexOf('ZANA') === 0;
+  }
   function sumRows(){
-    var total = 0;
+    var total = 0, any = false;
     state.rows.forEach(function(r){
+      if (isZana(r.anid)) return;
       var n = numParse(r.ctot);
-      if (!isNaN(n)) total += n;
+      if (!isNaN(n)) { total += n; any = true; }
     });
-    $('sumCena').textContent = state.rows.length ? numFmt(total) : '';
+    $('sumCena').textContent = any ? numFmt(total) : '';
   }
 
   function collect(){
