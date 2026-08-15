@@ -496,13 +496,16 @@ body{
     var n = parseFloat(v);
     return isNaN(n) ? NaN : n;
   }
+  /* koruny: desetinná čárka, dvě desetinná místa, měna Kč */
+  var CURRENCY = ' Kč';
   function numFmt(v){
     var n = numParse(v);
-    return isNaN(n) ? '' : n.toFixed(2);
+    if (isNaN(n)) return '';
+    return n.toFixed(2).replace('.', ',') + CURRENCY;
   }
   function recalcTotal(){
     var q = numParse($('qa').value), c = numParse($('cjed').value);
-    $('ctot').value = (isNaN(q) || isNaN(c)) ? '' : (q * c).toFixed(2);
+    $('ctot').value = (isNaN(q) || isNaN(c)) ? '' : numFmt(q * c);
   }
 
   /* --- navázání na pole ------------------------------------------- */
