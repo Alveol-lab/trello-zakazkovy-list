@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="cs" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zakázkový list</title>
+<script src="https://p.trellocdn.com/power-up.min.js"></script>
+<style>
+/* =========================================================
+   ZAKÁZKOVÝ LIST — vlastní styl, TMAVÝ BUILD
+   Rozložení i barvy odečteny přímo z Case-form-01.pdf
+   (žádné globální tokeny Trella — ty se v kartě neprosadily).
+   Referenční plocha PDF: šířka obsahu 73,70 pt, písmo 2,00 pt
+   -> 1rem = 2,00 pt = 2,7137 % šířky sekce (nastavuje JS).
+   Světlá varianta se doplní později.
+   ========================================================= */
+
+:root{
+  /* plochy */
+  --bg:#242528;          /* pozadí formuláře i výplň polí          */
+  --bg-band:#1F1F21;     /* materiálový pás, hlavička tab., ☰      */
+  --panel-tbl:#35373B;   /* tělo tabulky výkonů                    */
+  --btn:#3D4451;         /* + − ✕ a rozbalovací pole OUT           */
+  --accent:#669DF1;      /* vložit                                 */
+  --accent-txt:#1F1F21;
+  /* text */
+  --txt:#9E9FA2;         /* základní                               */
+  --txt-hi:#C8C9CC;      /* množství, kód produktu, ORD, CenY      */
+  --txt-dim:#939497;     /* popis výrobku, CENA JEDNOTKY / TOTAL   */
+  --txt-head:#49566E;    /* popisky hlavičky tabulky               */
+  --arrow:#C7C8CB;       /* ▾                                      */
+  /* rámečky a linky */
+  --bd-hi:#9E9FA2;       /* ORD, CenY, MNLOT                       */
+  --bd:#939497;          /* množství, kód produktu, popis, OUT     */
+  --bd-soft:#2C2D30;     /* název přísl. materiálu, QNL            */
+  --bd-faint:#38383C;    /* CENA JEDNOTKY, CENA TOTAL              */
+  --rule:#575E6E;        /* oddělovače v tabulce výkonů            */
+  --rule-mat:#3D4451;    /* oddělovače v seznamu materiálu         */
+}
+
+*{box-sizing:border-box}
+html{font-size:9.661px}            /* přepočítá JS podle šířky sekce */
+html,body{margin:0!important;padding:0!important;overflow:hidden!important;
+          background:var(--bg)!important}
+body{
+  font-family:Arial,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
+             "Helvetica Neue",sans-serif;
+  font-size:1rem;color:var(--txt);-webkit-font-smoothing:antialiased;
+}
+#app{width:100%;background:var(--bg);padding-top:1.31rem}
+
+/* ---------- záhlaví ---------- */
+/* Case-form-01.pdf hlavičku ani logo neobsahuje. Pro vrácení stačí
+   smazat řádek s display:none a vrátit padding 1.60rem 0 1.27rem. */
+.hdr{display:none;align-items:center;padding:1.60rem 0 1.27rem}
+.hdr svg{width:2.04rem;height:2.04rem;display:block;flex:none;margin-left:.27rem}
+.hdr svg .bgr{fill:none}
+.hdr svg .mark{fill:var(--txt)}
+.hdr span{font-size:1rem;color:var(--txt);margin-left:.43rem}
+
+/* ---------- pole ---------- */
+.row{display:flex;align-items:stretch}
+.gap{flex:none}
+.f{
+  display:block;min-width:0;flex:none;height:2.48rem;
+  --bd-c:var(--bd);
+  border:0;box-shadow:inset 0 0 0 1px var(--bd-c);border-radius:.35rem;
+  background:var(--bg);color:var(--txt-hi);
+  font-family:inherit;font-size:1rem;font-weight:400;
+  line-height:2.48rem;padding:0 .50rem 0 .55rem;margin:0;
+}
+/* rámeček je v PDF vlas 0,1 pt na hranici pole — proto inset shadow,
+   aby neubíral z vnitřní šířky (jinak se text v úzkých polích uřízne) */
+.f::placeholder{color:inherit;opacity:1}
+.f:focus{outline:none;box-shadow:inset 0 0 0 1px var(--accent)}
+.f.sm{font-size:.85rem}
+.f.hi{--bd-c:var(--bd-hi)}                        /* ORD, CenY, MNLOT */
+.f.dim{color:var(--txt-dim)}                            /* popis výrobku    */
+.f.soft{--bd-c:var(--bd-soft)}                    /* mat. název, QNL  */
+.f.bare{background:transparent;--bd-c:var(--bd-faint);color:var(--txt-dim)}
+
+.selwrap{position:relative;min-width:0;display:flex;flex:none}
+.selwrap select{
+  appearance:none;-webkit-appearance:none;width:100%;
+  background:var(--btn);color:var(--txt);--bd-c:var(--bd);
+  padding-left:1.60rem;line-height:normal;cursor:pointer;
+}
+.selwrap::before{
+  content:"▾";position:absolute;left:.85rem;top:50%;transform:translateY(-50%);
+  color:var(--arrow);font-size:.85rem;pointer-events:none;z-index:1;
+}
+
+.btn{
+  min-width:0;flex:none;height:2.48rem;border:0;border-radius:.35rem;
+  background:var(--btn);color:var(--txt);
+  font-family:inherit;font-size:1rem;cursor:pointer;line-height:1;padding:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.btn:hover{filter:brightness(1.22)}
+.btn.glyph{font-size:2rem;font-weight:300}
+.btn.primary{background:var(--accent);color:var(--accent-txt)}
+
+/* ---------- řádek 1 ---------- */
+.r1 .c1{width:14.654%}
+.r1 .g1{width:1.341%}
+.r1 .c2{width:20.330%}
+.r1 .g2{width:1.862%}
+.r1 .c3{width:61.556%}
+
+/* ---------- řádek 2 ---------- */
+.r2{margin-top:.394rem}
+.r2 .c1{width:14.654%}
+.r2 .g1{width:1.319%}
+.r2 .c2{width:20.335%}
+.r2 .g2{width:2.049%}
+.r2 .c3{width:9.712%}
+.r2 .g3{width:4.596%}
+.r2 .c4{width:22.795%}
+.r2 .g4{width:1.400%}
+.r2 .c5{width:22.795%}
+
+/* ---------- materiálový pás ---------- */
+.band{margin-top:1.712rem;padding:.926rem 0 1.043rem;background:var(--bg-band)}
+.rm .m1{width:28.703%}
+.rm .gm1{width:1.706%}
+.rm .m2{width:38.015%}
+.rm .gm2{width:1.774%}
+.rm .m3{width:14.352%}
+.rm .gm3{width:1.768%}
+.rm .m4{width:13.669%}
+
+.mpanel{position:relative;margin-top:.938rem;padding:.443rem 0 1.327rem;
+        background:var(--bg);border-radius:.50rem}
+.mrules{position:absolute;left:0;right:0;top:.964rem;bottom:1.818rem;
+        pointer-events:none}
+.mrules i{position:absolute;top:0;bottom:0;width:1px;background:var(--rule-mat)}
+.mrules i:nth-child(1){left:16.567%}
+.mrules i:nth-child(2){left:25.309%}
+.mpanel.empty-state .mrules{display:none}
+
+.mrow{display:flex;align-items:center;height:2.48rem}
+.mrow + .mrow{margin-top:.40rem}
+.mrow .cell{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+            padding:0 .35rem 0 .79rem}
+.mrow .k1{width:16.567%}
+.mrow .k2{width:8.742%}
+.mrow .k3{width:67.977%;font-size:.85rem}
+.mrow .btn{width:6.708%}
+.empty{color:var(--txt);font-size:.85rem;padding:.60rem .79rem}
+
+/* ---------- akční řádek ---------- */
+.acts{display:flex;margin-top:.387rem}
+.acts .sp{flex:1 1 auto}
+.acts .x{width:7.044%}
+.acts .ga{width:1.684%}
+.acts .ok{width:19.900%}
+
+/* ---------- seznam výkonů ---------- */
+.caption{color:var(--txt);font-size:1rem;line-height:1rem;
+         margin:.350rem 0 1.109rem;padding-left:.21rem}
+
+.tbl{background:var(--panel-tbl);border-radius:.50rem;overflow:hidden}
+.thead{display:flex;align-items:center;height:2.302rem;background:var(--bg-band)}
+.thead div,.trow div{min-width:0;overflow:hidden;white-space:nowrap;
+                     text-overflow:ellipsis;padding:0 .35rem 0 .83rem}
+.thead div{color:var(--txt-head)}
+.thead .h3{font-size:.85rem}
+
+/* jedna mřížka pro hlavičku, oddělovače i tělo */
+.t1{width:15.234%}
+.t2{width:9.314%}
+.t3{width:26.835%}
+.t4{width:23.745%}
+.t5{width:18.158%}
+.t6{width:6.708%}
+
+#tbody{position:relative;min-height:20.443rem}
+.rules{position:absolute;left:0;right:0;top:.91rem;bottom:.99rem;pointer-events:none}
+.rules i{position:absolute;top:0;bottom:0;width:1px;background:var(--rule)}
+.rules i:nth-child(1){left:15.234%}
+.rules i:nth-child(2){left:24.548%}
+.rules i:nth-child(3){left:51.383%}
+.rules i:nth-child(4){left:75.128%}
+
+.trow{display:flex;align-items:center;height:3.343rem;position:relative}
+.trow .t6{display:flex;align-items:center;justify-content:center;padding:0}
+.menu{background:var(--bg-band);border:0;color:var(--txt);border-radius:.35rem;
+      width:100%;height:2.48rem;cursor:pointer;font-size:1rem;line-height:1;padding:0}
+.menu:hover{filter:brightness(1.6)}
+
+.foot{height:1.95rem}
+</style>
+</head>
+<body>
+<div id="app"><div id="scale">
+
+  <div class="hdr">
+    <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect class="bgr" x="0" y="0" width="15.36" height="15.36"/>
+      <path class="mark" d="M14.914,7.379l-1.418,-1.46c-0.029,-0.03 -0.074,-0.036 -0.11,-0.016c-0.439,0.249 -1.211,0.854 -1.889,0.854c-0.145,0 -0.306,-0.027 -0.471,-0.069c-0.072,-0.018 -0.122,-0.083 -0.122,-0.157l-0,-5.959c-0,-0.081 -0.066,-0.147 -0.147,-0.147l-3.291,0c-0.081,0 -0.147,0.066 -0.147,0.147l0,4.34c0,0.076 -0.072,0.133 -0.146,0.113c-0.51,-0.135 -1.123,-0.218 -1.886,-0.218c-2.828,0 -4.74,1.912 -4.74,5.099c0,3.267 1.872,4.9 4.143,4.9c1.07,0 1.952,-0.34 2.647,-0.876c0.314,-0.242 0.756,-0.214 1.039,0.064c0.621,0.612 1.425,0.772 2.13,0.772c0.888,0 1.239,-0.108 1.442,-0.153c0.012,-0.015 0.02,-0.025 0.032,-0.04l0.039,-2.614c0,-0.023 -0.019,-0.042 -0.042,-0.042c-0.384,-0.002 -0.676,-0.036 -0.991,-0.102c-0.048,-0.01 -0.082,-0.052 -0.082,-0.101l-0,-1.344c-0,-0.032 0.026,-0.057 0.058,-0.057c0.701,0.002 1.353,-0.288 1.889,-0.58c1.328,-0.722 1.875,-1.862 2.077,-2.251c0.018,-0.034 0.012,-0.076 -0.015,-0.104Zm-7.594,2.368c0,1.434 -0.837,2.111 -1.793,2.111c-0.876,0 -1.394,-0.598 -1.394,-1.952c0,-1.633 0.717,-2.151 1.673,-2.151c0.617,0 1.135,0.179 1.514,0.418l-0,1.574Z"/>
+    </svg>
+    <span>zakázkový list</span>
+  </div>
+
+  <div class="row r1">
+    <input class="f c1" id="qa"   placeholder="množství">
+    <span class="gap g1"></span>
+    <input class="f c2" id="anid" placeholder="kód produktu">
+    <span class="gap g2"></span>
+    <input class="f c3 sm dim" id="anam" placeholder="popis výrobku">
+  </div>
+
+  <div class="row r2">
+    <input class="f c1 hi" id="ord" placeholder="ORD">
+    <span class="gap g1"></span>
+    <span class="selwrap c2">
+      <select class="f" id="outs">
+        <option value="OUT">OUT</option>
+        <option value="IN">IN</option>
+      </select>
+    </span>
+    <span class="gap g2"></span>
+    <input class="f c3 hi" id="ceny" placeholder="Cen">
+    <span class="gap g3"></span>
+    <input class="f c4 sm bare" id="cjed" placeholder="CENA JEDNOTKY" readonly>
+    <span class="gap g4"></span>
+    <input class="f c5 sm bare" id="ctot" placeholder="CENA TOTAL" readonly>
+  </div>
+
+  <div class="band">
+    <div class="row rm">
+      <input class="f m1 hi" id="mnlot" placeholder="MNLOT">
+      <span class="gap gm1"></span>
+      <input class="f m2 sm soft" id="mnam" placeholder="název přísl. materiálu">
+      <span class="gap gm2"></span>
+      <input class="f m3 soft" id="qnl" placeholder="QNL">
+      <span class="gap gm3"></span>
+      <button class="btn glyph m4" id="addMat" title="přidat materiál">+</button>
+    </div>
+    <div class="mpanel" id="mpanel">
+      <div class="mrules"><i></i><i></i></div>
+      <div id="mlist"></div>
+    </div>
+  </div>
+
+  <div class="acts">
+    <span class="sp"></span>
+    <button class="btn x" id="clear" title="zrušit">✕</button>
+    <span class="gap ga"></span>
+    <button class="btn primary ok" id="insert">vložit</button>
+  </div>
+
+  <div class="caption">seznam výkonů</div>
+
+  <div class="tbl">
+    <div class="thead">
+      <div class="t1">ANID</div>
+      <div class="t2">QA</div>
+      <div class="t3 h3">název</div>
+      <div class="t4">MNLOT</div>
+      <div class="t5">OUTS</div>
+      <div class="t6"></div>
+    </div>
+    <div id="tbody">
+      <div class="rules"><i></i><i></i><i></i><i></i></div>
+      <div id="trows"></div>
+    </div>
+  </div>
+
+  <div class="foot"></div>
+
+</div></div>
+
+<script>
+(function () {
+  var t = null;
+  try { t = window.TrelloPowerUp && window.TrelloPowerUp.iframe(); } catch (e) { t = null; }
+
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { mats: [], rows: [], editIndex: null };
+  var FIELDS = ['qa','anid','anam','ord','outs','ceny','cjed','ctot'];
+
+  /* ---- tmavý build: barvy jsou pevné dle PDF, nic se nedetekuje ---- */
+  document.documentElement.setAttribute('data-theme', 'dark');
+
+  /* ---- měřítko podle PDF: 1em = 2,00pt / 73,70pt šířky obsahu ---- */
+  var EM_RATIO = 2.00 / 73.70;
+  var lastH = 0;
+  function scaleAndSize(){
+    var w = $('app').clientWidth || document.documentElement.clientWidth || 356;
+    document.documentElement.style.fontSize = (w * EM_RATIO).toFixed(3) + 'px';
+    if (!t) return;
+    var h = Math.ceil($('app').getBoundingClientRect().height);
+    if (h > 0 && Math.abs(h - lastH) > 1) { lastH = h; try { t.sizeTo(h); } catch(e){} }
+  }
+  var pending = false;
+  function resize(){
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(function(){ pending = false; scaleAndSize(); });
+  }
+  if (window.ResizeObserver) new ResizeObserver(resize).observe($('app'));
+  window.addEventListener('resize', resize);
+  window.addEventListener('load', resize);
+  [60,200,500,1000,1800].forEach(function(ms){ setTimeout(resize, ms); });
+
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  /* ---- materiály ---- */
+  function renderMats(){
+    var el = $('mlist');
+    $('mpanel').classList.toggle('empty-state', !state.mats.length);
+    if (!state.mats.length){
+      el.innerHTML = '<div class="empty">zatím žádný materiál</div>';
+    } else {
+      el.innerHTML = state.mats.map(function(m,i){
+        return '<div class="mrow">'
+          + '<div class="cell k1">' + esc(m.mnlot) + '</div>'
+          + '<div class="cell k2">' + esc(m.qnl) + '</div>'
+          + '<div class="cell k3">' + esc(m.mnam) + '</div>'
+          + '<button class="btn glyph" data-del="' + i + '" title="odebrat">−</button>'
+          + '</div>';
+      }).join('');
+      Array.prototype.forEach.call(el.querySelectorAll('[data-del]'), function(b){
+        b.addEventListener('click', function(){
+          state.mats.splice(parseInt(b.getAttribute('data-del'),10),1);
+          renderMats(); resize();
+        });
+      });
+    }
+  }
+
+  $('addMat').addEventListener('click', function(){
+    var mnlot = $('mnlot').value.trim(), mnam = $('mnam').value.trim(), qnl = $('qnl').value.trim();
+    if (!mnlot && !mnam) return;
+    state.mats.push({ mnlot: mnlot, mnam: mnam, qnl: qnl });
+    $('mnlot').value = ''; $('mnam').value = ''; $('qnl').value = '';
+    $('mnlot').focus();
+    renderMats(); resize();
+  });
+
+  /* ---- seznam výkonů ---- */
+  function renderRows(){
+    var b = $('trows');
+    b.innerHTML = state.rows.map(function(r,i){
+      var lots = (r.mats||[]).map(function(m){ return m.mnlot; }).filter(Boolean).join(', ');
+      return '<div class="trow">'
+        + '<div class="t1">' + esc(r.anid) + '</div>'
+        + '<div class="t2">' + esc(r.qa) + '</div>'
+        + '<div class="t3">' + esc(r.anam) + '</div>'
+        + '<div class="t4">' + esc(lots) + '</div>'
+        + '<div class="t5">' + esc(r.outs) + '</div>'
+        + '<div class="t6"><button class="menu" data-menu="' + i + '">☰</button></div>'
+        + '</div>';
+    }).join('');
+    Array.prototype.forEach.call(b.querySelectorAll('[data-menu]'), function(btn){
+      btn.addEventListener('click', function(){
+        var i = parseInt(btn.getAttribute('data-menu'),10);
+        if (!t) return;
+        t.popup({ title:'Výkon', items:[
+          { text:'Upravit', callback:function(tt){ loadRow(i); return tt.closePopup(); } },
+          { text:'Smazat',  callback:function(tt){
+              state.rows.splice(i,1); renderRows(); save(); resize(); return tt.closePopup(); } }
+        ]});
+      });
+    });
+  }
+
+  function collect(){
+    var o = { mats: state.mats.slice() };
+    FIELDS.forEach(function(f){ o[f] = $(f).value.trim(); });
+    return o;
+  }
+  function fill(o){
+    FIELDS.forEach(function(f){ $(f).value = (o && o[f]) || ''; });
+    state.mats = (o && o.mats) ? o.mats.slice() : [];
+    renderMats();
+  }
+  function clearForm(){
+    fill({}); state.editIndex = null;
+    $('mnlot').value = ''; $('mnam').value = ''; $('qnl').value = '';
+    resize();
+  }
+  function loadRow(i){ fill(state.rows[i]); state.editIndex = i; resize(); }
+
+  $('clear').addEventListener('click', clearForm);
+  $('insert').addEventListener('click', function(){
+    var r = collect();
+    if (!r.anid && !r.anam) return;
+    if (state.editIndex != null) state.rows[state.editIndex] = r; else state.rows.push(r);
+    state.editIndex = null;
+    clearForm(); renderRows(); save(); resize();
+  });
+
+  /* ---- perzistence v kartě ---- */
+  function save(){
+    if (!t) return;
+    t.set('card','shared','zakazkovyList',{ rows: state.rows }).catch(function(){});
+  }
+  function load(){
+    if (!t) { renderMats(); renderRows(); resize(); return; }
+    t.get('card','shared','zakazkovyList').then(function(d){
+      state.rows = (d && d.rows) || [];
+      renderMats(); renderRows(); resize();
+    }).catch(function(){ renderMats(); renderRows(); resize(); });
+  }
+
+  load();
+  resize();
+})();
+</script>
+</body>
+</html>
