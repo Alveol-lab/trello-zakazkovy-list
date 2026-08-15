@@ -769,14 +769,57 @@ body{
   function loadRow(i){ fill(state.rows[i]); state.editIndex = i; resetDefaults(); resize(); }
 
   $('clear').addEventListener('click', function(){ clearForm(); resetDefaults(); });
+  /* stejný kód produktu se slučuje do jednoho řádku:
+     QA se sečte, seznam šarží se sloučí a u totožných MNLOT se sečte QNL */
+  function mergeMats(a, b){
+    var out = (a || []).map(function(m){ return { mnlot:m.mnlot, mnam:m.mnam, qnl:m.qnl }; });
+    (b || []).forEach(function(m){
+      var hit = null;
+      for (var i = 0; i < out.length; i++) {
+        if (out[i].mnlot === m.mnlot) { hit = out[i]; break; }
+      }
+      if (hit) hit.qnl = qaNorm(String(numParse(hit.qnl) + numParse(m.qnl)));
+      else out.push({ mnlot:m.mnlot, mnam:m.mnam, qnl:m.qnl });
+    });
+    return out;
+  }
+  function mergeRow(target, add){
+    target.qa   = qaNorm(String(numParse(target.qa) + numParse(add.qa)));
+    target.mats = mergeMats(target.mats, add.mats);
+    target.ctot = numFmt(numParse(target.qa) * numParse(target.cjed));
+    return target;
+  }
+  function findSameCode(anid, skipIndex){
+    for (var i = 0; i < state.rows.length; i++) {
+      if (i === skipIndex) continue;
+      if (state.rows[i].anid === anid) return i;
+    }
+    return -1;
+  }
+
   $('insert').addEventListener('click', function(){
     $('qa').value = qaNorm($('qa').value);
     if (!formValid()) return;
-    var r = collect();
-    if (state.editIndex != null) state.rows[state.editIndex] = r; else state.rows.push(r);
+    var r = collect(), edit = state.editIndex,
+        same = findSameCode(r.anid, edit == null ? -1 : edit);
+    if (same >= 0) {
+      mergeRow(state.rows[same], r);
+      if (edit != null) state.rows.splice(edit, 1);   /* upravený řádek se vstřebal */
+    } else if (edit != null) {
+      state.rows[edit] = r;
+    } else {
+      state.rows.push(r);
+    }
     state.editIndex = null;
     clearForm(); resetDefaults(); renderRows(); save(); resize();
   });
+
+  /* testovací průzor: aktivní jen když nadřazený rám nastaví __ZLTEST__ */
+  try {
+    if (window.parent !== window && window.parent.__ZLTEST__) {
+      window.__zl = { state: state, mergeMats: mergeMats };
+    }
+  } catch (e) {}
 
   /* ---- perzistence v kartě ---- */
   function save(){
