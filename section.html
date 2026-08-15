@@ -476,14 +476,33 @@ body{
       resize();
     });
   }
-  /* cena jednotky: běžně sloupec E, u ORD == 'XKK' sloupec F */
+  /* --- 7. CENA JEDNOTKY ---------------------------------------------
+     načítá se z ceníku: běžně sloupec E,
+     pokud ORD == 'XKK', pak ze sloupce F                            */
   var lastHit = null;
   function applyPrice(hit){
     lastHit = hit || null;
-    if (!lastHit) { $('cjed').value = ''; return; }
-    var xkk = ordClean($('ord').value) === 'XKK';
-    var v = xkk ? lastHit.cjedF : lastHit.cjedE;
-    $('cjed').value = (v == null ? '' : v);
+    var v = null;
+    if (lastHit) v = (ordClean($('ord').value) === 'XKK') ? lastHit.cjedF : lastHit.cjedE;
+    $('cjed').value = numFmt(v);
+    recalcTotal();
+  }
+
+  /* --- 8. CENA TOTAL ------------------------------------------------
+     množství (pole 1) krát cena jednotky (pole 7)                   */
+  function numParse(v){
+    if (v == null) return NaN;
+    v = String(v).replace(/\s|\u00a0/g, '').replace(/,/g, '.').replace(/[^0-9.\-]/g, '');
+    var n = parseFloat(v);
+    return isNaN(n) ? NaN : n;
+  }
+  function numFmt(v){
+    var n = numParse(v);
+    return isNaN(n) ? '' : n.toFixed(2);
+  }
+  function recalcTotal(){
+    var q = numParse($('qa').value), c = numParse($('cjed').value);
+    $('ctot').value = (isNaN(q) || isNaN(c)) ? '' : (q * c).toFixed(2);
   }
 
   /* --- navázání na pole ------------------------------------------- */
@@ -491,10 +510,12 @@ body{
     var c = qaClean(this.value);
     if (c !== this.value) this.value = c;
     mark(this, qaValid(this.value));
+    recalcTotal();
   });
   $('qa').addEventListener('blur', function(){
     this.value = qaNorm(this.value);
     mark(this, qaValid(this.value));
+    recalcTotal();
   });
 
   $('anid').addEventListener('input', function(){
@@ -630,6 +651,7 @@ body{
     ['qa','anid','ceny','ord'].forEach(function(f){ $(f).classList.remove('bad'); });
     $('anam').classList.remove('wait');
     outsSet(outsGet());
+    recalcTotal();
     if (!$('ord').value) {
       ordFromCustomField().then(function(v){
         if (!$('ord').value && v) { $('ord').value = ordClean(v); applyPrice(lastHit); }
