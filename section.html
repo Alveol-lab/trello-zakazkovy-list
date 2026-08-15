@@ -1,106 +1,34 @@
 <!doctype html>
 <html lang="cs">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="https://p.trellocdn.com/power-up.min.js"></script>
-  <title>Zakázkový list</title>
-  <style>
-    :root { color-scheme: dark; --bg:#202833; --panel:#293443; --panel-2:#334154; --line:#4a5b70; --text:#eef4fb; --muted:#b9c6d4; --blue:#4c90d9; --blue-hover:#6ca8e5; --danger:#b9554b; --ok:#71b780; }
-    * { box-sizing:border-box; }
-    html,body { margin:0; min-height:100%; background:var(--bg); color:var(--text); font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-    body { padding:12px; }
-    .form { width:100%; max-width:none; margin:0; }
-    .hero { display:flex; align-items:center; gap:12px; padding:12px 14px; background:linear-gradient(135deg,#34445a,#263242); border:1px solid var(--line); border-radius:10px 10px 0 0; }
-    .logo { width:40px; height:40px; flex:0 0 40px; display:grid; place-items:center; border-radius:9px; background:#4387cc; color:white; font-size:23px; font-weight:700; box-shadow:inset 0 1px 0 rgba(255,255,255,.25); }
-    .hero h1 { margin:0; font-size:19px; letter-spacing:.1px; }
-    .hero p { margin:2px 0 0; color:var(--muted); font-size:12px; }
-    .card { padding:14px; background:var(--panel); border:1px solid var(--line); border-top:0; border-radius:0 0 10px 10px; }
-    .grid { display:grid; grid-template-columns:72px minmax(150px,2.2fr) minmax(90px,.7fr) 78px; gap:8px; margin-bottom:12px; }
-    .grid.material { grid-template-columns:minmax(105px,.9fr) minmax(160px,2.4fr) 62px 64px; }
-    label { display:block; margin:0 0 5px; color:var(--muted); font-size:12px; font-weight:600; }
-    input,select,button { width:100%; min-height:38px; border-radius:6px; font:inherit; }
-    input,select { padding:8px 9px; color:var(--text); background:#1d2631; border:1px solid #5a6a7c; outline:none; }
-    input:focus,select:focus { border-color:var(--blue); box-shadow:0 0 0 2px rgba(76,144,217,.23); }
-    button { padding:8px 11px; cursor:pointer; border:1px solid transparent; color:#fff; background:var(--blue); font-weight:650; }
-    button:hover { background:var(--blue-hover); }
-    .add { align-self:end; }
-    .section-title { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:17px 0 8px; font-weight:700; }
-    .table { overflow-x:auto; border:1px solid var(--line); border-radius:8px; background:#202a36; }
-    table { width:100%; min-width:520px; border-collapse:collapse; }
-    th,td { padding:10px; text-align:left; border-bottom:1px solid #3f4e60; }
-    th { color:var(--muted); font-size:12px; font-weight:650; background:#2b3747; }
-    tr:last-child td { border-bottom:0; }
-    .remove { width:auto; min-height:30px; padding:4px 10px; background:var(--danger); }
-    .remove:hover { background:#cf655b; }
-    .actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
-    .status { min-height:20px; margin-top:10px; color:var(--muted); font-size:13px; }
-    .status.ok { color:var(--ok); }
-    .empty { color:var(--muted); text-align:center; }
-    @media (max-width:640px) { body { padding:7px; } .grid,.grid.material { grid-template-columns:1fr 1fr; } .grid > *, .grid.material > * { min-width:0; } .add { grid-column:span 2; } .hero { padding:10px; } }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://p.trellocdn.com/power-up.min.js"></script>
+<title>Zakázkový list</title>
+<style>
+:root{color-scheme:dark;--text:#f1f2f4;--muted:#b6c2cf;--field:#22272b;--line:#738496;--line-soft:#3e4954;--blue:#579dff;--blue2:#4c86dc;--danger:#ae4c45;--ok:#7ee2b8}
+*{box-sizing:border-box}html,body{width:100%;min-width:0;margin:0;padding:0;overflow:hidden;background:transparent;color:var(--text);font:13px/1.25 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.form{width:100%;min-width:0;max-width:none}.head{display:flex;align-items:center;gap:7px;margin:0 0 12px}.head img{display:block;width:26px;height:26px;object-fit:contain}.head h1{margin:0;font-size:14px;font-weight:700}.grid{display:grid;gap:7px;width:100%;margin-bottom:7px}.top{grid-template-columns:minmax(0,.8fr) minmax(0,1fr) minmax(0,2.8fr)}.price{grid-template-columns:70px minmax(84px,1fr) 64px minmax(0,1.25fr) minmax(0,1.25fr)}.material{grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) 68px 64px;align-items:end}label{display:none}input,select,button{width:100%;min-width:0;height:29px;border-radius:4px;font:inherit}input,select{padding:5px 8px;background:var(--field);color:var(--text);border:1px solid var(--line);outline:0}input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}button{padding:4px 8px;border:0;background:#435168;color:var(--text);font-weight:700;cursor:pointer}button:hover{background:#56677f}.plus{font-size:21px;line-height:1;background:#53698b}.section-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:12px 0 7px}.section-title{font-weight:700;font-size:13px}.inline-actions{display:flex;gap:7px}.inline-actions button{width:40px}.save{width:84px;background:var(--blue)}.save:hover{background:#85b8ff;color:#172b4d}.lots{width:100%;border-collapse:collapse;table-layout:fixed;background:rgba(79,94,113,.28);margin-top:7px}.lots td{height:25px;padding:4px 7px;border-bottom:1px solid var(--line-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lots tr:last-child td{border-bottom:0}.lots td:nth-child(1){width:17%}.lots td:nth-child(2){width:12%}.lots td:nth-child(3){width:auto}.lots td:nth-child(4){width:45px;padding:3px}.remove{height:21px;padding:0;background:var(--danger)}.empty{text-align:center;color:var(--muted)}.list-title{margin:20px 0 7px;color:var(--muted);font-size:12px;font-weight:700}.works{width:100%;border-collapse:collapse;table-layout:fixed;background:rgba(79,94,113,.28)}.works th{height:25px;padding:5px 7px;text-align:left;color:var(--muted);font-size:11px;font-weight:700}.works td{height:150px;border-right:2px solid #728198;vertical-align:top;padding:7px}.works td:last-child{border:0;width:45px;padding:5px;border-left:0}.works th:nth-child(1){width:15%}.works th:nth-child(2){width:10%}.works th:nth-child(3){width:28%}.works th:nth-child(4){width:23%}.works th:nth-child(5){width:auto}.work-btn{height:26px;margin-bottom:5px;background:#2f3947}.status{min-height:17px;margin-top:7px;color:var(--muted);font-size:12px}.status.ok{color:var(--ok)}@media(max-width:520px){.top{grid-template-columns:1fr 1fr}.top input:last-child{grid-column:span 2}.price{grid-template-columns:1fr 1fr}.price input:nth-child(4),.price input:nth-child(5){grid-column:span 1}.material{grid-template-columns:1fr 1fr}.material input:nth-child(2){grid-column:span 2}.works td{height:120px}}
+</style>
 </head>
 <body>
-  <main class="form">
-    <header class="hero">
-      <div class="logo" aria-label="Logo zakázkového listu">⌘</div>
-      <div><h1>Zakázkový list</h1><p>Evidence výroby a materiálu pro tuto kartu</p></div>
-    </header>
-    <section class="card">
-      <div class="grid">
-        <div><label for="caseNo">Číslo</label><input id="caseNo" placeholder="2"></div>
-        <div><label for="orderNo">Zakázka</label><input id="orderNo" placeholder="30513P"></div>
-        <div><label for="price">Cena</label><input id="price" placeholder="1 090"></div>
-        <div><label for="currency">Typ</label><select id="currency"><option>PRCT</option><option>OUTS</option></select></div>
-      </div>
-      <div class="grid" style="grid-template-columns:72px minmax(0,1fr) 78px;">
-        <div><label for="workNo">Výkon</label><input id="workNo" placeholder="26."></div>
-        <div><label for="workName">Název výkonu</label><input id="workName" placeholder="Korunka zirkonová A2"></div>
-        <div><label for="workType">Režim</label><select id="workType"><option>OUTS</option><option>PRCT</option></select></div>
-      </div>
-      <div class="section-title">Přidat šarži materiálu</div>
-      <div class="grid material">
-        <div><label for="lot">MNLOT</label><input id="lot" placeholder="LOT-26-0142"></div>
-        <div><label for="material">Název přísl. materiálu</label><input id="material" placeholder="Disk zirkonu A2 Ø98 × 18 mm"></div>
-        <div><label for="qty">Množství</label><input id="qty" type="number" min="1" value="1"></div>
-        <button id="insert" class="add" type="button">Vložit</button>
-      </div>
-      <div class="section-title">Použité šarže <span id="count" style="color:var(--muted);font-size:12px;font-weight:500"></span></div>
-      <div class="table">
-        <table><thead><tr><th>MNLOT</th><th>Množství</th><th>Materiál</th><th></th></tr></thead><tbody id="lots"><tr><td class="empty" colspan="4">Zatím nebyla přidána žádná šarže.</td></tr></tbody></table>
-      </div>
-      <div class="actions"><button id="save" type="button">Uložit zakázkový list</button></div>
-      <div id="status" class="status" role="status"></div>
-    </section>
-  </main>
-  <script>
-    const t = window.TrelloPowerUp ? window.TrelloPowerUp.iframe() : null;
-    let lots = [];
-    const $ = id => document.getElementById(id);
-    const fields = ['caseNo','orderNo','price','currency','workNo','workName','workType'];
-    const status = (text, ok=false) => { $('status').textContent=text; $('status').className='status'+(ok?' ok':''); };
-    const data = () => Object.fromEntries(fields.map(id=>[id,$(id).value]));
-    const render = () => {
-      $('count').textContent = lots.length ? `${lots.length} položek` : '';
-      $('lots').innerHTML = lots.length ? lots.map((x,i)=>`<tr><td>${escapeHtml(x.lot)}</td><td>${escapeHtml(x.qty)}</td><td>${escapeHtml(x.material)}</td><td><button type="button" class="remove" data-index="${i}">−</button></td></tr>`).join('') : '<tr><td class="empty" colspan="4">Zatím nebyla přidána žádná šarže.</td></tr>';
-      document.querySelectorAll('.remove').forEach(b=>b.addEventListener('click',()=>{lots.splice(Number(b.dataset.index),1);render();}));
-      if(t) t.sizeTo(document.body.scrollHeight);
-    };
-    const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-    $('insert').addEventListener('click',()=>{
-      const lot=$('lot').value.trim(), material=$('material').value.trim(), qty=$('qty').value.trim();
-      if(!lot || !material || !qty || Number(qty)<=0){ status('Vyplň MNLOT, název materiálu a platné množství.'); return; }
-      lots.push({lot,material,qty}); $('lot').value=''; $('material').value=''; $('qty').value='1'; render(); status('Šarže byla vložena. Nezapomeň uložit zakázkový list.',true);
-    });
-    $('save').addEventListener('click',async()=>{
-      if(!t){ status('Formulář je třeba otevřít uvnitř Trella, aby šel uložit.'); return; }
-      try { await t.set('card','shared','zakazkovyList',{...data(),lots,updatedAt:new Date().toISOString()}); status('Zakázkový list byl uložen ke kartě.',true); }
-      catch(e){ status('Uložení se nepodařilo: '+(e.message||'neznámá chyba')); }
-    });
-    (async()=>{
-      if(t){ try { const saved=await t.get('card','shared','zakazkovyList',null); if(saved){ fields.forEach(id=>{if(saved[id]!==undefined) $(id).value=saved[id];}); lots=Array.isArray(saved.lots)?saved.lots:[]; status('Načtena uložená data z této karty.',true); } } catch(e) { status('Data se nepodařilo načíst.'); } }
-      render();
-    })();
-  </script>
+<main class="form">
+<header class="head"><img src="logo-icon.svg" alt="Zakázkový list"><h1>zakázkový list</h1></header>
+<section>
+<div class="grid top"><input id="manLot" placeholder="man.NLOT"><input id="productCode" placeholder="kód produktu"><input id="productDesc" placeholder="popis výrobku"></div>
+<div class="grid price"><input id="ord" placeholder="ORD"><select id="out"><option>▼ OUT</option><option>IN</option></select><input id="priceType" placeholder="CenY"><input id="unitPrice" placeholder="CENA JEDNOTKY"><input id="totalPrice" placeholder="CENA TOTAL"></div>
+<div class="grid material"><input id="lot" placeholder="MNLOT"><input id="material" placeholder="název přísl. materiálu"><input id="qnl" placeholder="QNL" type="number" min="1"><button id="addLot" class="plus" type="button" aria-label="Přidat materiál">+</button></div>
+<table class="lots"><tbody id="lots"><tr><td class="empty" colspan="4">—</td></tr></tbody></table>
+<div class="section-row"><span></span><div class="inline-actions"><button id="clearLots" type="button" aria-label="Zrušit">×</button><button id="save" class="save" type="button">vložit</button></div></div>
+<div class="list-title">seznam výkonů</div>
+<table class="works"><thead><tr><th>ANID</th><th>QA</th><th>název</th><th>MNLOT</th><th>OUTS</th><th></th></tr></thead><tbody id="works"><tr><td></td><td></td><td></td><td></td><td></td><td><button class="work-btn" type="button">≡</button><button class="work-btn" type="button">≡</button></td></tr></tbody></table>
+<div id="status" class="status" role="status"></div>
+</section>
+</main>
+<script>
+const t=window.TrelloPowerUp?window.TrelloPowerUp.iframe():null;let lots=[];const $=id=>document.getElementById(id);const fields=['manLot','productCode','productDesc','ord','out','priceType','unitPrice','totalPrice'];
+const resize=()=>{if(t)requestAnimationFrame(()=>t.sizeTo(document.documentElement.scrollHeight))};const say=(text,ok=false)=>{$('status').textContent=text;$('status').className='status'+(ok?' ok':'');resize()};const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+function render(){const el=$('lots');el.innerHTML=lots.length?lots.map((x,i)=>`<tr><td>${esc(x.lot)}</td><td>${esc(x.qnl)}</td><td>${esc(x.material)}</td><td><button class="remove" type="button" data-i="${i}">−</button></td></tr>`).join(''):'<tr><td class="empty" colspan="4">—</td></tr>';el.querySelectorAll('.remove').forEach(b=>b.addEventListener('click',()=>{lots.splice(+b.dataset.i,1);render()}));resize()}
+$('addLot').addEventListener('click',()=>{const lot=$('lot').value.trim(),material=$('material').value.trim(),qnl=$('qnl').value.trim();if(!lot||!material||!qnl||+qnl<=0){say('Vyplň MNLOT, název materiálu a QNL.');return}lots.push({lot,material,qnl});$('lot').value='';$('material').value='';$('qnl').value='';render();say('Materiál byl přidán.',true)});$('clearLots').addEventListener('click',()=>{lots=[];render();say('Materiály byly zrušeny.')});$('save').addEventListener('click',async()=>{if(!t){say('Uložení funguje pouze uvnitř Trella.');return}try{const data=Object.fromEntries(fields.map(id=>[id,$(id).value]));await t.set('card','shared','zakazkovyList',{...data,lots,updatedAt:new Date().toISOString()});say('Zakázkový list byl uložen ke kartě.',true)}catch(e){say('Uložení se nepodařilo: '+(e.message||'chyba'))}});(async()=>{if(t)try{const saved=await t.get('card','shared','zakazkovyList',null);if(saved){fields.forEach(id=>{if(saved[id]!==undefined)$(id).value=saved[id]});lots=Array.isArray(saved.lots)?saved.lots:[];say('Načtena data této karty.',true)}}catch(e){say('Data se nepodařilo načíst.')}render();window.addEventListener('resize',resize)})();
+</script>
 </body>
 </html>
