@@ -41,8 +41,8 @@
   --txt-wait:#6E6F72;    /* text pole, které se právě načítá       */
   /* sumář (Case-form-02.pdf) */
   --bd-sum:#67676C;      /* rámeček cena celkem, zálohované komp.  */
-  --blue-dark:#2554AD;   /* rámeček odměny lab. / výplň výr. protokol */
-  --red:#F16C66;         /* reklamace                              */
+  --blue-dark:#2554AD;   /* rámeček odměny lab. / status-rating / výplň výr. protokol */
+  --red:#F16C66;         /* faktura                                */
   --yellow:#C1B92F;      /* manual                                 */
   --green:#2FC19E;       /* prohl. shody                           */
 }
@@ -243,11 +243,11 @@ body{
         padding-left:.21rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .r1sum .s1{width:25.122%}
-.r1sum .g1{width:4.390%}
-.r1sum .s2{width:24.634%}
-.r1sum .g2{width:3.902%}
-.r1sum .s3{width:17.805%}
-.r1sum .g3{width:3.659%}
+.r1sum .g1{width:2.303%}
+.r1sum .s2{width:18.968%}
+.r1sum .g2{width:4.167%}
+.r1sum .s3{width:17.982%}
+.r1sum .g3{width:2.303%}
 .r1sum .s4{flex:1}
 
 .r2sum .btn{width:19.512%}
@@ -355,14 +355,17 @@ body{
         <div class="sumlbl">odměny lab.</div>
       </div>
       <span class="g3"></span>
-      <button class="btn primary s4" id="sumFaktura">faktura</button>
+      <div class="sumcol s4">
+        <button class="btn out bd-blue" id="sumRating"></button>
+        <div class="sumlbl">status / rating</div>
+      </div>
     </div>
     <div class="sumrow r2sum">
-      <button class="btn solid red" id="sumReklamace">reklamace</button>
-      <span class="g"></span>
-      <button class="btn solid blue" id="sumProtokol">výr. protokol</button>
+      <button class="btn solid red" id="sumFaktura">faktura</button>
       <span class="g"></span>
       <button class="btn solid yellow" id="sumManual">manual</button>
+      <span class="g"></span>
+      <button class="btn solid blue" id="sumProtokol">výr. protokol</button>
       <span class="g"></span>
       <button class="btn solid green" id="sumShody">prohl. shody</button>
     </div>
