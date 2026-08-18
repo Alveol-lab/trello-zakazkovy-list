@@ -1,0 +1,9 @@
+# Soubory power-upu se načítají v iframu Trella. Bez explicitních hlaviček
+# si je prohlížeč kešuje podle vlastního uvážení a po nasazení nové verze
+# může iframe dál běžet na starém kódu (tvrdé obnovení hlavní stránky
+# Trella keš vnořeného rámu spolehlivě nezruší). Proto se HTML nekešuje.
+<FilesMatch "\.html$">
+  Header set Cache-Control "no-cache, no-store, must-revalidate"
+  Header set Pragma "no-cache"
+  Header set Expires "0"
+</FilesMatch>

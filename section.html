@@ -453,24 +453,53 @@ body{
      ================================================================= */
   var WRITE_URL = PRICEBOOK_URL;
 
+  /* ID přihlášeného člena: primárně z getContext() (základní API, vrací
+     .member), záložne přes t.member('id'); vše chráněné proti výjimkám,
+     aby případná nedostupnost metody nikdy nepřerušila zpracování        */
   function currentMemberId(){
     if (!t) return Promise.resolve(null);
-    return t.member('id').then(function(m){ return (m && m.id) || null; })
-            .catch(function(){ return null; });
+    return Promise.resolve().then(function(){
+      var ctx = t.getContext ? t.getContext() : null;
+      if (ctx && ctx.member) return ctx.member;
+      if (!t.member) return null;
+      return t.member('id').then(function(m){ return (m && m.id) || null; });
+    }).catch(function(){ return null; });
   }
   function currentCardName(){
     if (!t) return Promise.resolve('');
-    return t.card('name').then(function(c){ return (c && c.name) || ''; })
-            .catch(function(){ return ''; });
+    return Promise.resolve()
+      .then(function(){ return t.card('name'); })
+      .then(function(c){ return (c && c.name) || ''; })
+      .catch(function(){ return ''; });
   }
+  /* --- DOČASNÁ DIAGNOSTIKA zápisu ------------------------------------
+     Zobrazí výsledek zápisu jako hlášku Trella, aby případná chyba nebyla
+     neviditelná. Po úspěšném otestování zápisu se celý blok odstraní:
+     stačí nastavit WRITE_DEBUG = false.                                */
+  var WRITE_DEBUG = true;
+  function wdbg(msg){
+    if (!WRITE_DEBUG) return;
+    try { console.log('[ZL zapis] ' + msg); } catch (e) {}
+    try { if (t && t.alert) t.alert({ message: String(msg).slice(0, 140), duration: 10 }); } catch (e) {}
+  }
+
   function writeToSheet(payload){
-    if (!WRITE_URL) return Promise.resolve(null);
+    if (!WRITE_URL) { wdbg('chyba: WRITE_URL není nastavená'); return Promise.resolve(null); }
     return fetch(WRITE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }, /* text/plain = žádný CORS preflight */
       body: JSON.stringify(payload)
-    }).then(function(r){ return r.ok ? r.json() : null; })
-      .catch(function(){ return null; });
+    }).then(function(r){
+      if (!r.ok) { wdbg('server odmítl: HTTP ' + r.status); return null; }
+      return r.json();
+    }).then(function(d){
+      if (d && d.ok)      wdbg('zapsáno do ' + d.ref);
+      else if (d)         wdbg('server: ' + (d.error || 'neznámá chyba'));
+      return d;
+    }).catch(function(err){
+      wdbg('síťová chyba: ' + (err && err.message ? err.message : err));
+      return null;
+    });
   }
 
   /* =================================================================
@@ -519,7 +548,10 @@ body{
   /* obecné čtení textové hodnoty vlastního pole karty (podle názvu, jinak podle id) */
   function customFieldValue(name, id){
     if (!t) return Promise.resolve('');
-    return Promise.all([ t.board('customFields'), t.card('customFieldItems') ])
+    return Promise.resolve()
+      .then(function(){
+        return Promise.all([ t.board('customFields'), t.card('customFieldItems') ]);
+      })
       .then(function(r){
         var flds  = (r[0] && r[0].customFields) || [];
         var items = (r[1] && r[1].customFieldItems) || [];
@@ -975,9 +1007,11 @@ body{
 
     /* zápis do EVIDENCE (list dle přihlášeného Trello účtu); asynchronní,
        nic v UI neblokuje a chyba se jen tiše ignoruje                    */
-    Promise.all([ currentMemberId(), currentCardName(), tagFromCustomField() ]).then(function(res){
+    Promise.resolve().then(function(){
+      return Promise.all([ currentMemberId(), currentCardName(), tagFromCustomField() ]);
+    }).then(function(res){
       var mid = res[0], patient = res[1], tag = res[2];
-      if (!mid) return;
+      if (!mid) { wdbg('nezjištěno ID Trello účtu – zápis přeskočen'); return; }
       var lot = (r.mats || []).map(function(m){ return m.mnlot; })
                               .filter(Boolean).join(' | ');
       return writeToSheet({
@@ -996,7 +1030,9 @@ body{
         var idx = (edit != null) ? edit : state.rows.indexOf(r);
         if (idx >= 0 && state.rows[idx]) { state.rows[idx]._href = resp.ref; save(); }
       });
-    }).catch(function(){});
+    }).catch(function(err){
+      wdbg('chyba před zápisem: ' + (err && err.message ? err.message : err));
+    });
   });
 
   /* testovací průzor: aktivní jen když nadřazený rám nastaví __ZLTEST__ */
