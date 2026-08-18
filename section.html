@@ -512,7 +512,12 @@ body{
      Řádek se fyzicky nemaze, aby se neposunula čísla řádků a uložené
      reference ostatních položek zůstaly platné.                          */
   function clearInSheet(ref){
-    if (!ref) return Promise.resolve(null);
+    /* položka bez uložené reference (sloučená, nebo vložená ještě před
+       zavedením zápisu) - není co vymazat, technik to musí vědět         */
+    if (!ref) {
+      wmsg('VÝMAZ NEPROBĚHL ! - nutno provést ručně v tabulce', 15);
+      return Promise.resolve(null);
+    }
     return currentMemberId().then(function(mid){
       if (!mid) { werr('nepodařilo se zjistit přihlášený Trello účet.', 'Výmaz'); return null; }
       return postToScript({ action:'clearEvidence', memberId: mid, ref: ref },
