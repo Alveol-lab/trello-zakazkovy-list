@@ -17,7 +17,9 @@ window.TrelloPowerUp.initialize({
     } catch (e) {}
     return {
       title: 'Zakázkový list',
-      icon: 'https://cdn.jsdelivr.net/npm/lucide-static@0.468.0/icons/clipboard-list.svg',
+      /* Adresa musí být absolutní – ikonu vykresluje Trello ve svém vlastním
+         rozhraní na trello.com, relativní cesta by se hledala tam.        */
+      icon: 'https://www.denteo.space/zakazkovy-list/logo-icon.jpg',
       content: {
         type: 'iframe',
         url: t.signUrl('./section.html', { theme: theme }),
