@@ -472,32 +472,34 @@ body{
       .then(function(c){ return (c && c.name) || ''; })
       .catch(function(){ return ''; });
   }
-  /* --- DOČASNÁ DIAGNOSTIKA zápisu ------------------------------------
-     Zobrazí výsledek zápisu jako hlášku Trella, aby případná chyba nebyla
-     neviditelná. Po úspěšném otestování zápisu se celý blok odstraní:
-     stačí nastavit WRITE_DEBUG = false.                                */
-  var WRITE_DEBUG = true;
-  function wdbg(msg){
-    if (!WRITE_DEBUG) return;
+  /* --- HLÁŠKA O VÝSLEDKU ZÁPISU ---------------------------------------
+     Technik musí vždy vědět, jestli se výkon do EVIDENCE skutečně zapsal.
+     Úspěch se hlásí krátce, neúspěch déle a s důvodem – tiché selhání by
+     znamenalo chybějící záznam, o kterém nikdo neví.                     */
+  function wmsg(msg, sec){
     try { console.log('[ZL zapis] ' + msg); } catch (e) {}
-    try { if (t && t.alert) t.alert({ message: String(msg).slice(0, 140), duration: 10 }); } catch (e) {}
+    try {
+      if (t && t.alert) t.alert({ message: String(msg).slice(0, 140), duration: sec || 5 });
+    } catch (e) {}
   }
+  function wok(msg){  wmsg(msg, 5); }
+  function werr(msg){ wmsg('Zápis do EVIDENCE se nepovedl – ' + msg, 15); }
 
   function writeToSheet(payload){
-    if (!WRITE_URL) { wdbg('chyba: WRITE_URL není nastavená'); return Promise.resolve(null); }
+    if (!WRITE_URL) { werr('chybí adresa skriptu.'); return Promise.resolve(null); }
     return fetch(WRITE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }, /* text/plain = žádný CORS preflight */
       body: JSON.stringify(payload)
     }).then(function(r){
-      if (!r.ok) { wdbg('server odmítl: HTTP ' + r.status); return null; }
+      if (!r.ok) { werr('server odmítl požadavek (HTTP ' + r.status + ').'); return null; }
       return r.json();
     }).then(function(d){
-      if (d && d.ok)      wdbg('zapsáno do ' + d.ref);
-      else if (d)         wdbg('server: ' + (d.error || 'neznámá chyba'));
+      if (d && d.ok)      wok('Zapsáno do ' + d.ref);
+      else if (d)         werr(d.error || 'neznámá chyba serveru.');
       return d;
     }).catch(function(err){
-      wdbg('síťová chyba: ' + (err && err.message ? err.message : err));
+      werr('nedostupné spojení (' + (err && err.message ? err.message : err) + ').');
       return null;
     });
   }
@@ -1011,7 +1013,7 @@ body{
       return Promise.all([ currentMemberId(), currentCardName(), tagFromCustomField() ]);
     }).then(function(res){
       var mid = res[0], patient = res[1], tag = res[2];
-      if (!mid) { wdbg('nezjištěno ID Trello účtu – zápis přeskočen'); return; }
+      if (!mid) { werr('nepodařilo se zjistit přihlášený Trello účet.'); return; }
       var lot = (r.mats || []).map(function(m){ return m.mnlot; })
                               .filter(Boolean).join(' | ');
       return writeToSheet({
@@ -1031,7 +1033,7 @@ body{
         if (idx >= 0 && state.rows[idx]) { state.rows[idx]._href = resp.ref; save(); }
       });
     }).catch(function(err){
-      wdbg('chyba před zápisem: ' + (err && err.message ? err.message : err));
+      werr('chyba při přípravě dat (' + (err && err.message ? err.message : err) + ').');
     });
   });
 
