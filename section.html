@@ -1173,10 +1173,21 @@ body{
     target.odmt = numFmt(numParse(target.qa) * numParse(target.odmj));
     return target;
   }
-  function findSameCode(anid, skipIndex){
+  /* Sloučit lze jen položky, které mají shodný i ORD a shodný výběr
+     outsourcovaných fází. Samotný ANID nestačí: do EVIDENCE se ve sloupci I
+     zapisuje buď ORD, nebo outsource, a podle té hodnoty se v tabulce počítá
+     odměna a odečet za outsourcované fáze. Sloučením položek s odlišným ORD
+     nebo outsource by v tabulce zůstala jen jedna z hodnot a druhá by se
+     nenávratně ztratila.                                                  */
+  function sameKey(r){
+    var outs = (r.outs || '').split(', ').filter(Boolean).sort().join(', ');
+    return [ r.anid || '', (r.ord || '').trim(), outs ].join('\u0000');
+  }
+  function findSameCode(row, skipIndex){
+    var key = sameKey(row);
     for (var i = 0; i < state.rows.length; i++) {
       if (i === skipIndex) continue;
-      if (state.rows[i].anid === anid) return i;
+      if (sameKey(state.rows[i]) === key) return i;
     }
     return -1;
   }
@@ -1185,7 +1196,7 @@ body{
     $('qa').value = qaNorm($('qa').value);
     if (!formValid()) return;
     var r = collect(), edit = state.editIndex,
-        same = findSameCode(r.anid, edit == null ? -1 : edit),
+        same = findSameCode(r, edit == null ? -1 : edit),
         /* existuje-li už řádek pro tuto přesnou položku (editace bez
            slučování), použije se jeho reference, aby se v EVIDENCE
            přepsal stejný řádek místo vzniku duplicity              */
