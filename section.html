@@ -483,23 +483,42 @@ body{
     } catch (e) {}
   }
   function wok(msg){  wmsg(msg, 5); }
-  function werr(msg){ wmsg('Zápis do EVIDENCE se nepovedl – ' + msg, 15); }
+  function werr(msg, op){ wmsg((op || 'Zápis') + ' do EVIDENCE se nepovedl – ' + msg, 15); }
 
-  function writeToSheet(payload){
-    if (!WRITE_URL) { werr('chybí adresa skriptu.'); return Promise.resolve(null); }
+  /* okLabel  = text hlášky o úspěchu, např. "Zapsáno do H_1479"
+     opLabel  = název operace v chybové hlášce ("Zápis" / "Výmaz")     */
+  function postToScript(payload, okLabel, opLabel){
+    function fail(msg){ werr(msg, opLabel); }
+    if (!WRITE_URL) { fail('chybí adresa skriptu.'); return Promise.resolve(null); }
     return fetch(WRITE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }, /* text/plain = žádný CORS preflight */
       body: JSON.stringify(payload)
     }).then(function(r){
-      if (!r.ok) { werr('server odmítl požadavek (HTTP ' + r.status + ').'); return null; }
+      if (!r.ok) { fail('server odmítl požadavek (HTTP ' + r.status + ').'); return null; }
       return r.json();
     }).then(function(d){
-      if (d && d.ok)      wok('Zapsáno do ' + d.ref);
-      else if (d)         werr(d.error || 'neznámá chyba serveru.');
+      if (d && d.ok)      wok((okLabel || 'Zapsáno do ') + d.ref);
+      else if (d)         fail(d.error || 'neznámá chyba serveru.');
       return d;
     }).catch(function(err){
-      werr('nedostupné spojení (' + (err && err.message ? err.message : err) + ').');
+      fail('nedostupné spojení (' + (err && err.message ? err.message : err) + ').');
+      return null;
+    });
+  }
+  function writeToSheet(payload){ return postToScript(payload, 'Zapsáno do ', 'Zápis'); }
+
+  /* Smazání výkonu v seznamu -> vyprázdnění datových sloupců jeho řádku.
+     Řádek se fyzicky nemaze, aby se neposunula čísla řádků a uložené
+     reference ostatních položek zůstaly platné.                          */
+  function clearInSheet(ref){
+    if (!ref) return Promise.resolve(null);
+    return currentMemberId().then(function(mid){
+      if (!mid) { werr('nepodařilo se zjistit přihlášený Trello účet.', 'Výmaz'); return null; }
+      return postToScript({ action:'clearEvidence', memberId: mid, ref: ref },
+                          'Vymazáno z ', 'Výmaz');
+    }).catch(function(err){
+      werr('neočekávaná chyba (' + (err && err.message ? err.message : err) + ').', 'Výmaz');
       return null;
     });
   }
@@ -882,7 +901,10 @@ body{
         t.popup({ title:'Výkon', mouseEvent:e, items:[
           { text:'Upravit', callback:function(tt){ loadRow(i); return tt.closePopup(); } },
           { text:'Smazat',  callback:function(tt){
-              state.rows.splice(i,1); renderRows(); save(); resize(); return tt.closePopup(); } }
+              var href = state.rows[i] ? state.rows[i]._href : null;
+              state.rows.splice(i,1); renderRows(); save(); resize();
+              clearInSheet(href);            /* asynchronní, UI neblokuje */
+              return tt.closePopup(); } }
         ]});
       });
     });
