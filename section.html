@@ -12,7 +12,9 @@
    (žádné globální tokeny Trella — ty se v kartě neprosadily).
    Referenční plocha PDF: šířka obsahu 73,70 pt, písmo 2,00 pt
    -> 1rem = 2,00 pt = 2,7137 % šířky sekce (nastavuje JS).
-   Světlá varianta se doplní později.
+   :root = tmavá paleta dle PDF předlohy (výchozí).
+   html[data-theme="light"] přepíše tytéž proměnné světlými hodnotami;
+   o nastavení atributu se stará JS podle motivu Trella.
    ========================================================= */
 
 :root{
@@ -45,6 +47,43 @@
   --red:#F16C66;         /* faktura                                */
   --yellow:#C1B92F;      /* manual                                 */
   --green:#2FC19E;       /* prohl. shody                           */
+}
+
+/* ---------------------------------------------------------------------
+   SVĚTLÁ PALETA
+   Plochy odpovídají skutečnému světlému Trellu (tělo karty = bílá,
+   sunken panel = #F0F1F3); rolí, které se ze snímku nedaly spolehlivě
+   odečíst (tenké rámečky, tlumený text), používají tokeny Atlassian
+   Design System pro light mode - tedy stejný systém, na kterém stojí
+   Trello samo. Stavové barvy (--red/--yellow/--green/--blue-dark) jsou
+   plné výplně s bílým textem a zůstávají shodné v obou režimech.
+   --------------------------------------------------------------------- */
+html[data-theme="light"]{
+  /* plochy */
+  --bg:#FFFFFF;
+  --bg-band:#F0F1F3;
+  --panel-tbl:#FAFBFC;
+  --btn:#EBECF0;
+  --accent:#0C66E4;      /* sytější modrá - pastelová by na bílé neměla kontrast */
+  --accent-txt:#FFFFFF;  /* na tmavě modrém tlačítku musí být text bílý */
+  /* text */
+  --txt:#172B4D;
+  --txt-hi:#000000;
+  --txt-dim:#626F86;
+  --txt-head:#7A869A;
+  --arrow:#8993A4;
+  /* rámečky a linky */
+  --bd-hi:#172B4D;
+  --bd:#626F86;
+  --bd-soft:#DFE1E6;
+  --bd-faint:#F0F1F3;
+  --rule:#DCDFE4;
+  --rule-mat:#EBECF0;
+  /* stavy polí */
+  --bd-bad:#E2686B;
+  --txt-wait:#8993A4;
+  /* sumář */
+  --bd-sum:#B3BAC5;
 }
 
 *{box-sizing:border-box}
@@ -746,8 +785,36 @@ body{
   $('ceny').addEventListener('change', refreshAnam);
   $('ceny').addEventListener('blur', refreshAnam);
 
-  /* ---- tmavý build: barvy jsou pevné dle PDF, nic se nedetekuje ---- */
-  document.documentElement.setAttribute('data-theme', 'dark');
+  /* ---- MOTIV PODLE TRELLA ------------------------------------------
+     Trello předává zvolený režim v getContext() (initialTheme / theme)
+     a změny za běhu hlásí přes subscribeToThemeChanges - technik tedy
+     nemusí kartu znovu otevírat, když režim přepne. Mimo Trello (samostatný
+     náhled) rozhoduje parametr ?theme=, jinak nastavení systému.        */
+  function applyTheme(mode){
+    var m = (mode === 'light' || mode === 'dark') ? mode : null;
+    if (!m) {
+      m = (window.matchMedia &&
+           window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+    }
+    document.documentElement.setAttribute('data-theme', m);
+  }
+
+  (function initTheme(){
+    var q = (location.search.match(/[?&]theme=(light|dark)/) || [])[1];
+    if (q) { applyTheme(q); return; }          /* náhled mimo Trello */
+
+    var ctxTheme = null;
+    try {
+      var ctx = (t && t.getContext) ? t.getContext() : null;
+      if (ctx) ctxTheme = ctx.initialTheme || ctx.theme || null;
+    } catch (e) {}
+    applyTheme(ctxTheme);
+
+    /* změna režimu za běhu; selhání nesmí shodit zbytek inicializace */
+    try {
+      if (t && t.subscribeToThemeChanges) t.subscribeToThemeChanges(applyTheme);
+    } catch (e) {}
+  })();
 
   /* ---- měřítko podle PDF: 1em = 2,00pt / 73,70pt šířky obsahu ---- */
   var EM_RATIO = 2.00 / 73.70;
