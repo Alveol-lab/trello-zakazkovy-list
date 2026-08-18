@@ -128,6 +128,7 @@ body{
 .f.bare{background:transparent;--bd-c:var(--bd-faint);color:var(--txt-dim)}
 .f.bad{--bd-c:var(--bd-bad)}                      /* blokuje zápis    */
 .f.wait{color:var(--txt-wait)}                    /* načítá se        */
+.btn.out.wait{color:var(--txt-wait)}             /* součet se načítá */
 .f[readonly]{cursor:default}
 
 .selwrap{position:relative;min-width:0;display:flex;flex:none}
@@ -546,6 +547,19 @@ body{
     });
   }
   function writeToSheet(payload){ return postToScript(payload, 'Zapsáno do ', 'Zápis'); }
+
+  /* Dotaz na server bez hlášek - používá se pro dočtení součtu odměn.
+     Selhání se technikovi nehlásí: nejde o zápis, o který by mohl přijít,
+     jen o zobrazenou hodnotu, která v takovém případě zůstane prázdná. */
+  function postSilent(payload){
+    if (!WRITE_URL) return Promise.resolve(null);
+    return fetch(WRITE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.ok ? r.json() : null; })
+      .catch(function(){ return null; });
+  }
 
   /* Smazání výkonu v seznamu -> vyprázdnění datových sloupců jeho řádku.
      Řádek se fyzicky nemaze, aby se neposunula čísla řádků a uložené
@@ -975,7 +989,9 @@ body{
           { text:'Smazat',  callback:function(tt){
               var href = state.rows[i] ? state.rows[i]._href : null;
               state.rows.splice(i,1); renderRows(); save(); resize();
-              clearInSheet(href);            /* asynchronní, UI neblokuje */
+              /* součet odměn se dočte teprve až server řádek vyprázdní,
+                 jinak by se načetla ještě stará hodnota včetně smaženého */
+              clearInSheet(href).then(refreshOdmeny);
               return tt.closePopup(); } }
         ]});
       });
@@ -991,26 +1007,60 @@ body{
      (např. ZANAD, ZANAE), jsou zálohované komponenty - jejich
      hodnota se NEzčitává do "cena celkem", ale tvoří součet
      samostatného pole "zálohované komp.".
-     "odměny lab." = součet odmt všech řádků (bez ohledu na ZANA).       */
+     "odměny lab." se tady NEPOČÍTÁ - je to součet sloupce Q v listu
+     technika za všechny řádky se stejným kódem zakázky, viz refreshOdmeny.
+     Součet z odmt by byl špatný: nezná sloupec M (odečet za outsourcované
+     fáze) ani slevu AB a nevidí řádky, které v kartě nejsou (starší zápisy,
+     ruční řádky, položky z dřívějších sloučení).                          */
   function isZana(anid){
     return String(anid || '').toUpperCase().indexOf('ZANA') === 0;
   }
   function sumRows(){
     var total = 0, anyTotal = false;
     var zaloha = 0, anyZaloha = false;
-    var odmeny = 0, anyOdmeny = false;
     state.rows.forEach(function(r){
       var n = numParse(r.ctot);
       if (!isNaN(n)) {
         if (isZana(r.anid)) { zaloha += n; anyZaloha = true; }
         else { total += n; anyTotal = true; }
       }
-      var od = numParse(r.odmt);
-      if (!isNaN(od)) { odmeny += od; anyOdmeny = true; }
     });
     $('sumCena').textContent = anyTotal ? numFmt(total) : '';
     $('sumZaloha').textContent = anyZaloha ? numFmt(zaloha) : '';
-    $('sumOdmeny').textContent = anyOdmeny ? numFmt(odmeny) : '';
+  }
+
+  /* --- odměny lab.: součet sloupce Q z listu technika -------------------
+     Ptáme se serveru, protože správná hodnota existuje jen v tabulce
+     (sloupec M = odečet za outsourcované fáze, AB = sleva) a sčítat se mají
+     všechny řádky se stejným kódem zakázky, ne jen položky v kartě.
+     Odpovědi se řadí přes odmSeq - starší, ale později doručená odpověď
+     nesmí přepsat novější. Nezdar nechá pole prázdné; zavádějící číslo se
+     nezobrazí nikdy.                                                     */
+  var odmSeq = 0;
+  function refreshOdmeny(){
+    var el = $('sumOdmeny');
+    var seq = ++odmSeq;
+    el.classList.add('wait');
+    Promise.all([ currentMemberId(), tagFromCustomField() ]).then(function(res){
+      var mid = res[0], tag = res[1];
+      if (!mid || !tag) return null;
+      return postSilent({ action: 'rewardSum', memberId: mid, tag: tag });
+    }).then(function(d){
+      if (seq !== odmSeq) return;             /* mezitím přišel novější dotaz */
+      el.classList.remove('wait');
+      el.textContent = (d && d.ok && d.rows) ? numFmt(d.sum) : '';
+      if (d && d.ok && d.bad) {
+        try {
+          console.log('[ZL odmeny] ' + d.bad + ' řádek/řádky se stejným kódem'
+                    + ' nemá v ceníku odměnu - do součtu se nepočítá');
+        } catch (e) {}
+      }
+      resize();
+    }).catch(function(){
+      if (seq !== odmSeq) return;
+      el.classList.remove('wait');
+      el.textContent = '';
+    });
   }
 
   function collect(){
@@ -1121,6 +1171,10 @@ body{
         ceny: r.ceny,
         lot: lot
       }).then(function(resp){
+        /* součet odměn se dopočítává v tabulce, takže se čte teprve
+           po dokončení zápisu - i když zápis selhal, aby se případně
+           zobrazil skutečný stav tabulky, ne očekávaný                */
+        refreshOdmeny();
         if (!resp || !resp.ok || !resp.ref) return;
         if (same >= 0) return;                    /* nová historická položka, ref se neukládá */
         var idx = (edit != null) ? edit : state.rows.indexOf(r);
@@ -1149,7 +1203,8 @@ body{
     t.get('card','shared','zakazkovyList').then(function(d){
       state.rows = (d && d.rows) || [];
       renderMats(); renderRows(); resize();
-    }).catch(function(){ renderMats(); renderRows(); resize(); });
+    }).catch(function(){ renderMats(); renderRows(); resize(); })
+     .then(function(){ refreshOdmeny(); });
   }
 
   load();
