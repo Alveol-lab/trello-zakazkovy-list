@@ -17,9 +17,12 @@ window.TrelloPowerUp.initialize({
     } catch (e) {}
     return {
       title: 'Zakázkový list',
-      /* Adresa musí být absolutní – ikonu vykresluje Trello ve svém vlastním
+      /* Šedá jednobarevná ikona – Trello u card-back-section barevné nepovoluje.
+         Barevné logo (logo-icon.jpg) je ikonou celého power-upu a nastavuje se
+         v administraci power-upu, ne tady.
+         Adresa musí být absolutní – ikonu vykresluje Trello ve svém vlastním
          rozhraní na trello.com, relativní cesta by se hledala tam.        */
-      icon: 'https://www.denteo.space/zakazkovy-list/logo-icon.jpg',
+      icon: 'https://www.denteo.space/zakazkovy-list/logo-icon-gray.svg',
       content: {
         type: 'iframe',
         url: t.signUrl('./section.html', { theme: theme }),
