@@ -170,6 +170,7 @@ body{
   display:flex;align-items:center;justify-content:center;
 }
 .btn:hover{filter:brightness(1.22)}
+.btn:disabled{opacity:.5;cursor:default;filter:none}  /* probíhá zpracování */
 .btn.glyph{font-size:2rem;font-weight:300}
 .btn.primary{background:var(--accent);color:var(--accent-txt)}
 
@@ -504,6 +505,16 @@ body{
       if (!t.member) return null;
       return t.member('id').then(function(m){ return (m && m.id) || null; });
     }).catch(function(){ return null; });
+  }
+  /* ID otevřené karty - potřebné, aby server věděl, kam přiložit PDF */
+  function currentCardId(){
+    if (!t) return Promise.resolve('');
+    return Promise.resolve().then(function(){
+      var ctx = t.getContext ? t.getContext() : null;
+      if (ctx && ctx.card) return ctx.card;
+      if (!t.card) return '';
+      return t.card('id').then(function(c){ return (c && c.id) || ''; });
+    }).catch(function(){ return ''; });
   }
   function currentCardName(){
     if (!t) return Promise.resolve('');
@@ -1062,6 +1073,47 @@ body{
       el.textContent = '';
     });
   }
+
+  /* --- prohl. shody: PDF prohlášení výrobce do příloh karty -------------
+     Dokument sestavuje server z listu F-Stitek - ten má celý text, tiskovou
+     podobu i výpisy položek a nebezpečných látek řízené vzorci, takže
+     skládat ho znovu v power-upu by znamenalo držet dvě verze téhož
+     dokumentu. Power-up jen pošle kód zakázky a kartu.
+
+     Export a nahrání trvají několik sekund; tlačítko je po tu dobu zamčené,
+     aby druhé zmáčknutí nezaložilo dvě souběžná nahrání téže přílohy.    */
+  var shodyBusy = false;
+  function serr(msg){ wmsg('Prohlášení o shodě se nepovedlo – ' + msg, 15); }
+
+  $('sumShody').addEventListener('click', function(){
+    if (shodyBusy) return;
+    var btn = this;
+    shodyBusy = true;
+    btn.disabled = true;
+    wmsg('Prohlášení o shodě se připravuje…', 10);
+
+    Promise.all([ currentMemberId(), tagFromCustomField(), currentCardId() ]).then(function(res){
+      var mid = res[0], tag = res[1], cardId = res[2];
+      if (!mid)    { serr('nepodařilo se zjistit přihlášený Trello účet.'); return null; }
+      if (!tag)    { serr('karta nemá vyplněný kód zakázky.'); return null; }
+      if (!cardId) { serr('nepodařilo se zjistit kartu.'); return null; }
+      return postSilent({ action:'compliancePdf', memberId: mid, tag: tag, cardId: cardId })
+        .then(function(d){
+          if (d && d.ok) {
+            wmsg('Prohlášení o shodě přiloženo: ' + d.name
+                 + (d.replaced ? ' (předchozí verze odebrána)' : ''), 8);
+          } else {
+            serr((d && d.error) ? d.error : 'server neodpověděl.');
+          }
+          return d;
+        });
+    }).catch(function(err){
+      serr('nedostupné spojení (' + (err && err.message ? err.message : err) + ').');
+    }).then(function(){
+      shodyBusy = false;
+      btn.disabled = false;
+    });
+  });
 
   function collect(){
     var o = { mats: state.mats.slice() };
