@@ -445,6 +445,35 @@ body{
   }
 
   /* =================================================================
+     ZÁPIS DO EVIDENCE (Google Sheets) — testovací fáze
+     Cílový list se určuje podle přihlášeného Trello účtu (memberId);
+     mapování a aktivace listu se řeší na straně Apps Scriptu, tady se
+     jen odešle memberId a data. Pokud účet není aktivní, server vrátí
+     ok:false a zápis se tiše přeskočí (UI se tím nikdy neblokuje).
+     ================================================================= */
+  var WRITE_URL = PRICEBOOK_URL;
+
+  function currentMemberId(){
+    if (!t) return Promise.resolve(null);
+    return t.member('id').then(function(m){ return (m && m.id) || null; })
+            .catch(function(){ return null; });
+  }
+  function currentCardName(){
+    if (!t) return Promise.resolve('');
+    return t.card('name').then(function(c){ return (c && c.name) || ''; })
+            .catch(function(){ return ''; });
+  }
+  function writeToSheet(payload){
+    if (!WRITE_URL) return Promise.resolve(null);
+    return fetch(WRITE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, /* text/plain = žádný CORS preflight */
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.ok ? r.json() : null; })
+      .catch(function(){ return null; });
+  }
+
+  /* =================================================================
      DEFINICE POLÍ
      ================================================================= */
 
@@ -917,17 +946,47 @@ body{
     $('qa').value = qaNorm($('qa').value);
     if (!formValid()) return;
     var r = collect(), edit = state.editIndex,
-        same = findSameCode(r.anid, edit == null ? -1 : edit);
+        same = findSameCode(r.anid, edit == null ? -1 : edit),
+        /* existuje-li už řádek pro tuto přesnou položku (editace bez
+           slučování), použije se jeho reference, aby se v EVIDENCE
+           přepsal stejný řádek místo vzniku duplicity              */
+        existingHref = (edit != null && same < 0 && state.rows[edit])
+                       ? state.rows[edit]._href : null;
     if (same >= 0) {
       mergeRow(state.rows[same], r);
       if (edit != null) state.rows.splice(edit, 1);   /* upravený řádek se vstřebal */
     } else if (edit != null) {
+      r._href = existingHref;
       state.rows[edit] = r;
     } else {
       state.rows.push(r);
     }
     state.editIndex = null;
     clearForm(); resetDefaults(); renderRows(); save(); resize();
+
+    /* zápis do EVIDENCE (list dle přihlášeného Trello účtu); asynchronní,
+       nic v UI neblokuje a chyba se jen tiše ignoruje                    */
+    Promise.all([ currentMemberId(), currentCardName() ]).then(function(res){
+      var mid = res[0], patient = res[1];
+      if (!mid) return;
+      var lot = (r.mats || []).map(function(m){ return m.mnlot; })
+                              .filter(Boolean).join(' | ');
+      return writeToSheet({
+        memberId: mid,
+        ref: (same >= 0) ? null : existingHref,   /* sloučení = vždy nová položka */
+        patient: patient,
+        anid: r.anid,
+        qa: r.qa,
+        i: r.outs ? r.outs : r.ord,
+        ceny: r.ceny,
+        lot: lot
+      }).then(function(resp){
+        if (!resp || !resp.ok || !resp.ref) return;
+        if (same >= 0) return;                    /* nová historická položka, ref se neukládá */
+        var idx = (edit != null) ? edit : state.rows.indexOf(r);
+        if (idx >= 0 && state.rows[idx]) { state.rows[idx]._href = resp.ref; save(); }
+      });
+    }).catch(function(){});
   });
 
   /* testovací průzor: aktivní jen když nadřazený rám nastaví __ZLTEST__ */
