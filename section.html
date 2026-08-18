@@ -508,18 +508,24 @@ body{
   var ORD_FIELD_NAME = '\uD83D\uDC68\u200D\u2695\uFE0F';   /* 👨‍⚕️ */
   var ORD_FIELD_ID   = '67235a6d2934ab21b9be0d77';            /* DTO_Produkce */
 
+  /* kód zakázky — vlastní pole 🏷️, plní ho automatizace Trella;
+     společný pro celou kartu, v EVIDENCE se zapisuje do sloupce A     */
+  var TAG_FIELD_NAME = '\uD83C\uDFF7\uFE0F';                  /* 🏷️ */
+  var TAG_FIELD_ID   = '677bedc70ea43cd1d7154d92';            /* DTO_Produkce */
+
   function ordClean(v){ return String(v).toUpperCase().replace(/[^A-Z]/g,'').slice(0,3); }
   function ordValid(v){ return ordClean(v).length > 0; }
 
-  function ordFromCustomField(){
+  /* obecné čtení textové hodnoty vlastního pole karty (podle názvu, jinak podle id) */
+  function customFieldValue(name, id){
     if (!t) return Promise.resolve('');
     return Promise.all([ t.board('customFields'), t.card('customFieldItems') ])
       .then(function(r){
         var flds  = (r[0] && r[0].customFields) || [];
         var items = (r[1] && r[1].customFieldItems) || [];
         var f = null, i;
-        for (i = 0; i < flds.length; i++) if (flds[i].name === ORD_FIELD_NAME) { f = flds[i]; break; }
-        if (!f) for (i = 0; i < flds.length; i++) if (flds[i].id === ORD_FIELD_ID) { f = flds[i]; break; }
+        for (i = 0; i < flds.length; i++) if (flds[i].name === name) { f = flds[i]; break; }
+        if (!f) for (i = 0; i < flds.length; i++) if (flds[i].id === id) { f = flds[i]; break; }
         if (!f) return '';
         for (i = 0; i < items.length; i++) {
           if (items[i].idCustomField !== f.id) continue;
@@ -530,6 +536,9 @@ body{
       })
       .catch(function(){ return ''; });
   }
+
+  function ordFromCustomField(){ return customFieldValue(ORD_FIELD_NAME, ORD_FIELD_ID); }
+  function tagFromCustomField(){ return customFieldValue(TAG_FIELD_NAME, TAG_FIELD_ID); }
 
   /* --- 5. OUT --------------------------------------------------------
      vícenásobný výběr ze čtyř hodnot; vybráno může být vše i nic     */
@@ -966,14 +975,15 @@ body{
 
     /* zápis do EVIDENCE (list dle přihlášeného Trello účtu); asynchronní,
        nic v UI neblokuje a chyba se jen tiše ignoruje                    */
-    Promise.all([ currentMemberId(), currentCardName() ]).then(function(res){
-      var mid = res[0], patient = res[1];
+    Promise.all([ currentMemberId(), currentCardName(), tagFromCustomField() ]).then(function(res){
+      var mid = res[0], patient = res[1], tag = res[2];
       if (!mid) return;
       var lot = (r.mats || []).map(function(m){ return m.mnlot; })
                               .filter(Boolean).join(' | ');
       return writeToSheet({
         memberId: mid,
         ref: (same >= 0) ? null : existingHref,   /* sloučení = vždy nová položka */
+        tag: tag,
         patient: patient,
         anid: r.anid,
         qa: r.qa,
