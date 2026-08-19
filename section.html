@@ -325,6 +325,7 @@ body{
         <label><input type="checkbox" value="DE"><span>DE</span></label>
         <label><input type="checkbox" value="CN"><span>CN</span></label>
         <label><input type="checkbox" value="FN"><span>FN</span></label>
+        <label><input type="checkbox" value="VB"><span>VB</span></label>
       </div>
     </span>
     <span class="gap g2"></span>
@@ -663,8 +664,9 @@ body{
   function tagFromCustomField(){ return customFieldValue(TAG_FIELD_NAME, TAG_FIELD_ID); }
 
   /* --- 5. OUT --------------------------------------------------------
-     vícenásobný výběr ze čtyř hodnot; vybráno může být vše i nic     */
-  var OUT_VALUES = ['MB','DE','CN','FN'];
+     vícenásobný výběr z pěti hodnot; vybráno může být vše i nic
+     pořadí odpovídá sloupcům ceníku CEN: DE=K, MB=N, CN=Q, FN=T, VB=W   */
+  var OUT_VALUES = ['MB','DE','CN','FN','VB'];
 
   function outsGet(){
     return $('outs').value ? $('outs').value.split(', ') : [];
