@@ -10,11 +10,15 @@
 <script>
 window.TrelloPowerUp.initialize({
   'card-back-section': function (t) {
-    var theme = 'dark';
+    var theme = 'dark', member = '';
     try {
       var ctx = t.getContext();
       if (ctx && ctx.theme) theme = ctx.theme;
+      if (ctx && ctx.member) member = ctx.member;
     } catch (e) {}
+    /* Formulář 3.1 se zatím testuje jen u technika H (list H v EVIDENCE);
+       ostatní technici mají dál formulář verze 2 beze změny.            */
+    var page = (member === '588fa9e7e5db691bfe653bce') ? './section3.html' : './section.html';
     return {
       title: 'Zakázkový list',
       /* Šedá jednobarevná ikona – Trello u card-back-section barevné nepovoluje.
@@ -25,7 +29,7 @@ window.TrelloPowerUp.initialize({
       icon: 'https://www.denteo.space/zakazkovy-list/logo-icon-gray.svg',
       content: {
         type: 'iframe',
-        url: t.signUrl('./section.html', { theme: theme }),
+        url: t.signUrl(page, { theme: theme }),
         height: 300
       }
     };
