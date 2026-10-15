@@ -446,7 +446,22 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
     PHASES.forEach(function(p){ h += '<button type="button" data-v="' + p[0] + '">' + p[0] + ' - ' + p[1] + '</button>'; });
     $('outMenu').innerHTML = h;
   })();
+  /* VB = výběr barvy: pevná odměna za zakázku, ne za kus – množství je
+     vždy 1 a na jedné zakázce (kartě) smí být VB jen jednou            */
+  var VB_CODE = 'VB';
+  function vbLock(on){
+    var q = $('qa');
+    q.readOnly = !!on;
+    if (on) { q.value = '1'; q.classList.remove('bad'); recalcTotal(); qnlSync(); }
+  }
+  function vbExists(skipIndex){
+    for (var i = 0; i < state.rows.length; i++) {
+      if (i !== skipIndex && state.rows[i].outs === VB_CODE) return true;
+    }
+    return false;
+  }
   function outSet(v){
+    vbLock(v === VB_CODE);
     $('outs').value = v || '';
     $('outTxt').textContent = v || 'OUT';
     Array.prototype.forEach.call($('outMenu').querySelectorAll('button'), function(b){
@@ -810,6 +825,13 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
     if (old && old._href && (old.tid || String(old._href).split('_')[0]) !== r.tid) {
       wmsg('U zapsané položky nelze změnit TID – smaž ji a vlož znovu pod správným technikem.', 12);
       mark($('tid'), false); return;
+    }
+    if (r.outs === VB_CODE) {
+      r.qa = '1';
+      if (vbExists(edit == null ? -1 : edit)) {
+        wmsg('Fáze VB už je na této zakázce zapsaná – na jednu zakázku smí být jen jednou.', 12);
+        return;
+      }
     }
     if (!sheetAllowed(r.tid, 'Zápis')) return;
 
