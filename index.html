@@ -16,9 +16,9 @@ window.TrelloPowerUp.initialize({
       if (ctx && ctx.theme) theme = ctx.theme;
       if (ctx && ctx.member) member = ctx.member;
     } catch (e) {}
-    /* Formulář 3.1 se zatím testuje jen u technika H (list H v EVIDENCE);
-       ostatní technici mají dál formulář verze 2 beze změny.            */
-    var page = (member === '588fa9e7e5db691bfe653bce') ? './section3.html' : './section.html';
+    /* Formulář 3.1 používají všichni technici (H, J, Z, P, U, I).
+       Starý formulář section.html zůstává v repozitáři jako záloha.    */
+    var page = './section3.html';
     return {
       title: 'Zakázkový list',
       /* Šedá jednobarevná ikona – Trello u card-back-section barevné nepovoluje.
