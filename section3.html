@@ -428,6 +428,11 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
       return '';
     }).catch(function(){ return ''; });
   }
+  /* Termín karty (Trello pole Termín) – termín splnění pro ordinaci; bez termínu prázdný řetězec */
+  function cardDue(){
+    if (!t) return Promise.resolve('');
+    return t.card('due').then(function(c){ return (c && c.due) || ''; }).catch(function(){ return ''; });
+  }
   function ordFromCustomField(){ return customFieldValue(ORD_FIELD_NAME, ORD_FIELD_ID); }
   function tagFromCustomField(){ return customFieldValue(TAG_FIELD_NAME, TAG_FIELD_ID); }
 
@@ -855,14 +860,14 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
     clearForm(); resetDefaults(); renderRows(); save();
 
     /* zápis do EVIDENCE – list podle TID; sloučení = nový řádek v listu */
-    Promise.all([ currentCardName(), tagFromCustomField() ]).then(function(res){
+    Promise.all([ currentCardName(), tagFromCustomField(), cardDue() ]).then(function(res){
       var lot = (r.mats || []).map(function(m){ return m.mnlot; }).filter(Boolean).join(' | ');
       return postToScript({
         memberId: MEMBERS[r.tid],
         ref: (same >= 0) ? null : (old ? old._href : null),
         tag: res[1], patient: res[0], anid: r.anid, qa: r.qa,
         i: isPhase(r) ? r.outs : r.ord,
-        ceny: r.ceny, lot: lot
+        ceny: r.ceny, lot: lot, due: res[2]
       }, 'Zapsáno do ', 'Zápis').then(function(resp){
         refreshOdmeny();
         if (!resp || !resp.ok || !resp.ref) return;
