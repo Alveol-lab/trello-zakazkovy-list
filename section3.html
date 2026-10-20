@@ -411,8 +411,11 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
 
   var ORD_FIELD_NAME = '\uD83D\uDC68\u200D\u2695\uFE0F', ORD_FIELD_ID = '67235a6d2934ab21b9be0d77';
   var TAG_FIELD_NAME = '\uD83C\uDFF7\uFE0F',             TAG_FIELD_ID = '677bedc70ea43cd1d7154d92';
-  function ordClean(v){ return String(v).toUpperCase().replace(/[^A-Z]/g,'').slice(0,3); }
-  function ordValid(v){ return ordClean(v).length > 0; }
+  /* ORD: písmena i čísla (kliniky s více provozovnami, např. OP2), max. 3 znaky –
+     tabulka podle délky 3 rozlišuje zadavatele od 2znakových outsource kódů.
+     Na začátku musí být písmeno: čistě číselný kód by Sheets uložily jako číslo. */
+  function ordClean(v){ return String(v).toUpperCase().replace(/[^0-9A-Z]/g,'').slice(0,3); }
+  function ordValid(v){ return /^[A-Z][0-9A-Z]{0,2}$/.test(ordClean(v)); }
   function customFieldValue(name, id){
     if (!t) return Promise.resolve('');
     return Promise.all([ t.board('customFields'), t.card('customFieldItems') ]).then(function(r){
