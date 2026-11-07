@@ -37,6 +37,10 @@
   --bad:#E2686B;         /* pole, které blokuje zápis                    */
   --wait:#6E6F72;        /* pole, které se právě načítá                  */
   --menu-shadow:rgba(0,0,0,.45);
+  --lp-bg:#393B44;       /* okno lupy (podle náhledu)                    */
+  --lp-blk:#141821;      /* blok výsledku, pole množství                 */
+  --lp-txt:#C7C8CB;      /* text v okně lupy                             */
+  --lp-focus:#FFFFFF;    /* rámeček vyhledávacího pole                   */
 }
 html[data-theme="light"]{
   --bg:#FFFFFF;
@@ -59,6 +63,10 @@ html[data-theme="light"]{
   --inv:#CC9E13;   --inv-txt:#FFFFFF;
   --wait:#8993A4;
   --menu-shadow:rgba(9,30,66,.25);
+  --lp-bg:#F0F1F3;
+  --lp-blk:#FFFFFF;
+  --lp-txt:#172B4D;
+  --lp-focus:#0C66E4;
 }
 
 *{box-sizing:border-box}
@@ -66,7 +74,7 @@ html{font-size:1px}                 /* přepočítá JS: šířka sekce / 340 */
 html,body{margin:0!important;padding:0!important;overflow:hidden!important;background:var(--bg)!important}
 body{font-family:Arial,"Helvetica Neue",-apple-system,"Segoe UI",Roboto,sans-serif;
      font-size:8.333rem;color:var(--txt);-webkit-font-smoothing:antialiased}
-#app{width:100%;background:var(--bg);padding:17.3rem 0 13.3rem}
+#app{position:relative;width:100%;background:var(--bg);padding:17.3rem 0 13.3rem}
 
 /* ---------- pole ---------- */
 .row{display:flex;align-items:stretch;padding:0 0 0 16.7rem}
@@ -89,7 +97,9 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
 
 .r1 #anid{width:62.4rem}
 .r1 #qa{width:45rem;margin-left:4.3rem}
-.r1 #anam{width:189.1rem;margin-left:5rem}
+.r1 #anam{width:165.4rem;margin-left:5rem}
+.r1 #lupa{width:20.7rem;margin-left:3rem}
+.lupa-ic{width:12rem;height:12rem;display:block}
 .r2{margin-top:3.3rem}
 .r2 .outwrap{width:62.4rem}
 .r2 #ord{width:45rem;margin-left:4.3rem}
@@ -109,6 +119,45 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
 .outmenu button{display:block;width:100%;text-align:left;border:0;background:none;cursor:pointer;
                 color:var(--txt);font:inherit;font-size:7.083rem;padding:3rem 7rem;white-space:nowrap}
 .outmenu button:hover,.outmenu button.sel{background:rgba(127,127,127,.18)}
+
+/* ---------- fulltext v popisu výrobku ---------- */
+.ftwrap{position:relative}
+.ftlist{position:absolute;z-index:6;top:2rem;left:132.4rem;width:190.1rem;max-height:150rem;overflow-y:auto;
+        background:var(--lp-bg);border-radius:3.2rem;padding:3rem;
+        box-shadow:0 3rem 10rem var(--menu-shadow)}
+.ftlist button{display:flex;width:100%;border:0;background:none;cursor:pointer;text-align:left;
+               color:var(--lp-txt);font:inherit;font-size:6.25rem;line-height:7.5rem;padding:2.5rem 3rem;border-radius:2rem}
+.ftlist button:hover,.ftlist button.sel{background:var(--lp-blk)}
+.ftlist .k{flex:none;width:42rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ftlist .n{flex:1;min-width:0}
+.ftmsg{font-size:6.25rem;color:var(--txt-dim);padding:2.5rem 3rem}
+
+/* ---------- okno lupy: sady a kódy (1. krok), množství (2. krok) ---------- */
+.lp{position:absolute;z-index:8;top:10rem;left:7rem;width:326rem;background:var(--lp-bg);
+    border-radius:8rem;padding:8rem 7rem 8rem;box-shadow:0 4rem 16rem var(--menu-shadow)}
+.lp[hidden]{display:none}
+.lp .lrow{display:flex;align-items:center}
+.lp #lpq{flex:1;width:auto;background:var(--lp-bg);--c:var(--lp-focus);color:var(--lp-txt);font-size:7.083rem}
+.lp #lpx{width:20.7rem;margin-left:4rem;font-size:12rem}
+.lpres{margin-top:6rem;max-height:300rem;overflow-y:auto}
+.lpblk{display:block;width:100%;border:0;cursor:pointer;text-align:left;background:var(--lp-blk);color:var(--lp-txt);
+       font:inherit;font-size:6.25rem;line-height:7.6rem;padding:4rem 6rem;border-radius:4rem}
+.lpblk+.lpblk{margin-top:4rem}
+.lpblk:hover,.lpblk:focus{outline:none;box-shadow:inset 0 0 0 .6rem var(--lp-focus)}
+.lpblk .it{display:flex}
+.lpblk .k{flex:none;width:56rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lpblk .n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lpmsg{font-size:6.25rem;color:var(--txt-dim);padding:3rem 2rem}
+.lpq .qrow{display:flex;align-items:center;font-size:6.25rem;color:var(--lp-txt)}
+.lpq .qrow+.qrow{margin-top:4.5rem}
+.lpq .k{flex:none;width:52rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lpq .f{width:24rem;height:18rem;line-height:18rem;background:var(--lp-blk);--c:var(--lp-blk);text-align:center;padding:0 2rem}
+.lpq .f:focus{--c:var(--lp-focus)}
+.lpq .f.bad{--c:var(--bad)}
+.lpq .n{flex:1;min-width:0;margin-left:16rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lpacts{display:flex;justify-content:flex-end;margin-top:7rem}
+.lpacts #lpback{width:21.6rem;font-size:12rem}
+.lpacts #lpok{width:61.1rem;margin-left:5.2rem;background:var(--ok);color:var(--ok-txt)}
 
 /* ---------- tlačítka ---------- */
 .btn{flex:none;min-width:0;height:20.7rem;border:0;border-radius:3.2rem;padding:0;cursor:pointer;
@@ -202,8 +251,14 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
   <div class="row r1">
     <input class="f" id="anid" placeholder="kód produktu" autocomplete="off">
     <input class="f h20" id="qa" placeholder="množství" autocomplete="off">
-    <input class="f soft" id="anam" placeholder="popis výrobku" readonly>
+    <input class="f soft" id="anam" placeholder="popis výrobku" autocomplete="off">
+    <button type="button" class="btn" id="lupa" title="sady a vyhledávání výrobků">
+      <svg class="lupa-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <circle cx="10" cy="10" r="6.5"/><path d="M15 15l6 6"/><path d="M10 7v6M7 10h6"/>
+      </svg>
+    </button>
   </div>
+  <div class="ftwrap"><div class="ftlist" id="ftList" hidden></div></div>
 
   <div class="row r2">
     <span class="outwrap">
@@ -229,6 +284,23 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
     <div class="mpanel" id="mpanel">
       <div class="mrules"><i></i><i></i></div>
       <div id="mlist"></div>
+    </div>
+  </div>
+
+  <div class="lp" id="lp" hidden>
+    <div id="lpS1">
+      <div class="lrow">
+        <input class="f" id="lpq" placeholder="hledat výrobek nebo sadu – Enter" autocomplete="off">
+        <button class="btn" id="lpx" title="zavřít">✕</button>
+      </div>
+      <div class="lpres" id="lpRes"></div>
+    </div>
+    <div id="lpS2" hidden>
+      <div class="lpq" id="lpQ"></div>
+      <div class="lpacts">
+        <button class="btn" id="lpback" title="zpět na výběr">✕</button>
+        <button class="btn" id="lpok">vložit</button>
+      </div>
     </div>
   </div>
 
@@ -823,26 +895,23 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
     return -1;
   }
 
-  $('insert').addEventListener('click', function(){
-    $('qa').value = qaNorm($('qa').value);
-    if (!formValid()) return;
-    var r = collect(), edit = state.editIndex, old = (edit != null) ? state.rows[edit] : null;
-
+  /* vložení jednoho řádku do seznamu (sloučení / přepis / nový);
+     vrací podklad pro zápis do EVIDENCE nebo null, když vložit nelze   */
+  function commitRow(r, edit){
+    var old = (edit != null) ? state.rows[edit] : null;
     /* zapsaný řádek patří do listu svého technika – změna TID by přepsala
        řádek v cizím listu, proto se musí smazat a vložit znovu           */
     if (old && old._href && (old.tid || String(old._href).split('_')[0]) !== r.tid) {
       wmsg('U zapsané položky nelze změnit TID – smaž ji a vlož znovu pod správným technikem.', 12);
-      mark($('tid'), false); return;
+      mark($('tid'), false); return null;
     }
     if (r.outs === VB_CODE) {
       r.qa = '1';
       if (vbExists(edit == null ? -1 : edit)) {
         wmsg('Fáze VB už je na této zakázce zapsaná – na jednu zakázku smí být jen jednou.', 12);
-        return;
+        return null;
       }
     }
-    if (!sheetAllowed(r.tid, 'Zápis')) return;
-
     var same = findMergeTarget(r, edit == null ? -1 : edit), target;
     if (same >= 0) {
       target = state.rows[same];
@@ -859,27 +928,215 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
       if (isPhase(r)) { r.pid = parentFor(r.anid); if (r.pid) state.open[r.pid] = true; }
       state.rows.push(r); target = r;
     }
+    return { r:r, same:same, old:old, target:target };
+  }
+  /* zápis do EVIDENCE – list podle TID; sloučení = nový řádek v listu */
+  function postRow(c, card){
+    var r = c.r, lot = (r.mats || []).map(function(m){ return m.mnlot; }).filter(Boolean).join(' | ');
+    return postToScript({
+      memberId: MEMBERS[r.tid],
+      ref: (c.same >= 0) ? null : (c.old ? c.old._href : null),
+      tag: card[1], patient: card[0], anid: r.anid, qa: r.qa,
+      i: isPhase(r) ? r.outs : r.ord,
+      ceny: r.ceny, lot: lot, due: card[2]
+    }, 'Zapsáno do ', 'Zápis').then(function(resp){
+      if (!resp || !resp.ok || !resp.ref) return;
+      if (c.same >= 0) { if (!c.target._href) { c.target._href = resp.ref; save(); } return; }
+      var idx = findIndexById(c.target.id);
+      if (idx >= 0) { state.rows[idx]._href = resp.ref; save(); renderRows(); }
+    });
+  }
+  function cardInfo(){ return Promise.all([ currentCardName(), tagFromCustomField(), cardDue() ]); }
+
+  $('insert').addEventListener('click', function(){
+    $('qa').value = qaNorm($('qa').value);
+    if (!formValid()) return;
+    var r = collect();
+    if (lastHit && !isPhase(r)) r.anam = lastHit.anam;   /* popis vždy z ceníku, ne z fulltextu */
+    if (!sheetAllowed(r.tid, 'Zápis')) return;
+    var c = commitRow(r, state.editIndex);
+    if (!c) return;
     state.editIndex = null;
     clearForm(); resetDefaults(); renderRows(); save();
-
-    /* zápis do EVIDENCE – list podle TID; sloučení = nový řádek v listu */
-    Promise.all([ currentCardName(), tagFromCustomField(), cardDue() ]).then(function(res){
-      var lot = (r.mats || []).map(function(m){ return m.mnlot; }).filter(Boolean).join(' | ');
-      return postToScript({
-        memberId: MEMBERS[r.tid],
-        ref: (same >= 0) ? null : (old ? old._href : null),
-        tag: res[1], patient: res[0], anid: r.anid, qa: r.qa,
-        i: isPhase(r) ? r.outs : r.ord,
-        ceny: r.ceny, lot: lot, due: res[2]
-      }, 'Zapsáno do ', 'Zápis').then(function(resp){
-        refreshOdmeny();
-        if (!resp || !resp.ok || !resp.ref) return;
-        if (same >= 0) { if (!target._href) { target._href = resp.ref; save(); } return; }
-        var idx = findIndexById(target.id);
-        if (idx >= 0) { state.rows[idx]._href = resp.ref; save(); renderRows(); }
-      });
-    }).catch(function(err){ werr('chyba při přípravě dat (' + (err && err.message ? err.message : err) + ').'); });
+    cardInfo().then(function(card){ return postRow(c, card); })
+      .then(refreshOdmeny)
+      .catch(function(err){ werr('chyba při přípravě dat (' + (err && err.message ? err.message : err) + ').'); });
   });
+
+  /* =================================================================
+     PROSET – fulltext v popisu výrobku a okno lupy (sady / kódy)
+     ================================================================= */
+  function prosetQuery(params){
+    var q = Object.keys(params).map(function(k){ return k + '=' + encodeURIComponent(params[k]); }).join('&');
+    return fetch(SCRIPT_URL + '?' + q, { cache:'no-store' })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ return (d && d.ok !== false && Array.isArray(d.bloky)) ? d.bloky : (Array.isArray(d) ? d : null); })
+      .catch(function(){ return null; });
+  }
+
+  /* -- fulltext: text v popisu + Enter → seznam shod → výběr vyplní kód -- */
+  var ft = { items: [], sel: -1, seq: 0 };
+  function ftClose(){ $('ftList').hidden = true; ft.items = []; ft.sel = -1; resize(); }
+  function ftRender(msg){
+    var el = $('ftList');
+    if (msg) el.innerHTML = '<div class="ftmsg">' + esc(msg) + '</div>';
+    else el.innerHTML = ft.items.map(function(it, i){
+      return '<button type="button" data-i="' + i + '"' + (i === ft.sel ? ' class="sel"' : '') + '>'
+           + '<span class="k">' + esc(it.kod) + '</span><span class="n">' + esc(it.nazev) + '</span></button>';
+    }).join('');
+    el.hidden = false; resize();
+  }
+  function ftPick(i){
+    var it = ft.items[i]; if (!it) return;
+    ftClose();
+    $('anid').value = anidClean(it.kod); mark($('anid'), true);
+    refreshAnam();
+    $('qa').focus();
+  }
+  function ftSearch(){
+    var text = $('anam').value.trim();
+    if (text.length < 3) { ftRender('Napiš alespoň 3 znaky.'); return; }
+    var seq = ++ft.seq;
+    ftRender('Hledám…');
+    prosetQuery({ search:text, typ:'kod' }).then(function(bloky){
+      if (seq !== ft.seq) return;
+      if (!bloky) { ftRender('Hledání se nepovedlo – zkus to znovu.'); return; }
+      ft.items = [];
+      bloky.forEach(function(b){ (b.polozky || []).forEach(function(p){ ft.items.push(p); }); });
+      ft.sel = ft.items.length ? 0 : -1;
+      if (!ft.items.length) ftRender('Žádná shoda.'); else ftRender();
+    });
+  }
+  $('anam').addEventListener('keydown', function(e){
+    var open = !$('ftList').hidden && ft.items.length;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (open && ft.sel >= 0) ftPick(ft.sel); else ftSearch();
+    } else if (open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      ft.sel = (ft.sel + (e.key === 'ArrowDown' ? 1 : -1) + ft.items.length) % ft.items.length;
+      ftRender();
+    } else if (e.key === 'Escape') { ftClose(); }
+  });
+  $('anam').addEventListener('input', function(){ if (!$('ftList').hidden) ftClose(); });
+  $('ftList').addEventListener('mousedown', function(e){ e.preventDefault(); });
+  $('ftList').addEventListener('click', function(e){
+    var b = e.target.closest('button[data-i]'); if (b) ftPick(+b.getAttribute('data-i'));
+  });
+  document.addEventListener('click', function(e){
+    if (!$('ftList').hidden && !e.target.closest('#ftList') && e.target !== $('anam')) ftClose();
+  });
+
+  /* -- okno lupy: 1. krok výběr bloku, 2. krok kontrola množství -- */
+  var lp = { bloky: [], blok: null, seq: 0 };
+  function lpStep(n){ $('lpS1').hidden = n !== 1; $('lpS2').hidden = n !== 2; resize(); }
+  function lpOpen(){
+    ftClose();
+    $('lp').hidden = false; lpStep(1);
+    var text = $('anam').value.trim();
+    $('lpq').value = text;
+    $('lpRes').innerHTML = '';
+    $('lpq').focus();
+    if (text.length >= 3) lpSearch();
+  }
+  function lpClose(){ $('lp').hidden = true; lp.blok = null; resize(); }
+  function lpMsg(m){ $('lpRes').innerHTML = '<div class="lpmsg">' + esc(m) + '</div>'; resize(); }
+  function lpSearch(){
+    var text = $('lpq').value.trim();
+    if (text.length < 3) { lpMsg('Napiš alespoň 3 znaky a stiskni Enter.'); return; }
+    var seq = ++lp.seq;
+    lpMsg('Hledám…');
+    prosetQuery({ search:text, ord: ordClean($('ord').value) }).then(function(bloky){
+      if (seq !== lp.seq) return;
+      if (!bloky) { lpMsg('Hledání se nepovedlo – zkus to znovu.'); return; }
+      lp.bloky = bloky.filter(function(b){ return b.polozky && b.polozky.length; });
+      if (!lp.bloky.length) { lpMsg('Žádná shoda.'); return; }
+      $('lpRes').innerHTML = lp.bloky.map(function(b, i){
+        return '<button type="button" class="lpblk" data-i="' + i + '">' + b.polozky.map(function(p){
+          return '<span class="it"><span class="k">' + esc(p.kod) + '</span><span class="n">' + esc(p.nazev) + '</span></span>';
+        }).join('') + '</button>';
+      }).join('');
+      resize();
+    });
+  }
+  function lpPick(i){
+    var b = lp.bloky[i]; if (!b) return;
+    lp.blok = b;
+    var def = qaNorm($('qa').value);           /* výchozí = Q z formuláře, jinak prázdné */
+    $('lpQ').innerHTML = b.polozky.map(function(p, k){
+      return '<div class="qrow"><span class="k">' + esc(p.kod) + '</span>'
+           + '<input class="f" data-k="' + k + '" inputmode="decimal" autocomplete="off" value="' + esc(qaValid(def) ? def : '') + '">'
+           + '<span class="n">' + esc(p.nazev) + '</span></div>';
+    }).join('');
+    lpStep(2);
+    var first = $('lpQ').querySelector('input');
+    if (first) { first.focus(); first.select(); }
+  }
+  function lpQInputs(){ return Array.prototype.slice.call($('lpQ').querySelectorAll('input')); }
+  $('lpQ').addEventListener('input', function(e){
+    var el = e.target; if (!el.matches('input')) return;
+    var c = qaClean(el.value); if (c !== el.value) el.value = c;
+    if (qaValid(el.value)) el.classList.remove('bad');
+  });
+  $('lpQ').addEventListener('focusout', function(e){
+    var el = e.target; if (el.matches && el.matches('input') && el.value) el.value = qaNorm(el.value);
+  });
+  $('lpQ').addEventListener('keydown', function(e){
+    if (e.key !== 'Enter' || !e.target.matches('input')) return;
+    e.preventDefault();
+    var all = lpQInputs(), k = all.indexOf(e.target);
+    if (k < all.length - 1) { all[k + 1].focus(); all[k + 1].select(); } else lpConfirm();
+  });
+  function lpConfirm(){
+    var b = lp.blok; if (!b) return;
+    var inputs = lpQInputs(), ok = true;
+    inputs.forEach(function(el){ el.value = qaNorm(el.value); var v = qaValid(el.value); el.classList.toggle('bad', !v); if (!v) ok = false; });
+    if (!ok) { wmsg('Doplň množství u všech položek.', 6); var bad = $('lpQ').querySelector('.bad'); if (bad) bad.focus(); return; }
+    if ($('outs').value) { wmsg('Sadu nelze vložit jako fázi – nejdřív zruš OUT.', 10); return; }
+    var ord = ordClean($('ord').value), tid = $('tid').value, ceny = $('ceny').value;
+    mark($('ord'), ordValid(ord)); mark($('tid'), tidValid(tid)); mark($('ceny'), cenyValid(ceny));
+    if (!ordValid(ord) || !tidValid(tid) || !cenyValid(ceny)) { wmsg('Vyplň ve formuláři ORD, TID a ročník ceníku.', 10); return; }
+    if (state.editIndex != null) { wmsg('Dokonči nebo zruš rozpracovanou úpravu řádku.', 10); return; }
+    if (!sheetAllowed(tid, 'Zápis')) return;
+
+    var xkk = ord === 'XKK';
+    var items = b.polozky.map(function(p, k){ return { kod: anidClean(p.kod), nazev: p.nazev, qa: inputs[k].value }; });
+    $('lpok').disabled = true;
+    Promise.all(items.map(function(it){ return pricebookLookup(it.kod, ceny); })).then(function(hits){
+      var commits = [];
+      items.forEach(function(it, k){
+        var h = hits[k] || null, cj = h ? (xkk ? h.cjedF : h.cjedE) : null, od = h ? (xkk ? h.odmJ : h.odmI) : null;
+        var r = { qa: it.qa, anid: it.kod, anam: h ? h.anam : it.nazev, ord: ord, outs: '', tid: tid, ceny: ceny,
+                  cjed: numFmt(cj), ctot: numFmt(numParse(it.qa) * numParse(cj)),
+                  odmj: numFmt(od), odmt: numFmt(numParse(it.qa) * numParse(od)), mats: [] };
+        var c = commitRow(r, null); if (c) commits.push(c);
+      });
+      $('lpok').disabled = false;
+      lpClose();
+      ['qa','anid','anam'].forEach(function(f){ $(f).value = ''; $(f).classList.remove('bad'); });
+      applyPrice(null); qnlSync();
+      renderRows(); save();
+      /* zápisy do EVIDENCE postupně, aby se v listu nepřekrývaly řádky */
+      return cardInfo().then(function(card){
+        return commits.reduce(function(p, c){ return p.then(function(){ return postRow(c, card); }); }, Promise.resolve());
+      }).then(refreshOdmeny);
+    }).catch(function(err){
+      $('lpok').disabled = false;
+      werr('chyba při přípravě dat (' + (err && err.message ? err.message : err) + ').');
+    });
+  }
+  $('lupa').addEventListener('click', function(e){ e.stopPropagation(); if ($('lp').hidden) lpOpen(); else lpClose(); });
+  $('lpx').addEventListener('click', lpClose);
+  $('lpback').addEventListener('click', function(){ lp.blok = null; lpStep(1); $('lpq').focus(); });
+  $('lpok').addEventListener('click', lpConfirm);
+  $('lpq').addEventListener('keydown', function(e){
+    if (e.key === 'Enter') { e.preventDefault(); lpSearch(); }
+    else if (e.key === 'Escape') lpClose();
+  });
+  $('lpRes').addEventListener('click', function(e){
+    var b = e.target.closest('.lpblk'); if (b) lpPick(+b.getAttribute('data-i'));
+  });
+  $('lp').addEventListener('click', function(e){ e.stopPropagation(); });
 
   /* ---- perzistence v kartě (sdílená data, stejný klíč jako verze 2) ---- */
   function save(){
