@@ -8,110 +8,123 @@
 <style>
 /* =========================================================
    ZAKÁZKOVÝ LIST 3.1
-   Rozměry i barvy odečteny z Formular-zakazek-3.svg (plocha 340 × 505).
-   1rem = 1 jednotka návrhu = šířka sekce / 340 (nastavuje JS),
-   takže všechna čísla níže jsou přímo souřadnice z návrhu.
-   :root = tmavá paleta dle návrhu, html[data-theme="light"] = odvozená
-   světlá (stejný postup jako u verze 2: plochy podle světlého Trella,
-   tenké linky a tlumený text podle tokenů Atlassian Design System).
+   Mřížka 0–340 podle Formular_3-S1.svg: 1rem = šířka sekce / 340 (nastavuje JS).
+   Okraj 5, mezera mezi poli 4, vnitřní odsazení textu 6.
+   Pásy (materiál, seznam výkonů) jdou přes celou šířku.
+   :root = tmavá paleta dle návrhu, html[data-theme="light"] = světlá
+   (plochy podle světlého Trella, linky a tlumený text dle Atlassian DS).
    ========================================================= */
 :root{
-  --bg:#242528;          /* pozadí formuláře, pole, panel materiálu      */
-  --band:#0C0C0C;        /* materiálový pás, hlavička tabulky            */
-  --tbl:#35373B;         /* tělo tabulky výkonů                          */
-  --btn:#3D4451;         /* OUT, +, −, ×                                 */
-  --txt:#9E9FA2;         /* základní text                                */
-  --txt-hi:#C8C9CC;      /* text v polích kód, množství, ORD, TID, CenT. */
-  --txt-dim:#939497;     /* popis výrobku, ceny, popisky sumáře          */
-  --txt-head:#49566E;    /* hlavička tabulky                             */
-  --bd-hi:#9E9FA2;       /* ORD, TID, CenT., MNLOT, QNL                  */
-  --bd:#939497;          /* kód produktu, množství, OUT, sumář           */
-  --bd-soft:#555555;     /* popis výrobku, ceny, název materiálu         */
-  --rule:#575E6E;        /* svislé linky v tabulce                       */
-  --rule-mat:#3D4451;    /* svislé linky v seznamu materiálu             */
-  --glyph:#9D9EA2;       /* ≡ ◀ └                                        */
-  --blue:#2554AD;        /* rámeček odměny lab., status / rating         */
-  --ok:#3614C4;    --ok-txt:#CBE1EC;     /* vložit                       */
-  --doc:#3111BC;   --doc-txt:#D6EEF1;    /* dokumentace                  */
-  --inv:#CC9E13;   --inv-txt:#FFFAE6;    /* fakturace                    */
-  --bad:#E2686B;         /* pole, které blokuje zápis                    */
-  --wait:#6E6F72;        /* pole, které se právě načítá                  */
+  --bg:#242528;          /* pozadí formuláře a polí                       */
+  --panel:#393B44;       /* pás materiálu, tělo seznamu výkonů            */
+  --head:#1A1A1A;        /* hlavička seznamu výkonů                       */
+  --chip:#242528;        /* informační štítky v pásu materiálu            */
+  --btn:#3D4451;
+  --txt:#9E9FA2;
+  --txt-hi:#C8C9CC;
+  --txt-dim:#939497;
+  --txt-head:#C8C9CC;
+  --txt-strong:#FFFFFF;  /* nadpisy pásů                                  */
+  --bd-hi:#9E9FA2;
+  --bd:#939497;
+  --bd-soft:#555555;
+  --rule:#575E6E;
+  --glyph:#9D9EA2;
+  --blue:#2554AD;
+  --ok:#3614C4;    --ok-txt:#E6E9FF;
+  --doc:#3111BC;   --doc-txt:#D6EEF1;
+  --inv:#CC9E13;   --inv-txt:#FFFAE6;
+  --del:#6B2C31;   --del-txt:#F2D3D5;     /* zrušit                      */
+  --bad:#E2686B;
+  --warn:#E0A526;        /* upozornění (spotřeba přes zbytek, rozhodnutí) */
+  --good:#3FA36B;        /* nasazeno                                      */
+  --wait:#6E6F72;
   --menu-shadow:rgba(0,0,0,.45);
-  --lp-bg:#393B44;       /* okno lupy (podle náhledu)                    */
-  --lp-blk:#141821;      /* blok výsledku, pole množství                 */
-  --lp-txt:#C7C8CB;      /* text v okně lupy                             */
-  --lp-focus:#FFFFFF;    /* rámeček vyhledávacího pole                   */
+  --lp-bg:#393B44;
+  --lp-blk:#141821;
+  --lp-txt:#C7C8CB;
+  --lp-focus:#FFFFFF;
+  color-scheme:dark;
 }
 html[data-theme="light"]{
   --bg:#FFFFFF;
-  --band:#F0F1F3;
-  --tbl:#FAFBFC;
+  --panel:#F0F1F3;
+  --head:#DCDFE4;
+  --chip:#FFFFFF;
   --btn:#DCDFE4;
   --txt:#172B4D;
   --txt-hi:#091E42;
   --txt-dim:#626F86;
-  --txt-head:#7A869A;
+  --txt-head:#44546F;
+  --txt-strong:#091E42;
   --bd-hi:#172B4D;
   --bd:#626F86;
   --bd-soft:#B3BAC5;
-  --rule:#DCDFE4;
-  --rule-mat:#DFE1E6;
+  --rule:#C1C7D0;
   --glyph:#626F86;
-  --blue:#2554AD;
   --ok:#3614C4;    --ok-txt:#FFFFFF;
   --doc:#3111BC;   --doc-txt:#FFFFFF;
   --inv:#CC9E13;   --inv-txt:#FFFFFF;
+  --del:#F4D6D8;   --del-txt:#AE2E24;
+  --warn:#B65C02;
+  --good:#216E4E;
   --wait:#8993A4;
   --menu-shadow:rgba(9,30,66,.25);
   --lp-bg:#F0F1F3;
   --lp-blk:#FFFFFF;
   --lp-txt:#172B4D;
   --lp-focus:#0C66E4;
+  color-scheme:light;
 }
 
 *{box-sizing:border-box}
-html{font-size:1px}                 /* přepočítá JS: šířka sekce / 340 */
+html{font-size:1px}
 html,body{margin:0!important;padding:0!important;overflow:hidden!important;background:var(--bg)!important}
 body{font-family:Arial,"Helvetica Neue",-apple-system,"Segoe UI",Roboto,sans-serif;
      font-size:8.333rem;color:var(--txt);-webkit-font-smoothing:antialiased}
-#app{position:relative;width:100%;background:var(--bg);padding:17.3rem 0 13.3rem}
+#app{position:relative;width:100%;background:var(--bg);padding:12rem 0 12rem}
+[hidden]{display:none!important}
 
 /* ---------- pole ---------- */
-.row{display:flex;align-items:stretch;padding:0 0 0 16.7rem}
-.f{display:block;flex:none;min-width:0;height:20.7rem;margin:0;border:0;
+.row{display:flex;align-items:stretch;gap:4rem;padding:0 5rem}
+.f{display:block;flex:none;min-width:0;height:20rem;margin:0;border:0;
    --c:var(--bd);box-shadow:inset 0 0 0 .6rem var(--c);border-radius:3.2rem;
    background:var(--bg);color:var(--txt-hi);font:inherit;font-size:8.333rem;
-   line-height:20.7rem;padding:0 4rem 0 6rem}
-.f::placeholder{color:inherit;opacity:1}
+   line-height:20rem;padding:0 4rem 0 6rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f::placeholder{color:var(--txt-dim);opacity:1}
 .f:focus{outline:none;--c:var(--ok)}
 html[data-theme="light"] .f:focus{--c:#0C66E4}
 .f.hi{--c:var(--bd-hi)}
-.f.soft{--c:var(--bd-soft);color:var(--txt-dim);font-size:7.083rem;padding-left:4.5rem}
-.f.bare{background:transparent;--c:var(--bd-soft);color:var(--txt-dim);font-size:6.25rem;
-        padding:0 2rem;text-align:center}
+.f.soft{--c:var(--bd-soft);color:var(--txt-dim);font-size:7.083rem}
+.f.ro{background:transparent;--c:var(--bd-soft);color:var(--txt-dim);font-size:7.083rem}
+.f.ro.got{color:var(--txt-hi)}
+.f.bare{background:transparent;--c:var(--bd-soft);color:var(--txt-dim);font-size:6.25rem;padding:0 2rem;text-align:center}
 .f.ctr{text-align:center;padding:0 2rem}
 .f.bad{--c:var(--bad)}
+.f.warn{--c:var(--warn)}
 .f.wait{color:var(--wait)}
 .f[readonly]{cursor:default}
-.h20{height:20rem;line-height:20rem}
+.f[disabled]{opacity:.55}
+.grow{flex:1 1 auto!important}
+input[type=date].f{padding-right:2rem;font-size:7.083rem}
+input[type=date].f::-webkit-calendar-picker-indicator{opacity:.6;cursor:pointer;width:9rem;height:9rem;margin:0}
 
-.r1 #anid{width:62.4rem}
-.r1 #qa{width:45rem;margin-left:4.3rem}
-.r1 #anam{width:165.4rem;margin-left:5rem}
-.r1 #lupa{width:20.7rem;margin-left:3rem}
+.r1 #anid{width:66rem}
+.r1 #qa{width:30rem}
+.r1 #lupa{width:21rem}
 .lupa-ic{width:12rem;height:12rem;display:block}
-.r2{margin-top:3.3rem}
-.r2 .outwrap{width:62.4rem}
-.r2 #ord{width:45rem;margin-left:4.3rem}
-.r2 #tid{width:29.8rem;margin-left:5rem}
-.r2 #ceny{width:29.8rem;margin-left:2.4rem}
-.r2 #cjed{width:47.6rem;margin-left:4.9rem}
-.r2 #ctot{width:70rem;margin-left:4.3rem}
+.r2{margin-top:4rem}
+.r2 .outwrap{width:66rem}
+.r2 #ord{width:45rem}
+.r2 #tid{width:26rem;margin-left:auto}
+.r2 #ceny{width:30rem}
+.r2 #cjed{width:56rem}
+.r2 #ctot{width:68rem}
 
 /* OUT – výběr jedné fáze (nebo žádné = výrobek) */
 .outwrap{position:relative;flex:none;display:flex}
 .outbtn{width:100%;text-align:left;cursor:pointer;background:var(--btn);color:var(--txt);
-        --c:var(--bd);padding-left:6.8rem;white-space:nowrap;overflow:hidden}
+        --c:var(--bd-soft);padding-left:6rem;white-space:nowrap;overflow:hidden}
 .outbtn .ar{display:inline-block;font-size:6rem;margin-right:2.6rem;vertical-align:.5rem;color:var(--txt-hi)}
 .outmenu{position:absolute;z-index:5;top:calc(100% + 2rem);left:0;min-width:150rem;
          background:var(--btn);border-radius:3.2rem;padding:2.5rem 0;
@@ -122,9 +135,8 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
 
 /* ---------- fulltext v popisu výrobku ---------- */
 .ftwrap{position:relative}
-.ftlist{position:absolute;z-index:6;top:2rem;left:132.4rem;width:190.1rem;max-height:150rem;overflow-y:auto;
-        background:var(--lp-bg);border-radius:3.2rem;padding:3rem;
-        box-shadow:0 3rem 10rem var(--menu-shadow)}
+.ftlist{position:absolute;z-index:6;top:2rem;left:109rem;width:226rem;max-height:150rem;overflow-y:auto;
+        background:var(--lp-bg);border-radius:3.2rem;padding:3rem;box-shadow:0 3rem 10rem var(--menu-shadow)}
 .ftlist button{display:flex;width:100%;border:0;background:none;cursor:pointer;text-align:left;
                color:var(--lp-txt);font:inherit;font-size:6.25rem;line-height:7.5rem;padding:2.5rem 3rem;border-radius:2rem}
 .ftlist button:hover,.ftlist button.sel{background:var(--lp-blk)}
@@ -132,13 +144,12 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
 .ftlist .n{flex:1;min-width:0}
 .ftmsg{font-size:6.25rem;color:var(--txt-dim);padding:2.5rem 3rem}
 
-/* ---------- okno lupy: sady a kódy (1. krok), množství (2. krok) ---------- */
-.lp{position:absolute;z-index:8;top:10rem;left:7rem;width:326rem;background:var(--lp-bg);
-    border-radius:8rem;padding:8rem 7rem 8rem;box-shadow:0 4rem 16rem var(--menu-shadow)}
-.lp[hidden]{display:none}
-.lp .lrow{display:flex;align-items:center}
+/* ---------- okno lupy výrobků (1. krok sady, 2. krok množství) ---------- */
+.lp{position:absolute;z-index:8;top:8rem;left:5rem;width:330rem;background:var(--lp-bg);
+    border-radius:6rem;padding:7rem 6rem;box-shadow:0 4rem 16rem var(--menu-shadow)}
+.lp .lrow{display:flex;align-items:center;gap:4rem}
 .lp #lpq{flex:1;width:auto;background:var(--lp-bg);--c:var(--lp-focus);color:var(--lp-txt);font-size:7.083rem}
-.lp #lpx{width:20.7rem;margin-left:4rem;font-size:12rem}
+.lp #lpx{width:20rem;font-size:10rem}
 .lpres{margin-top:6rem;max-height:300rem;overflow-y:auto}
 .lpblk{display:block;width:100%;border:0;cursor:pointer;text-align:left;background:var(--lp-blk);color:var(--lp-txt);
        font:inherit;font-size:6.25rem;line-height:7.6rem;padding:4rem 6rem;border-radius:4rem}
@@ -155,82 +166,157 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
 .lpq .f:focus{--c:var(--lp-focus)}
 .lpq .f.bad{--c:var(--bad)}
 .lpq .n{flex:1;min-width:0;margin-left:16rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lpacts{display:flex;justify-content:flex-end;margin-top:7rem}
-.lpacts #lpback{width:21.6rem;font-size:12rem}
-.lpacts #lpok{width:61.1rem;margin-left:5.2rem;background:var(--ok);color:var(--ok-txt)}
+.lpacts{display:flex;justify-content:flex-end;gap:4rem;margin-top:7rem}
+.lpacts #lpback{width:21rem;font-size:10rem}
+.lpacts #lpok{width:61rem;background:var(--ok);color:var(--ok-txt)}
 
 /* ---------- tlačítka ---------- */
-.btn{flex:none;min-width:0;height:20.7rem;border:0;border-radius:3.2rem;padding:0;cursor:pointer;
+.btn{flex:none;min-width:0;height:20rem;border:0;border-radius:3.2rem;padding:0;cursor:pointer;
      background:var(--btn);color:var(--txt);font:inherit;font-size:8.333rem;line-height:1;
-     display:flex;align-items:center;justify-content:center}
+     display:flex;align-items:center;justify-content:center;gap:3rem}
 .btn:hover{filter:brightness(1.18)}
+.btn:focus-visible{outline:.8rem solid var(--lp-focus);outline-offset:1rem}
 .btn:disabled{opacity:.5;cursor:default;filter:none}
-.btn.glyph{font-size:16.667rem;font-weight:300}
+.btn.glyph{font-size:15rem;font-weight:300}
+.btn.pri{background:var(--ok);color:var(--ok-txt)}
+.btn.ghost{background:transparent;box-shadow:inset 0 0 0 .6rem var(--bd-soft)}
+.ic12{width:11rem;height:11rem;display:block}
 
-/* ---------- materiálový pás ---------- */
-.band{margin-top:14.4rem;background:var(--band);padding:7.7rem 0 8.7rem}
-.rm #mnlot{width:62.6rem}
-.rm #qnl{width:44.1rem;margin-left:4.1rem}
-.rm #mnam{width:142.1rem;margin-left:6.3rem}
-.rm #addMat{width:42rem;margin-left:5.7rem}
-.mpanel{position:relative;margin:7.8rem 0 0 16.4rem;width:307.1rem;min-height:59.4rem;
-        background:var(--bg);border-radius:3.2rem;padding:3.7rem 0 11rem}
-.mrules{position:absolute;top:8rem;bottom:15.2rem;left:0;right:0;pointer-events:none}
-.mrules i{position:absolute;top:0;bottom:0;width:.6rem;background:var(--rule-mat)}
-.mrules i:nth-child(1){left:50.8rem}
-.mrules i:nth-child(2){left:77.7rem}
-.mpanel.empty .mrules{display:none}
-.mrow{display:flex;align-items:center;height:20.7rem}
-.mrow+.mrow{margin-top:3.3rem}
-.mrow .c{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mrow .k1{width:47.5rem;margin-left:6.6rem}
-.mrow .k2{width:24rem;margin-left:7rem}
-.mrow .k3{width:197rem;margin-left:5.4rem;font-size:7.083rem}
-.mrow .btn{width:20.6rem;margin-left:auto;margin-right:.6rem}
-.mempty{font-size:7.083rem;padding:6rem 6.6rem;color:var(--txt-dim)}
+/* ---------- pás materiálu ---------- */
+.band{margin-top:12rem;background:var(--panel);padding:6rem 0 7rem}
+.bhead{display:flex;align-items:center;gap:4rem;padding:0 5rem;height:22rem}
+.btitle{flex:1;min-width:0;display:flex;align-items:center;gap:4rem;color:var(--txt-strong);
+        font-size:8.333rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btitle .ic12{flex:none}
+.modes{display:flex;gap:3rem}
+.modes .btn{width:22rem;height:22rem;background:var(--chip);color:var(--txt)}
+.modes .btn[aria-pressed="true"]{background:var(--ok);color:var(--ok-txt)}
+.mbody{margin-top:6rem}
+.mbody .row+.row{margin-top:4rem}
+.c1{width:66rem} .c2{width:30rem} .c4{width:70rem}
+
+/* přepínač (osobní / společné, ks / bal) */
+.seg{flex:none;display:flex;height:20rem;border-radius:3.2rem;background:var(--chip);
+     box-shadow:inset 0 0 0 .6rem var(--bd-soft);padding:1.6rem;gap:1.6rem}
+.seg button{flex:1;min-width:0;border:0;border-radius:2.2rem;background:none;cursor:pointer;
+            color:var(--txt-dim);font:inherit;font-size:6.6rem;padding:0 2rem;white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--btn);color:var(--txt-hi);font-weight:700}
+html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;color:#fff}
+.tgl{flex:none;height:20rem;border:0;border-radius:3.2rem;cursor:pointer;background:var(--chip);
+     box-shadow:inset 0 0 0 .6rem var(--bd-soft);color:var(--txt-dim);font:inherit;font-size:7.083rem;
+     display:flex;align-items:center;justify-content:center;gap:4rem;padding:0 5rem}
+.tgl i{width:15rem;height:9rem;border-radius:5rem;background:var(--bd-soft);position:relative;flex:none}
+.tgl i::after{content:"";position:absolute;top:1.3rem;left:1.3rem;width:6.4rem;height:6.4rem;border-radius:50%;background:var(--bg);transition:left .15s}
+.tgl[aria-pressed="true"]{color:var(--txt-hi);box-shadow:inset 0 0 0 .6rem var(--warn)}
+.tgl[aria-pressed="true"] i{background:var(--warn)}
+.tgl[aria-pressed="true"] i::after{left:7.3rem}
+
+/* informační štítky (zbytek, expirace, stav) */
+.chips{flex:1;min-width:0;display:flex;gap:3rem;align-items:center}
+.chip{flex:0 1 auto;min-width:0;height:20rem;line-height:20rem;border-radius:3.2rem;background:var(--chip);
+      color:var(--txt-dim);font-size:6.6rem;padding:0 5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip b{color:var(--txt-hi);font-weight:700}
+.chip.good{color:var(--good);box-shadow:inset 0 0 0 .6rem var(--good)}
+.chip.warn{color:var(--warn);box-shadow:inset 0 0 0 .6rem var(--warn)}
+.hint{padding:3rem 5rem 0 75rem;font-size:6.25rem;line-height:8rem;color:var(--txt-dim);min-height:8rem}
+.hint.warn{color:var(--warn)}
+.hint.bad{color:var(--bad)}
+
+/* našeptávač a výsledky hledání v LOT */
+.lres{margin:5rem 5rem 0;max-height:150rem;overflow-y:auto;border-radius:3.2rem;background:var(--chip)}
+.lres:empty{display:none}
+.lres button{display:grid;grid-template-columns:34rem 1fr 46rem;gap:4rem;align-items:center;width:100%;
+             border:0;background:none;cursor:pointer;text-align:left;color:var(--txt-hi);font:inherit;
+             font-size:6.25rem;line-height:8rem;padding:3.5rem 6rem}
+.lres button+button{box-shadow:inset 0 .6rem 0 var(--panel)}
+.lres button:hover,.lres button.sel{background:rgba(127,127,127,.18)}
+.lres .d{font-weight:700;white-space:nowrap}
+.lres .p{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lres .p small{display:block;color:var(--txt-dim);font-size:5.4rem;line-height:6.6rem}
+.lres .z{text-align:right;white-space:nowrap;font-size:5.8rem;color:var(--txt-dim)}
+.lres .z.n{color:var(--good)}
+.lmsg{font-size:6.25rem;color:var(--txt-dim);padding:4rem 6rem}
+
+/* výsledek založení */
+.created{margin:5rem 5rem 0;border-radius:3.2rem;background:var(--chip);padding:4rem 4rem 4rem 6rem;
+         box-shadow:inset 0 0 0 .6rem var(--good)}
+.created .t{font-size:6.6rem;color:var(--good);line-height:9rem}
+.created .it{display:flex;align-items:center;gap:4rem;font-size:6.6rem;color:var(--txt-hi);margin-top:2rem}
+.created .it span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.created .it b{flex:none;width:30rem}
+.created .btn{height:15rem;font-size:6.25rem;padding:0 5rem}
+
+/* rozhodnutí o materiálu (spotřebované balení, spotřeba ≥ zbytek …) */
+.need{margin:6rem 5rem 0;border-radius:3.2rem;background:var(--bg);box-shadow:inset 0 0 0 .8rem var(--warn);padding:6rem 6rem 6rem}
+.need h4{margin:0 0 4rem;font-size:7.5rem;font-weight:700;color:var(--warn)}
+.ncard+.ncard{margin-top:6rem;padding-top:6rem;box-shadow:inset 0 .6rem 0 var(--bd-soft)}
+.ncard .nt{font-size:7.083rem;line-height:9.5rem;color:var(--txt-hi)}
+.ncard .nt b{font-weight:700}
+.ncard .ns{font-size:6.25rem;line-height:8rem;color:var(--txt-dim)}
+.ncard .ne{font-size:6.25rem;line-height:8rem;color:var(--bad)}
+.nopt{display:flex;align-items:center;gap:4rem;margin-top:3rem;min-height:17rem;cursor:pointer;
+      font-size:6.8rem;color:var(--txt);border-radius:2.5rem;padding:1rem 4rem}
+.nopt:hover{background:rgba(127,127,127,.12)}
+.nopt input[type=radio]{flex:none;width:9rem;height:9rem;margin:0;accent-color:var(--ok)}
+.nopt span{flex:1;min-width:0;line-height:8.5rem}
+.nopt .f{height:16rem;line-height:16rem;width:38rem;font-size:7.083rem;padding:0 3rem}
+.nacts{display:flex;justify-content:flex-end;gap:4rem;margin-top:7rem}
+.nacts .btn{padding:0 8rem}
+
+/* seznam materiálu u rozpracovaného výkonu */
+.mlist{margin:7rem 5rem 0}
+.mrow{display:grid;grid-template-columns:34rem 26rem 1fr 18rem 20rem;gap:0;align-items:center;height:20rem;
+      font-size:7.083rem;color:var(--txt-hi)}
+.mrow+.mrow{margin-top:3rem}
+.mrow>div{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4rem;line-height:12rem}
+.mrow .k1{padding-left:1rem;font-weight:700}
+.mrow .k2,.mrow .k1{box-shadow:inset -.6rem 0 0 var(--rule)}
+.mrow .k2{text-align:center}
+.mrow .k3{font-size:6.6rem;color:var(--txt-dim)}
+.mrow .k3 em{font-style:normal;color:var(--warn)}
+.mrow .k4{font-size:5.8rem;color:var(--txt-dim);text-align:center;padding:0}
+.mrow .btn{width:20rem;height:18rem;font-size:13rem;background:var(--bg)}
+.mempty{font-size:6.6rem;color:var(--txt-dim);padding:2rem 1rem}
 
 /* ---------- akce ---------- */
-.acts{display:flex;justify-content:flex-start;margin-top:3.2rem;padding-left:240rem}
-.acts #clear{width:21.6rem;font-size:12rem}
-.acts #insert{width:61.1rem;margin-left:5.2rem;background:var(--ok);color:var(--ok-txt)}
+.acts{display:flex;justify-content:flex-end;gap:4rem;margin-top:8rem;padding:0 5rem}
+.acts #clear{width:24rem;font-size:10rem;background:var(--del);color:var(--del-txt)}
+.acts #insert{width:70rem;background:var(--ok);color:var(--ok-txt)}
 
 /* ---------- seznam výkonů ---------- */
-.caption{font-size:8.333rem;line-height:10rem;margin:1.5rem 0 0 17rem;color:var(--txt)}
-.tbl{margin:8.5rem 0 0 16.4rem;width:307.1rem;background:var(--tbl);border-radius:3.2rem;overflow:hidden}
-.thead{position:relative;height:19.2rem;background:var(--band);color:var(--txt-head)}
-.thead span{position:absolute;top:4.8rem;line-height:10rem;white-space:nowrap}
-.thead small{font-size:6.25rem}
-.tbody{position:relative;min-height:170.3rem;padding:11.7rem 0 14rem}
-.vr{position:absolute;width:.6rem;background:var(--rule);bottom:7.2rem}
-.vr.a{left:56.8rem;top:8.6rem} .vr.b{left:70.4rem;top:8.6rem}
-.vr.c{left:234.8rem;top:16rem} .vr.d{left:244.6rem;top:16rem}
-
-.tr{position:relative;min-height:14.2rem;display:flex;align-items:flex-start}
-.tr>div{position:absolute;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:14.2rem}
-.tr .anid{left:6.3rem;width:48rem;font-size:7.083rem}
-.tr .qa{left:57.4rem;width:12.4rem;text-align:center;font-size:7.083rem}
-.tr .nm{left:79.3rem;width:153rem;font-size:6.25rem}
-.tr.ph .nm{left:91rem;width:141rem}
-.tr .el{position:absolute;left:83rem;top:2rem;width:4.8rem;height:5.1rem;
+.caption{display:flex;align-items:center;gap:4rem;font-size:8.333rem;line-height:10rem;margin:6rem 0 0 5rem;color:var(--txt-strong)}
+.tbl{margin-top:6rem;background:var(--panel)}
+.tgrid{display:grid;grid-template-columns:5rem 50rem 16rem 1fr 13rem 52rem 26rem;align-items:start}
+.thead{background:var(--head);color:var(--txt-head);height:19rem;align-items:center}
+.thead span{font-size:7.083rem;white-space:nowrap}
+.thead small{font-size:6rem}
+.tbody{position:relative;min-height:120rem;padding:8rem 0 10rem}
+.tr{min-height:16rem}
+.tr>div{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:14rem;font-size:6.6rem}
+.tr .anid{font-size:7.083rem;color:var(--txt-hi)}
+.tr .qa{text-align:center;font-size:7.083rem;box-shadow:inset .6rem 0 0 var(--rule),inset -.6rem 0 0 var(--rule)}
+.tr .nm{padding-left:6rem;color:var(--txt)}
+.tr.ph .nm{padding-left:15rem;position:relative}
+.tr.ph .nm::before{content:"";position:absolute;left:7rem;top:2rem;width:4.8rem;height:5.1rem;
         border-left:.88rem solid var(--glyph);border-bottom:.88rem solid var(--glyph)}
-.tr .tid{left:235.4rem;width:9.2rem;text-align:center;font-size:7.083rem;font-weight:700}
-.tr.ph .tid{font-size:5rem;font-weight:400}
-.tr .lot{left:247.2rem;width:44rem;font-size:5rem;line-height:9rem!important;padding-top:2.6rem;
-         white-space:normal!important}
+.tr .tid{text-align:center;font-size:7.083rem;font-weight:700;color:var(--txt-hi);box-shadow:inset .6rem 0 0 var(--rule),inset -.6rem 0 0 var(--rule)}
+.tr.ph .tid{font-size:5.4rem;font-weight:400}
+.tr .lot{font-size:5.4rem;line-height:7rem!important;padding:3.5rem 0 2rem 4rem;white-space:normal!important}
 .tr .lot b{display:block;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tr .ic{position:absolute;left:290rem;width:13rem;height:14.2rem;border:0;background:none;padding:0;
-        cursor:pointer;color:var(--glyph);display:flex;align-items:center;justify-content:center}
-.tr .ic.m2{left:277rem}
-.tr .ic:hover{filter:brightness(1.4)}
+.tr .ics{display:flex;justify-content:flex-end;gap:2rem;padding-right:4rem;overflow:visible!important}
+.tr .ic{width:12rem;height:14rem;border:0;background:none;padding:0;cursor:pointer;color:var(--glyph);
+        display:flex;align-items:center;justify-content:center;border-radius:2rem}
+.tr .ic.tog{background:var(--ok)}
+.tr .ic.tog .burger{background:linear-gradient(var(--ok-txt) 0 1.3rem,transparent 0 2.7rem,var(--ok-txt) 0 4rem,transparent 0 5.4rem,var(--ok-txt) 0 6.7rem)}
+.tr .ic:hover{filter:brightness(1.3)}
 .burger{width:6.7rem;height:6.7rem;
         background:linear-gradient(var(--glyph) 0 1.3rem,transparent 0 2.7rem,var(--glyph) 0 4rem,transparent 0 5.4rem,var(--glyph) 0 6.7rem)}
 .tri{width:0;height:0;border-top:3.35rem solid transparent;border-bottom:3.35rem solid transparent;
      border-right:5.9rem solid var(--glyph)}
-.tr.open .burger{opacity:.75}
-.tempty{font-size:7.083rem;color:var(--txt-dim);padding:4rem 6.3rem}
+.tempty{font-size:7.083rem;color:var(--txt-dim);padding:4rem 10rem}
 
 /* ---------- sumář ---------- */
-.sum{display:flex;margin-top:17.1rem;padding-left:16.9rem}
+.sum{display:flex;gap:4rem;margin-top:12rem;padding:0 5rem}
 .scol{display:flex;flex-direction:column;flex:none}
 .scol .box{height:20rem;border-radius:3.2rem;box-shadow:inset 0 0 0 .6rem var(--bd);
            color:var(--txt-hi);font-size:7.083rem;display:flex;align-items:center;justify-content:center;
@@ -238,11 +324,10 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
 .scol .box.blue{box-shadow:inset 0 0 0 .6rem var(--blue)}
 .scol .box.wait{color:var(--wait)}
 .scol label{font-size:6.25rem;color:var(--txt-dim);margin-top:1.5rem;line-height:7rem;white-space:nowrap}
-.s1{width:80rem} .s2{width:60rem;margin-left:4.5rem}
-.s3{width:57.3rem;margin-left:10.3rem} .s4{width:89.7rem;margin-left:4.4rem}
-.sbtn{display:flex;margin-top:9.8rem;padding-left:196.9rem}
-.sbtn #inv{width:61.1rem;background:var(--inv);color:var(--inv-txt)}
-.sbtn #doc{width:61.1rem;margin-left:4.4rem;background:var(--doc);color:var(--doc-txt)}
+.s1{width:80rem} .s2{width:60rem} .s3{width:60rem;margin-left:auto} .s4{width:90rem}
+.sbtn{display:flex;justify-content:flex-end;gap:4rem;margin-top:8rem;padding:0 5rem}
+.sbtn #inv{width:66rem;background:var(--inv);color:var(--inv-txt)}
+.sbtn #doc{width:66rem;background:var(--doc);color:var(--doc-txt)}
 </style>
 </head>
 <body>
@@ -250,8 +335,8 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
 
   <div class="row r1">
     <input class="f" id="anid" placeholder="kód produktu" autocomplete="off">
-    <input class="f h20" id="qa" placeholder="množství" autocomplete="off">
-    <input class="f soft" id="anam" placeholder="popis výrobku" autocomplete="off">
+    <input class="f ctr" id="qa" placeholder="Q" autocomplete="off" inputmode="decimal" title="množství">
+    <input class="f soft grow" id="anam" placeholder="popis výrobku – text + Enter hledá" autocomplete="off">
     <button type="button" class="btn" id="lupa" title="sady a vyhledávání výrobků">
       <svg class="lupa-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
         <circle cx="10" cy="10" r="6.5"/><path d="M15 15l6 6"/><path d="M10 7v6M7 10h6"/>
@@ -262,30 +347,99 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
 
   <div class="row r2">
     <span class="outwrap">
-      <button type="button" class="f h20 outbtn" id="outBtn"><span class="ar">▼</span><span id="outTxt">OUT</span></button>
+      <button type="button" class="f outbtn" id="outBtn"><span class="ar">▼</span><span id="outTxt">OUT</span></button>
       <input type="hidden" id="outs">
       <div class="outmenu" id="outMenu" hidden></div>
     </span>
-    <input class="f hi h20" id="ord" placeholder="ORD" autocomplete="off">
-    <input class="f hi h20 ctr" id="tid" placeholder="TID" autocomplete="off" maxlength="1">
-    <input class="f hi h20 ctr" id="ceny" placeholder="CenT." autocomplete="off" maxlength="4">
-    <input class="f bare h20" id="cjed" placeholder="JEDN. CENA" readonly>
-    <input class="f bare h20" id="ctot" placeholder="KOMPLETNÍ CENA" readonly>
+    <input class="f hi" id="ord" placeholder="ORD" autocomplete="off">
+    <input class="f hi ctr" id="tid" placeholder="TID" autocomplete="off" maxlength="1">
+    <input class="f hi ctr" id="ceny" placeholder="CenT." autocomplete="off" maxlength="4">
+    <input class="f bare" id="cjed" placeholder="JEDN. CENA" readonly tabindex="-1">
+    <input class="f bare" id="ctot" placeholder="CELKOVÁ CENA" readonly tabindex="-1">
     <input type="hidden" id="odmj"><input type="hidden" id="odmt">
   </div>
 
-  <div class="band">
-    <div class="row rm">
-      <input class="f hi" id="mnlot" placeholder="MNLOT" autocomplete="off">
-      <input class="f hi" id="qnl" placeholder="QNL" autocomplete="off">
-      <input class="f soft" id="mnam" placeholder="název přísl. materiálu">
-      <button class="btn glyph" id="addMat" title="přidat materiál">+</button>
+  <!-- ================= MATERIÁL ================= -->
+  <section class="band" id="band">
+    <div class="bhead">
+      <div class="btitle" id="mTitle"></div>
+      <div class="modes" role="tablist">
+        <button type="button" class="btn" data-mode="find" title="hledat balení v LOT">
+          <svg class="ic12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10" cy="10" r="6.5"/><path d="M15 15l6 6"/></svg>
+        </button>
+        <button type="button" class="btn" data-mode="new" title="založení materiálu na sklad">
+          <svg class="ic12" viewBox="0 0 24 24" fill="currentColor"><rect x="11" y="3" width="10" height="8" rx="1"/><rect x="11" y="13" width="10" height="8" rx="1"/><rect x="3" y="13" width="6" height="8" rx="1" opacity=".55"/><path d="M5 2h2v3h3v2H7v3H5V7H2V5h3z"/></svg>
+        </button>
+        <button type="button" class="btn" data-mode="use" title="materiál k zakázce">
+          <svg class="ic12" viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="4" r="2.4"/><path d="M5 8h4l2 5-2 .8L8 11v4l2.5 7H8l-2-5.5L4 22H1.5L4 15V11z"/><path d="M12 3h1.6v9H12z"/><path d="M13.6 3h8v5.5h-8z"/></svg>
+        </button>
+      </div>
     </div>
-    <div class="mpanel" id="mpanel">
-      <div class="mrules"><i></i><i></i></div>
-      <div id="mlist"></div>
+
+    <!-- materiál k zakázce: DID + spotřeba -->
+    <div class="mbody" id="mUse">
+      <div class="row">
+        <input class="f hi c1" id="did" placeholder="DID / LOT" autocomplete="off" title="DID balení, načtený kód LOT|DID nebo text pro hledání + Enter">
+        <input class="f hi ctr c2" id="mq" placeholder="Q" autocomplete="off" inputmode="decimal" title="spotřeba v jednotkách (ks)">
+        <input class="f ro grow" id="mnam" placeholder="název materiálu" readonly tabindex="-1">
+        <input class="f ro c4" id="mlot" placeholder="LOT" readonly tabindex="-1">
+      </div>
+      <div class="row">
+        <div class="seg c1" id="tuse" title="použití balení">
+          <button type="button" data-v="osobní" aria-pressed="true">osobní</button>
+          <button type="button" data-v="společné" aria-pressed="false">společné</button>
+        </div>
+        <div class="chips" id="mChips">
+          <span class="chip">zbývá <b>—</b></span><span class="chip">exp. <b>—</b></span>
+        </div>
+        <button type="button" class="btn glyph pri c4" id="addMat" title="přidat materiál k výkonu">+</button>
+      </div>
+      <div class="hint" id="mHint"></div>
+      <div class="lres" id="didList"></div>
     </div>
-  </div>
+
+    <!-- hledání balení v LOT -->
+    <div class="mbody" id="mFind" hidden>
+      <div class="row">
+        <input class="f hi grow" id="lq" placeholder="REF, LOT, DID nebo název – hledá v založených a nasazených" autocomplete="off">
+      </div>
+      <div class="lres" id="lqList"></div>
+    </div>
+
+    <!-- založení materiálu na sklad -->
+    <div class="mbody" id="mNew" hidden>
+      <div class="row">
+        <input class="f hi c1" id="nref" placeholder="REF" autocomplete="off" title="REF z číselníku MAT">
+        <input class="f hi ctr c2" id="nq" placeholder="Q" autocomplete="off" inputmode="decimal" title="jednotek v balení">
+        <input class="f ro grow" id="nnam" placeholder="název z číselníku MAT" readonly tabindex="-1">
+        <input class="f hi c4" id="nlot" placeholder="LOT" autocomplete="off">
+      </div>
+      <div class="row">
+        <div class="seg c1" id="nforma" title="forma: kus nebo balení">
+          <button type="button" data-v="ks" aria-pressed="false">kus</button>
+          <button type="button" data-v="bal" aria-pressed="true">balení</button>
+        </div>
+        <input class="f hi ctr c2" id="npoc" value="1" autocomplete="off" inputmode="numeric" title="počet balení / kusů – každé dostane vlastní DID">
+        <input class="f hi grow" id="nexp" type="date" title="expirace">
+        <button type="button" class="tgl c4" id="nmd" aria-pressed="false" title="MD – materiál k této zakázce, založí se rovnou jako spotřebovaný"><i></i>MD</button>
+      </div>
+      <div class="row">
+        <div class="seg c1" id="ntuse" title="použití balení">
+          <button type="button" data-v="osobní" aria-pressed="true">osobní</button>
+          <button type="button" data-v="společné" aria-pressed="false">společné</button>
+        </div>
+        <div class="chips" id="nChips"><span class="chip" id="nInfo">výrobce / dodavatel</span></div>
+        <button type="button" class="btn pri c4" id="nGo">založit</button>
+      </div>
+      <div class="hint" id="nHint"></div>
+      <div id="nDone"></div>
+    </div>
+
+    <!-- rozhodnutí o materiálu před zápisem -->
+    <div class="need" id="mNeed" hidden></div>
+
+    <div class="mlist" id="mlist"></div>
+  </section>
 
   <div class="lp" id="lp" hidden>
     <div id="lpS1">
@@ -305,30 +459,27 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
   </div>
 
   <div class="acts">
-    <button class="btn" id="clear" title="zrušit">✕</button>
+    <button class="btn" id="clear" title="zrušit rozpracovaný výkon">✕</button>
     <button class="btn" id="insert">vložit</button>
   </div>
 
-  <div class="caption">seznam výkonů</div>
+  <div class="caption">
+    <svg class="ic12" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="3" width="20" height="3"/><rect x="2" y="8" width="20" height="3"/><rect x="2" y="13" width="20" height="3"/><rect x="2" y="18" width="20" height="3"/></svg>
+    seznam výkonů
+  </div>
   <div class="tbl">
-    <div class="thead">
-      <span style="left:6.6rem">AnID</span>
-      <span style="left:58.1rem"><small>Q</small>A</span>
-      <span style="left:83.5rem;font-size:7.083rem">název</span>
-      <span style="left:233.2rem">T<small>ID</small></span>
-      <span style="left:251.2rem">MnLOT</span>
+    <div class="tgrid thead">
+      <span></span><span>ANID</span><span style="text-align:center">Q</span><span style="padding-left:6rem">název</span>
+      <span style="text-align:center">T</span><span style="padding-left:4rem">DID</span><span></span>
     </div>
-    <div class="tbody">
-      <i class="vr a"></i><i class="vr b"></i><i class="vr c"></i><i class="vr d"></i>
-      <div id="trows"></div>
-    </div>
+    <div class="tbody"><div id="trows"></div></div>
   </div>
 
   <div class="sum">
     <div class="scol s1"><div class="box" id="sumCena"></div><label>cena celkem</label></div>
     <div class="scol s2"><div class="box" id="sumZaloha"></div><label>zálohované komp.</label></div>
     <div class="scol s3"><div class="box blue" id="sumOdmeny"></div><label>odměny lab.</label></div>
-    <div class="scol s4"><div class="box blue" id="sumRating"></div><label>status / raiting</label></div>
+    <div class="scol s4"><div class="box blue" id="sumRating"></div><label>status / rating</label></div>
   </div>
   <div class="sbtn">
     <button class="btn" id="inv">fakturace</button>
@@ -432,7 +583,9 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
     return fetch(SCRIPT_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(payload) })
       .then(function(r){ if (!r.ok) { werr('server odmítl požadavek (HTTP ' + r.status + ').', opLabel); return null; } return r.json(); })
       .then(function(d){
-        if (d && d.ok) wmsg(okLabel + d.ref, 5);
+        if (d && d.ok && d.lotError) wmsg(okLabel + d.ref + ' – materiál čeká na rozhodnutí.', 8);
+        else if (d && d.ok) wmsg(okLabel + d.ref, 5);
+        else if (d && d.needs) wmsg('Materiál potřebuje rozhodnutí – zápis zatím neproběhl.', 8);
         else if (d) werr(d.error || 'neznámá chyba serveru.', opLabel);
         return d;
       })
@@ -647,56 +800,433 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 
   /* =================================================================
-     MATERIÁL (šarže řádku, který se právě vkládá – výrobku nebo fáze)
+     MATERIÁL (Lot.gs)
+     state.mats = materiál rozpracovaného výkonu:
+       { did, q, mnam, lot, tuse, md, res, val, newDid, res2, val2, newDid2 }
+     q = spotřeba v jednotkách (ks). Do sloupce X jde seznam DID ' | ',
+     do Lot.gs body.mat (odpis). MD položky už jsou spotřebované – jdou
+     jen do sloupce X, neodepisují se.
      ================================================================= */
-  var mtSeq = 0;
-  function loadMaterialName(){
-    var lot = $('mnlot').value.trim(), seq = ++mtSeq, el = $('mnam');
-    if (!lot) { el.value = ''; el.classList.remove('wait'); markMat(); return; }
-    el.classList.add('wait');
-    materialLookup(lot).then(function(hit){
-      if (seq !== mtSeq) return;
-      el.classList.remove('wait');
-      if (hit === undefined) return;
-      el.value = hit ? hit.mnam : '';
-      markMat();
+  var ICONS = {
+    use:  '<svg class="ic12" viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="4" r="2.4"/><path d="M5 8h4l2 5-2 .8L8 11v4l2.5 7H8l-2-5.5L4 22H1.5L4 15V11z"/><path d="M12 3h1.6v9H12z"/><path d="M13.6 3h8v5.5h-8z"/></svg>',
+    new:  '<svg class="ic12" viewBox="0 0 24 24" fill="currentColor"><rect x="11" y="3" width="10" height="8" rx="1"/><rect x="11" y="13" width="10" height="8" rx="1"/><rect x="3" y="13" width="6" height="8" rx="1" opacity=".55"/><path d="M5 2h2v3h3v2H7v3H5V7H2V5h3z"/></svg>',
+    find: '<svg class="ic12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10" cy="10" r="6.5"/><path d="M15 15l6 6"/></svg>'
+  };
+  var MODE_TITLE = { use:'materiál k zakázce', new:'založení materiálu na sklad', find:'hledání balení v LOT' };
+  var M = { mode:'use', sel:null, seq:0, dl:[], dlSel:-1, fl:[], flSel:-1, busy:false };
+
+  function setMode(m){
+    if (!$('mNeed').hidden) return;                 /* nejdřív dokonči rozhodnutí */
+    M.mode = m;
+    $('mUse').hidden = m !== 'use'; $('mNew').hidden = m !== 'new'; $('mFind').hidden = m !== 'find';
+    $('mTitle').innerHTML = ICONS[m] + '<span>' + MODE_TITLE[m] + '</span>';
+    Array.prototype.forEach.call(document.querySelectorAll('.modes .btn'), function(b){
+      b.setAttribute('aria-pressed', b.getAttribute('data-mode') === m ? 'true' : 'false');
+    });
+    if (m === 'find') { $('lq').focus(); if ($('lq').value.trim().length >= 2) findSearch(); }
+    if (m === 'new') $('nref').focus();
+    resize();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.modes .btn'), function(b){
+    b.addEventListener('click', function(){ setMode(b.getAttribute('data-mode')); });
+  });
+
+  /* přepínače osobní/společné, kus/balení */
+  function segVal(id){ var b = $(id).querySelector('[aria-pressed="true"]'); return b ? b.getAttribute('data-v') : ''; }
+  function segSet(id, v){
+    Array.prototype.forEach.call($(id).querySelectorAll('button'), function(b){
+      b.setAttribute('aria-pressed', b.getAttribute('data-v') === v ? 'true' : 'false');
     });
   }
-  var qnlDirty = false, matTouched = false;
-  function qnlSync(){ if (qnlDirty) return; $('qnl').value = qaNorm($('qa').value); markMat(); }
-  function matValid(){ return $('mnlot').value.trim() && $('mnam').value.trim() && $('qnl').value.trim(); }
-  function markMat(){
-    if (!matTouched) return;
-    mark($('mnlot'), !!$('mnlot').value.trim()); mark($('mnam'), !!$('mnam').value.trim()); mark($('qnl'), !!$('qnl').value.trim());
-  }
-  $('mnam').readOnly = true;
-  $('mnlot').addEventListener('input', markMat);
-  $('mnlot').addEventListener('change', loadMaterialName);
-  $('qnl').addEventListener('input', function(){ qnlDirty = true; var c = qaClean(this.value); if (c !== this.value) this.value = c; markMat(); });
-  $('qnl').addEventListener('blur', function(){ if (qnlDirty) { this.value = qaNorm(this.value); markMat(); } });
+  ['tuse','ntuse','nforma'].forEach(function(id){
+    $(id).addEventListener('click', function(e){
+      var b = e.target.closest('button'); if (!b) return;
+      segSet(id, b.getAttribute('data-v'));
+      if (id === 'nforma') formaSync();
+    });
+  });
 
+  /* ---- dotazy do LOT / MAT ---- */
+  function lotQuery(text){
+    return fetch(SCRIPT_URL + '?lotq=' + encodeURIComponent(text), { cache:'no-store' })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ return (d && Array.isArray(d.items)) ? d.items : null; })
+      .catch(function(){ return null; });
+  }
+  function matQuery(ref){
+    return fetch(SCRIPT_URL + '?matref=' + encodeURIComponent(ref), { cache:'no-store' })
+      .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
+  }
+  /* načtený kód LOT|DID → DID; čisté DID → DID; jinak '' */
+  function didOf(v){
+    v = String(v || '').trim().toUpperCase();
+    var p = v.lastIndexOf('|'); if (p >= 0) v = v.slice(p + 1).trim();
+    return /^D(?=[0-9A-Z]*[0-9])[0-9A-Z]{2,6}$/.test(v) ? v : '';   /* DID = D + base36 s číslicí */
+  }
+  function n2(v){ var n = numParse(v); if (isNaN(n)) return ''; return (n % 1 === 0) ? String(n) : String(Math.round(n * 100) / 100).replace('.', ','); }
+  function stLabel(it){ return it.status === 'NASAZENO' ? 'nasazeno' : 'založeno'; }
+  function zbLabel(it){
+    if (it.zbytek == null) return 'zbytek neevidován';
+    return 'zbývá ' + n2(it.zbytek) + ' ks';
+  }
+  function lresHtml(list, sel){
+    return list.map(function(it, i){
+      return '<button type="button" data-i="' + i + '"' + (i === sel ? ' class="sel"' : '') + '>'
+           + '<span class="d">' + esc(it.did) + '</span>'
+           + '<span class="p">' + esc(it.popis || it.ref) + '<small>REF ' + esc(it.ref) + ' · LOT ' + esc(it.lot) + (it.exp ? ' · exp. ' + esc(it.exp) : '') + '</small></span>'
+           + '<span class="z' + (it.status === 'NASAZENO' ? ' n' : '') + '">' + esc(stLabel(it)) + '<br>' + esc(zbLabel(it)) + '</span></button>';
+    }).join('');
+  }
+
+  /* ---- materiál k zakázce: DID pole ---- */
+  function chipsFor(it){
+    if (!it) return '<span class="chip">zbývá <b>—</b></span><span class="chip">exp. <b>—</b></span>';
+    var z = it.zbytek == null ? '<span class="chip">zbytek <b>neevidován</b></span>'
+                              : '<span class="chip">zbývá <b>' + esc(n2(it.zbytek)) + ' ks</b></span>';
+    var s = it.status === 'NASAZENO' ? '<span class="chip good">nasazeno</span>'
+                                     : '<span class="chip warn" title="při zápisu se balení nasadí do výroby">založeno → nasadí se</span>';
+    return z + (it.exp ? '<span class="chip">exp. <b>' + esc(it.exp) + '</b></span>' : '') + s;
+  }
+  function useSel(it){
+    M.sel = it || null;
+    $('mChips').innerHTML = chipsFor(M.sel);
+    $('mnam').value = it ? (it.popis || it.ref || '') : '';
+    $('mlot').value = it ? String(it.lot || '') : '';
+    $('mnam').classList.toggle('got', !!it); $('mlot').classList.toggle('got', !!it);
+    if (it) { $('did').value = it.did; $('did').classList.remove('bad'); if (it.tuse) segSet('tuse', it.tuse); }
+    mqHint();
+  }
+  function mqHint(){
+    var h = $('mHint'), q = numParse($('mq').value), it = M.sel;
+    h.className = 'hint'; h.textContent = '';
+    $('mq').classList.remove('warn');
+    if (!it) {
+      if (didOf($('did').value)) { h.textContent = 'Balení není mezi založenými ani nasazenými – při zápisu se ověří.'; h.className = 'hint warn'; }
+      return;
+    }
+    if (it.zbytek != null && !isNaN(q) && q >= it.zbytek) {
+      $('mq').classList.add('warn');
+      h.className = 'hint warn';
+      h.textContent = 'Spotřeba dosáhne zbytku balení – při vložení se zeptám, jak naložit se zbytkem.';
+    }
+  }
+  function didListClose(){ M.dl = []; M.dlSel = -1; $('didList').innerHTML = ''; resize(); }
+  function didResolve(){
+    var raw = $('did').value.trim(), d = didOf(raw), seq = ++M.seq;
+    if (!raw) { useSel(null); didListClose(); return; }
+    if (!d) {                                    /* text → hledání */
+      if (raw.length < 2) return;
+      $('didList').innerHTML = '<div class="lmsg">Hledám…</div>'; resize();
+      lotQuery(raw).then(function(list){
+        if (seq !== M.seq) return;
+        if (!list) { $('didList').innerHTML = '<div class="lmsg">Hledání se nepovedlo – zkus to znovu.</div>'; resize(); return; }
+        if (!list.length) { $('didList').innerHTML = '<div class="lmsg">Žádné založené ani nasazené balení.</div>'; resize(); return; }
+        M.dl = list; M.dlSel = 0; $('didList').innerHTML = lresHtml(list, 0); resize();
+      });
+      return;
+    }
+    $('did').value = d; $('did').classList.add('wait'); didListClose();
+    lotQuery(d).then(function(list){
+      if (seq !== M.seq) return;
+      $('did').classList.remove('wait');
+      var hit = null;
+      (list || []).forEach(function(it){ if (it.did === d) hit = it; });
+      useSel(hit);
+      if (hit) $('mq').focus();
+    });
+  }
+  function didPick(i){ var it = M.dl[i]; if (!it) return; didListClose(); M.seq++; useSel(it); $('mq').focus(); }
+  $('did').addEventListener('keydown', function(e){
+    var open = M.dl.length > 0;
+    if (e.key === 'Enter') { e.preventDefault(); if (open && M.dlSel >= 0) didPick(M.dlSel); else didResolve(); }
+    else if (open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault(); M.dlSel = (M.dlSel + (e.key === 'ArrowDown' ? 1 : -1) + M.dl.length) % M.dl.length;
+      $('didList').innerHTML = lresHtml(M.dl, M.dlSel);
+    } else if (e.key === 'Escape') didListClose();
+  });
+  $('did').addEventListener('input', function(){ if (M.sel && $('did').value.trim().toUpperCase() !== M.sel.did) useSel(null); });
+  $('did').addEventListener('change', function(){ if (didOf(this.value)) didResolve(); });
+  $('didList').addEventListener('mousedown', function(e){ e.preventDefault(); });
+  $('didList').addEventListener('click', function(e){ var b = e.target.closest('button[data-i]'); if (b) didPick(+b.getAttribute('data-i')); });
+  $('mq').addEventListener('input', function(){ var c = qaClean(this.value); if (c !== this.value) this.value = c; this.classList.remove('bad'); mqHint(); });
+  $('mq').addEventListener('blur', function(){ this.value = qaNorm(this.value); mqHint(); });
+  $('mq').addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); addMaterial(); } });
+
+  function addMaterial(){
+    var d = didOf($('did').value), q = qaNorm($('mq').value);
+    mark($('did'), !!d); mark($('mq'), qaValid(q));
+    if (!d || !qaValid(q)) { (d ? $('mq') : $('did')).focus(); return; }
+    var hit = null;
+    state.mats.forEach(function(m){ if (m.did === d && !m.md) hit = m; });
+    if (hit) { hit.q = qaNorm(String(numParse(hit.q) + numParse(q))); clearRes(hit); }
+    else state.mats.push({ did:d, q:q, mnam: String($('mnam').value || '').slice(0, 40), lot: String($('mlot').value || ''), tuse: segVal('tuse') });
+    $('did').value = ''; $('mq').value = ''; useSel(null); segSet('tuse', 'osobní');
+    renderMats(); $('did').focus();
+  }
+  function clearRes(m){ ['res','val','newDid','res2','val2','newDid2'].forEach(function(k){ delete m[k]; }); }
+  $('addMat').addEventListener('click', addMaterial);
+
+  /* ---- hledání v LOT (lupa materiálu) ---- */
+  var findT = null;
+  function findSearch(){
+    var text = $('lq').value.trim(), seq = ++M.seq;
+    if (text.length < 2) { $('lqList').innerHTML = '<div class="lmsg">Napiš alespoň 2 znaky.</div>'; resize(); return; }
+    $('lqList').innerHTML = '<div class="lmsg">Hledám…</div>'; resize();
+    lotQuery(text).then(function(list){
+      if (seq !== M.seq) return;
+      M.fl = list || []; M.flSel = M.fl.length ? 0 : -1;
+      $('lqList').innerHTML = !list ? '<div class="lmsg">Hledání se nepovedlo – zkus to znovu.</div>'
+        : (!list.length ? '<div class="lmsg">Žádné založené ani nasazené balení.</div>' : lresHtml(M.fl, M.flSel));
+      resize();
+    });
+  }
+  function findPick(i){ var it = M.fl[i]; if (!it) return; setMode('use'); M.seq++; useSel(it); $('mq').focus(); }
+  $('lq').addEventListener('input', function(){ clearTimeout(findT); findT = setTimeout(findSearch, 350); });
+  $('lq').addEventListener('keydown', function(e){
+    var open = M.fl.length > 0;
+    if (e.key === 'Enter') { e.preventDefault(); if (open && M.flSel >= 0) findPick(M.flSel); else findSearch(); }
+    else if (open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault(); M.flSel = (M.flSel + (e.key === 'ArrowDown' ? 1 : -1) + M.fl.length) % M.fl.length;
+      $('lqList').innerHTML = lresHtml(M.fl, M.flSel);
+    } else if (e.key === 'Escape') setMode('use');
+  });
+  $('lqList').addEventListener('click', function(e){ var b = e.target.closest('button[data-i]'); if (b) findPick(+b.getAttribute('data-i')); });
+
+  /* ---- založení na sklad ---- */
+  var nSeq = 0, nMat = null;
+  function formaSync(){
+    var ks = segVal('nforma') === 'ks';
+    $('nq').disabled = ks;
+    if (ks) $('nq').value = '1';
+    else if ($('nq').value === '1' && nMat && numParse(nMat.jednotek) > 1) $('nq').value = n2(nMat.jednotek);
+    $('npoc').title = ks ? 'počet kusů – každý dostane vlastní DID' : 'počet balení – každé dostane vlastní DID';
+  }
+  function mdSync(){
+    var on = $('nmd').getAttribute('aria-pressed') === 'true';
+    $('nlot').placeholder = on ? 'LOT (nepovinné)' : 'LOT';
+    $('nGo').textContent = on ? 'založit MD' : 'založit';
+    $('nHint').className = 'hint' + (on ? ' warn' : '');
+    $('nHint').textContent = on ? 'MD: balení se založí rovnou jako spotřebované k této zakázce a připojí se k výkonu.' : '';
+  }
+  $('nmd').addEventListener('click', function(){
+    this.setAttribute('aria-pressed', this.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'); mdSync();
+  });
+  $('nref').addEventListener('change', function(){
+    var ref = this.value.trim(), seq = ++nSeq;
+    nMat = null; $('nnam').value = ''; $('nnam').classList.remove('got'); $('nInfo').textContent = 'výrobce / dodavatel';
+    if (!ref) return;
+    $('nnam').classList.add('wait');
+    matQuery(ref).then(function(d){
+      if (seq !== nSeq) return;
+      $('nnam').classList.remove('wait');
+      if (!d || d.nazev == null) { $('nnam').value = ''; mark($('nref'), false); $('nInfo').textContent = 'REF není v číselníku MAT'; return; }
+      nMat = d; mark($('nref'), true);
+      $('nnam').value = d.nazev; $('nnam').classList.add('got');
+      $('nInfo').textContent = [d.vyrobce, d.dodavatel].filter(Boolean).join(' / ') || 'výrobce / dodavatel neuveden';
+      var f = String(d.forma || '').toLowerCase();
+      if (/^k|ks|kus/.test(f)) segSet('nforma', 'ks'); else if (/bal/.test(f)) segSet('nforma', 'bal');
+      if (segVal('nforma') === 'bal' && numParse(d.jednotek) > 0) $('nq').value = n2(d.jednotek);
+      formaSync();
+    });
+  });
+  $('nref').addEventListener('input', function(){ this.classList.remove('bad'); });
+  $('nq').addEventListener('input', function(){ var c = qaClean(this.value); if (c !== this.value) this.value = c; this.classList.remove('bad'); });
+  $('npoc').addEventListener('input', function(){ this.value = this.value.replace(/[^0-9]/g, '').slice(0, 2); this.classList.remove('bad'); });
+  $('nlot').addEventListener('input', function(){ this.classList.remove('bad'); });
+
+  $('nGo').addEventListener('click', function(){
+    if (M.busy) return;
+    var md = $('nmd').getAttribute('aria-pressed') === 'true', forma = segVal('nforma');
+    var ref = $('nref').value.trim(), lot = $('nlot').value.trim(), q = forma === 'ks' ? '1' : qaNorm($('nq').value);
+    var poc = parseInt($('npoc').value, 10) || 0;
+    var ok = true;
+    if (!ref || !nMat) { mark($('nref'), false); ok = false; }
+    if (!md && !lot) { mark($('nlot'), false); ok = false; }
+    if (!qaValid(q)) { mark($('nq'), false); ok = false; }
+    if (poc < 1 || poc > 20) { mark($('npoc'), false); ok = false; }
+    if (!ok) { $('nHint').className = 'hint bad'; $('nHint').textContent = 'Doplň označená pole' + (poc > 20 ? ' (najednou max. 20 balení).' : '.'); return; }
+    var items = [];
+    for (var i = 0; i < poc; i++) items.push({ ref:ref, q:q, lot:lot, exp:$('nexp').value, forma:forma, tuse:segVal('ntuse'), md:md });
+    M.busy = true; $('nGo').disabled = true; $('nGo').textContent = 'zakládám…';
+    Promise.all([ currentMemberId(), tagFromCustomField() ]).then(function(res){
+      if (!res[0]) throw new Error('nepodařilo se zjistit přihlášený Trello účet');
+      if (md && !res[1]) throw new Error('karta nemá vyplněný kód zakázky (MD se váže k zakázce)');
+      return postSilent({ action:'lotCreate', memberId: res[0], tag: res[1], items: items });
+    }).then(function(d){
+      if (!d || !d.ok) throw new Error((d && d.error) || 'server neodpověděl');
+      createdShow(d.items || [], md);
+      ['nlot','nexp'].forEach(function(f){ $(f).value = ''; });
+      $('npoc').value = '1';
+      wmsg('Založeno na sklad: ' + (d.items || []).map(function(x){ return x.did; }).join(', '), 6);
+    }).catch(function(err){
+      $('nHint').className = 'hint bad'; $('nHint').textContent = 'Založení se nepovedlo – ' + (err && err.message ? err.message : err) + '.';
+    }).then(function(){ M.busy = false; $('nGo').disabled = false; mdSync(); });
+  });
+  var created = [];
+  function createdShow(items, md){
+    created = items.map(function(x){ return { did:x.did, ref:x.ref, lot:x.lot, q:x.q, md:md, popis: $('nnam').value }; });
+    if (md) {                                       /* MD se rovnou připojí k výkonu */
+      created.forEach(function(x){ state.mats.push({ did:x.did, q:String(x.q), mnam:String(x.popis).slice(0, 40), lot:String(x.lot || ''), md:true }); });
+      renderMats();
+    }
+    $('nDone').innerHTML = '<div class="created"><div class="t">' + (md ? 'Založeno jako MD a připojeno k výkonu:' : 'Založeno na sklad – připravené k nasazení:') + '</div>'
+      + created.map(function(x, i){
+          return '<div class="it"><b>' + esc(x.did) + '</b><span>' + esc(x.popis) + ' · LOT ' + esc(x.lot || '—') + ' · ' + esc(n2(x.q)) + ' ks</span>'
+               + (md ? '' : '<button type="button" class="btn" data-c="' + i + '">použít k zakázce</button>') + '</div>';
+        }).join('') + '</div>';
+    resize();
+  }
+  $('nDone').addEventListener('click', function(e){
+    var b = e.target.closest('[data-c]'); if (!b) return;
+    var x = created[+b.getAttribute('data-c')]; if (!x) return;
+    setMode('use');
+    useSel({ did:x.did, ref:x.ref, lot:x.lot, popis:x.popis, status:'ZALOŽENO', zbytek:numParse(x.q), tuse:segVal('ntuse') });
+    $('mq').focus();
+  });
+
+  /* ---- seznam materiálu výkonu ---- */
+  var RES_TXT = { close:'uzavřít', correct:'korekce zbytku', enough:'vystačilo – uzavřít', split:'+ další balení', reopen:'vrátit do výroby' };
+  function matDid(m){ return m.did || m.mnlot || ''; }
   function renderMats(){
     var el = $('mlist');
-    $('mpanel').classList.toggle('empty', !state.mats.length);
-    if (!state.mats.length) { el.innerHTML = '<div class="mempty">zatím žádný materiál</div>'; return; }
+    if (!state.mats.length) { el.innerHTML = '<div class="mempty">K výkonu zatím není připojený materiál.</div>'; resize(); return; }
     el.innerHTML = state.mats.map(function(m, i){
-      return '<div class="mrow"><div class="c k1">' + esc(m.mnlot) + '</div><div class="c k2">' + esc(m.qnl)
-           + '</div><div class="c k3">' + esc(m.mnam) + '</div><button class="btn glyph" data-del="' + i + '" title="odebrat">−</button></div>';
+      var note = m.md ? '<em>MD</em> ' : '';
+      if (m.res && RES_TXT[m.res]) note += '<em>' + RES_TXT[m.res] + (m.newDid ? ' ' + esc(m.newDid) : '') + '</em> ';
+      return '<div class="mrow"><div class="k1">' + esc(matDid(m)) + '</div><div class="k2">' + esc(m.q || m.qnl || '') + '</div>'
+           + '<div class="k3">' + note + esc(m.mnam || '') + '</div>'
+           + '<div class="k4" title="' + esc(m.tuse || '') + '">' + (m.tuse === 'společné' ? 'SP' : '') + '</div>'
+           + '<button class="btn" data-del="' + i + '" title="odebrat">−</button></div>';
     }).join('');
+    resize();
   }
   $('mlist').addEventListener('click', function(e){
     var b = e.target.closest('[data-del]'); if (!b) return;
-    state.mats.splice(parseInt(b.getAttribute('data-del'), 10), 1); renderMats(); resize();
-  });
-  $('addMat').addEventListener('click', function(){
-    matTouched = true;
-    if (!matValid()) { markMat(); return; }
-    state.mats.push({ mnlot: $('mnlot').value.trim(), mnam: $('mnam').value.trim(), qnl: $('qnl').value.trim() });
-    clearMatRow(); $('mnlot').focus(); renderMats(); resize();
+    state.mats.splice(parseInt(b.getAttribute('data-del'), 10), 1); renderMats();
   });
   function clearMatRow(){
-    ['mnlot','mnam','qnl'].forEach(function(f){ $(f).value = ''; $(f).classList.remove('bad'); });
-    $('mnam').classList.remove('wait'); matTouched = false; qnlDirty = false; qnlSync();
+    ['did','mq'].forEach(function(f){ $(f).value = ''; $(f).classList.remove('bad','warn'); });
+    useSel(null); didListClose(); segSet('tuse', 'osobní');
+  }
+  function qnlSync(){}                              /* Q materiálu je v jednotkách, s Q výrobku se nesvazuje */
+
+  /* podklad pro Lot.gs a pro sloupec X */
+  function matPayload(mats){
+    return (mats || []).filter(function(m){ return m.did && !m.md; }).map(function(m){
+      var o = { did:m.did, q:m.q, tuse:m.tuse || 'osobní' };
+      ['res','val','newDid','res2','val2','newDid2'].forEach(function(k){ if (m[k] != null && m[k] !== '') o[k] = m[k]; });
+      return o;
+    });
+  }
+  function matLotText(mats){
+    var out = [];
+    (mats || []).forEach(function(m){
+      [matDid(m), m.newDid, m.newDid2].forEach(function(d){ if (d && out.indexOf(d) < 0) out.push(d); });
+    });
+    return out.join(' | ');
+  }
+
+  /* =================================================================
+     ROZHODNUTÍ O MATERIÁLU (needs z Lot.gs)
+       nenalezeno   – DID v LOT není → odebrat
+       mnozstvi     – chybí spotřeba → doplnit
+       spotrebovane – balení je SPOTŘEBOVANÉ → vrátit do výroby / nezapočítat
+       zbytek       – spotřeba ≥ zbytek → 4 volby okna spotřeby
+     ================================================================= */
+  var needCb = null, needList = [];
+  function needCard(n, i){
+    var h = '<div class="ncard" data-n="' + i + '">', nm = 'n' + i;
+    var who = '<b>' + esc(n.did) + '</b>' + (n.popis ? ' · ' + esc(n.popis) : '') + (n.lot ? ' · LOT ' + esc(n.lot) : '');
+    function opt(v, txt, extra, chk){
+      return '<label class="nopt"><input type="radio" name="' + nm + '" value="' + v + '"' + (chk ? ' checked' : '') + '><span>' + txt + '</span>' + (extra || '') + '</label>';
+    }
+    if (n.typ === 'nenalezeno') {
+      h += '<div class="nt">' + who + '</div><div class="ns">Balení v LOT neexistuje – zkontroluj DID.</div>'
+         + opt('drop', 'odebrat z výkonu a pokračovat', '', true);
+    } else if (n.typ === 'mnozstvi') {
+      h += '<div class="nt">' + who + '</div><div class="ns">Chybí spotřeba.</div>'
+         + opt('q', 'spotřeba', '<input class="f hi ctr" data-v="q" inputmode="decimal" placeholder="ks">', true);
+    } else if (n.typ === 'spotrebovane') {
+      h += '<div class="nt">' + who + '</div><div class="ns">Balení je už <b>spotřebované</b> (uzavřené).</div>'
+         + opt('reopen', 'vrátit balení do výroby a odepsat ' + esc(n2(n.q)) + ' ks', '', true)
+         + opt('reject', 'nezapočítat – odebrat z výkonu', '');
+    } else if (n.typ === 'zbytek') {
+      var rest = numParse(n.q) - numParse(n.zbytek);
+      h += '<div class="nt">' + who + '</div><div class="ns">Spotřeba <b>' + esc(n2(n.q)) + ' ks</b> je stejná nebo větší než zbytek <b>' + esc(n2(n.zbytek)) + ' ks</b>.</div>'
+         + (n.chyba ? '<div class="ne">' + esc(n.chyba) + '</div>' : '')
+         + opt('close', 'balení došlo – odepsat zbytek ' + esc(n2(n.zbytek)) + ' ks a uzavřít', '', !n.chyba)
+         + opt('enough', 'spotřeboval jsem ' + esc(n2(n.q)) + ' ks a vystačilo – uzavřít', '')
+         + opt('correct', 'balení pokračuje, skutečný zbytek je', '<input class="f hi ctr" data-v="val" inputmode="decimal" placeholder="ks">')
+         + opt('split', 'zbylých ' + esc(n2(rest > 0 ? rest : 0)) + ' ks z dalšího balení', '<input class="f hi" data-v="newDid" placeholder="DID" autocomplete="off">', !!n.chyba && /DID/.test(n.chyba));
+    }
+    return h + '</div>';
+  }
+  /* zobrazí rozhodnutí; resolve(true) = pokračovat, resolve(false) = zpět */
+  function needsAsk(needs, mats){
+    return new Promise(function(resolve){
+      needList = needs || [];
+      needCb = function(go){ needCb = null; $('mNeed').hidden = true; $('mNeed').innerHTML = '';
+                             ['mUse','mNew','mFind'].forEach(function(id){ $(id).style.display = ''; }); setMode(M.mode); resolve(go); };
+      ['mUse','mNew','mFind'].forEach(function(id){ $(id).style.display = 'none'; });
+      $('mNeed').innerHTML = '<h4>Materiál – potřebuji rozhodnutí před zápisem</h4>'
+        + needList.map(needCard).join('')
+        + '<div class="nacts"><button type="button" class="btn ghost" id="nBack">zpět</button><button type="button" class="btn pri" id="nOk">pokračovat</button></div>';
+      $('mNeed').hidden = false;
+      $('mNeed')._mats = mats;
+      resize();
+      try { $('band').scrollIntoView({ block:'nearest' }); } catch (e) {}
+      var f = $('mNeed').querySelector('input[type=radio]:checked') || $('mNeed').querySelector('input[type=radio]'); if (f) f.focus();
+    });
+  }
+  $('mNeed').addEventListener('click', function(e){
+    if (e.target.id === 'nBack') { if (needCb) needCb(false); return; }
+    if (e.target.id !== 'nOk') return;
+    var mats = $('mNeed')._mats, ok = true;
+    needList.forEach(function(n, i){
+      var card = $('mNeed').querySelector('[data-n="' + i + '"]');
+      var r = card.querySelector('input[type=radio]:checked');
+      if (!r) { ok = false; card.querySelector('.nt').style.color = 'var(--bad)'; return; }
+      var lab = r.closest('.nopt'), inp = lab.querySelector('input.f'), v = inp ? inp.value.trim() : '';
+      if (inp) {
+        if (inp.getAttribute('data-v') === 'newDid') v = didOf(v); else v = qaNorm(v);
+        var good = inp.getAttribute('data-v') === 'val' ? (v !== '' && numParse(v) >= 0) : (inp.getAttribute('data-v') === 'q' ? qaValid(v) : !!v);
+        mark(inp, good); if (!good) { ok = false; return; }
+      }
+      applyNeed(mats, n, r.value, v);
+    });
+    if (!ok) return;
+    renderMats();
+    if (needCb) needCb(true);
+  });
+  $('mNeed').addEventListener('focusin', function(e){   /* klik do pole zvolí jeho možnost */
+    var lab = e.target.closest && e.target.closest('.nopt'); if (!lab || !e.target.matches('input.f')) return;
+    var r = lab.querySelector('input[type=radio]'); if (r) r.checked = true;
+  });
+  function applyNeed(mats, n, choice, v){
+    var i, m = null, viaNew = false;
+    for (i = 0; i < mats.length; i++) if (mats[i].did === n.did && !mats[i].md) { m = mats[i]; break; }
+    if (!m) for (i = 0; i < mats.length; i++) if (mats[i].newDid === n.did) { m = mats[i]; viaNew = true; break; }
+    if (!m) return;
+    if (choice === 'drop' || choice === 'reject') {
+      if (viaNew) { delete m.newDid; delete m.res2; delete m.val2; delete m.newDid2; if (m.res === 'split') delete m.res; }
+      else mats.splice(i, 1);
+      return;
+    }
+    if (choice === 'q') { m.q = v; return; }
+    if (choice === 'reopen') { m.res = 'reopen'; return; }
+    var key = (viaNew || m.res === 'reopen') ? '2' : '';
+    m['res' + key] = choice;
+    if (choice === 'correct') m['val' + key] = v; else delete m['val' + key];
+    if (choice === 'split') { if (key) m.newDid2 = v; else m.newDid = v; }
+  }
+  /* kontrola před zápisem (nic nezapisuje); opakuje se, dokud jsou needs */
+  function lotGate(mats, ref){
+    if (!matPayload(mats).length) return Promise.resolve(true);
+    return postSilent({ action:'lotCheck', mat: matPayload(mats), ref: ref || '' }).then(function(d){
+      if (!d) { wmsg('Kontrola materiálu se nepovedla – zkus vložit znovu.', 10); return false; }
+      if (d.ok) return true;
+      return needsAsk(d.needs, mats).then(function(go){ return go ? lotGate(mats, ref) : false; });
+    });
   }
 
   /* =================================================================
@@ -726,30 +1256,27 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
     });
   }
   function lotsHtml(r){
-    return (r.mats || []).map(function(m){ return m.mnlot; }).filter(Boolean)
-      .map(function(l){ return '<b>' + esc(l) + '</b>'; }).join('');
+    var l = matLotText(r.mats);
+    return l ? l.split(' | ').map(function(d){ return '<b>' + esc(d) + '</b>'; }).join('') : '';
   }
   function rowHtml(r, kind){
-    var i = state.rows.indexOf(r), lots = (r.mats || []).filter(function(m){ return m.mnlot; }).length;
-    var h = lots > 1 ? (lots * 9 + 5.2) : 14.2;
-    var s = '<div class="tr ' + kind + (state.open[r.id] ? ' open' : '') + '" style="min-height:' + h + 'rem">';
+    var i = state.rows.indexOf(r);
+    var s = '<div class="tgrid tr ' + kind + (state.open[r.id] ? ' open' : '') + '"><div></div>';
     if (kind === 'pr') {
-      s += '<div class="anid">' + esc(r.anid) + '</div>'
-         + '<div class="qa">' + esc(r.qa) + '</div>'
-         + '<div class="nm">' + esc(r.anam) + '</div>';
+      s += '<div class="anid">' + esc(r.anid) + '</div><div class="qa">' + esc(r.qa) + '</div><div class="nm">' + esc(r.anam) + '</div>';
     } else {
-      s += '<div class="qa">' + esc(r.qa) + '</div><i class="el"></i>'
+      s += '<div class="anid"></div><div class="qa">' + esc(r.qa) + '</div>'
          + '<div class="nm">' + esc(phaseName(r.outs)) + (kind === 'orph' ? ' (' + esc(r.anid) + ')' : '') + '</div>';
     }
     s += '<div class="tid">' + esc(r.tid || (r._href ? String(r._href).split('_')[0] : '')) + '</div>'
-       + '<div class="lot">' + lotsHtml(r) + '</div>';
+       + '<div class="lot">' + lotsHtml(r) + '</div><div class="ics">';
     if (kind === 'pr') {
-      if (state.open[r.id]) s += '<button class="ic m2" data-menu="' + i + '" title="editovat / smazat"><i class="tri"></i></button>';
-      s += '<button class="ic" data-tog="' + esc(r.id) + '" title="rozbalit fáze"><i class="burger"></i></button>';
+      if (state.open[r.id]) s += '<button class="ic" data-menu="' + i + '" title="editovat / smazat"><i class="tri"></i></button>';
+      s += '<button class="ic tog" data-tog="' + esc(r.id) + '" title="rozbalit fáze"><i class="burger"></i></button>';
     } else {
       s += '<button class="ic" data-menu="' + i + '" title="editovat / smazat"><i class="tri"></i></button>';
     }
-    return s + '</div>';
+    return s + '</div></div>';
   }
   function renderRows(){
     ensureIds();
@@ -843,7 +1370,7 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
      FORMULÁŘ ↔ ŘÁDEK
      ================================================================= */
   function collect(){
-    var o = { mats: state.mats.slice() };
+    var o = { mats: state.mats.map(function(m){ return JSON.parse(JSON.stringify(m)); }) };
     FIELDS.forEach(function(f){ o[f] = $(f).value.trim(); });
     return o;
   }
@@ -852,7 +1379,7 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
     /* starší řádek mohl mít v OUT víc fází – do pole se vezme první */
     outSet(String($('outs').value).split(', ')[0] || '');
     lastHit = null;
-    state.mats = (o && o.mats) ? o.mats.slice() : [];
+    state.mats = (o && o.mats) ? o.mats.map(function(m){ return JSON.parse(JSON.stringify(m)); }) : [];
     renderMats();
   }
   function clearForm(){ fill({}); state.editIndex = null; clearMatRow(); updateInsertLabel(); resize(); }
@@ -876,12 +1403,13 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
   /* slučování výrobků: stejný kód + ORD + technik → jeden řádek,
      QA se sečte, šarže se sloučí (u stejné šarže se sečte QNL)        */
   function mergeMats(a, b){
-    var out = (a || []).map(function(m){ return { mnlot:m.mnlot, mnam:m.mnam, qnl:m.qnl }; });
+    var cl = function(m){ return JSON.parse(JSON.stringify(m)); };
+    var out = (a || []).map(cl);
     (b || []).forEach(function(m){
       var hit = null;
-      for (var i = 0; i < out.length; i++) if (out[i].mnlot === m.mnlot) { hit = out[i]; break; }
-      if (hit) hit.qnl = qaNorm(String(numParse(hit.qnl) + numParse(m.qnl)));
-      else out.push({ mnlot:m.mnlot, mnam:m.mnam, qnl:m.qnl });
+      for (var i = 0; i < out.length; i++) if (matDid(out[i]) === matDid(m) && !!out[i].md === !!m.md) { hit = out[i]; break; }
+      if (hit) { if (hit.q != null) hit.q = qaNorm(String(numParse(hit.q) + numParse(m.q))); else hit.qnl = qaNorm(String(numParse(hit.qnl) + numParse(m.qnl))); }
+      else out.push(cl(m));
     });
     return out;
   }
@@ -931,36 +1459,58 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
     return { r:r, same:same, old:old, target:target };
   }
   /* zápis do EVIDENCE – list podle TID; sloučení = nový řádek v listu */
-  function postRow(c, card){
-    var r = c.r, lot = (r.mats || []).map(function(m){ return m.mnlot; }).filter(Boolean).join(' | ');
+  function postRow(c, card, refOver){
+    var r = c.r;
+    var ref = refOver || ((c.same >= 0) ? null : (c.old ? c.old._href : null));
     return postToScript({
-      memberId: MEMBERS[r.tid],
-      ref: (c.same >= 0) ? null : (c.old ? c.old._href : null),
+      memberId: MEMBERS[r.tid], ref: ref,
       tag: card[1], patient: card[0], anid: r.anid, qa: r.qa,
       i: isPhase(r) ? r.outs : r.ord,
-      ceny: r.ceny, lot: lot, due: card[2]
+      ceny: r.ceny, lot: matLotText(r.mats), mat: matPayload(r.mats), due: card[2]
     }, 'Zapsáno do ', 'Zápis').then(function(resp){
-      if (!resp || !resp.ok || !resp.ref) return;
-      if (c.same >= 0) { if (!c.target._href) { c.target._href = resp.ref; save(); } return; }
-      var idx = findIndexById(c.target.id);
-      if (idx >= 0) { state.rows[idx]._href = resp.ref; save(); renderRows(); }
+      if (!resp) return;
+      if (resp.ok && resp.ref) {
+        if (c.same >= 0) { if (!c.target._href) { c.target._href = resp.ref; save(); } }
+        else { var idx = findIndexById(c.target.id); if (idx >= 0) { state.rows[idx]._href = resp.ref; save(); renderRows(); } }
+      }
+      /* materiál potřebuje rozhodnutí: bez zápisu (ok:false), nebo řádek
+         zapsán a odpis neproběhl (lotError) → po rozhodnutí přepis řádku   */
+      if (resp.needs && resp.needs.length && (!resp.ok || resp.lotError)) {
+        return needsAsk(resp.needs, r.mats).then(function(go){
+          if (c.target && c.target !== r) c.target.mats = mergeMats([], c.target.mats);
+          renderRows(); save();
+          if (!go) { wmsg('Materiál výkonu ' + r.anid + ' není odepsaný – uprav výkon a vlož znovu.', 15); return; }
+          return postRow(c, card, resp.ok ? resp.ref : ref);
+        });
+      }
     });
   }
   function cardInfo(){ return Promise.all([ currentCardName(), tagFromCustomField(), cardDue() ]); }
 
+  var insBusy = false;
   $('insert').addEventListener('click', function(){
+    if (insBusy || !$('mNeed').hidden) return;
     $('qa').value = qaNorm($('qa').value);
     if (!formValid()) return;
+    if (didOf($('did').value) && qaValid($('mq').value)) addMaterial();   /* rozepsaný materiál se nezahodí */
     var r = collect();
     if (lastHit && !isPhase(r)) r.anam = lastHit.anam;   /* popis vždy z ceníku, ne z fulltextu */
     if (!sheetAllowed(r.tid, 'Zápis')) return;
-    var c = commitRow(r, state.editIndex);
-    if (!c) return;
-    state.editIndex = null;
-    clearForm(); resetDefaults(); renderRows(); save();
-    cardInfo().then(function(card){ return postRow(c, card); })
-      .then(refreshOdmeny)
-      .catch(function(err){ werr('chyba při přípravě dat (' + (err && err.message ? err.message : err) + ').'); });
+    var edit = state.editIndex, ref = (edit != null && state.rows[edit]) ? state.rows[edit]._href : null;
+    insBusy = true; $('insert').disabled = true; $('insert').textContent = 'kontrola…';
+    lotGate(r.mats, ref).then(function(go){
+      insBusy = false; $('insert').disabled = false; updateInsertLabel();
+      state.mats = r.mats.map(function(m){ return JSON.parse(JSON.stringify(m)); }); renderMats();
+      if (!go) return;
+      var c = commitRow(r, edit);
+      if (!c) return;
+      state.editIndex = null;
+      clearForm(); resetDefaults(); renderRows(); save();
+      return cardInfo().then(function(card){ return postRow(c, card); }).then(refreshOdmeny);
+    }).catch(function(err){
+      insBusy = false; $('insert').disabled = false; updateInsertLabel();
+      werr('chyba při přípravě dat (' + (err && err.message ? err.message : err) + ').');
+    });
   });
 
   /* =================================================================
@@ -1164,6 +1714,8 @@ html[data-theme="light"] .f:focus{--c:#0C66E4}
     });
   }
   outSet('');
+  setMode('use');
+  renderMats();
   load();
   resize();
 })();
