@@ -746,7 +746,12 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (!ref) { wmsg('VÝMAZ NEPROBĚHL ! - nutno provést ručně v tabulce', 15); return Promise.resolve(null); }
     if (!letter) letter = String(ref).split('_')[0];
     if (!sheetAllowed(letter, 'Výmaz')) { wmsg('VÝMAZ NEPROBĚHL ! - nutno provést ručně v tabulce', 15); return Promise.resolve(null); }
-    return queued(function(){ return postToScript({ action:'clearEvidence', memberId: MEMBERS[letter], ref: ref }, 'Vymazáno z ', 'Výmaz'); });
+    /* kód zakázky jde s výmazem – backend ověří, že řádek patří této zakázce */
+    return queued(function(){
+      return tagFromCustomField().catch(function(){ return ''; }).then(function(tag){
+        return postToScript({ action:'clearEvidence', memberId: MEMBERS[letter], ref: ref, tag: tag || '' }, 'Vymazáno z ', 'Výmaz');
+      });
+    });
   }
 
   /* =================================================================
@@ -1876,10 +1881,13 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     }
     return { r:r, same:same, old:old, target:target };
   }
-  /* zápis do EVIDENCE – list podle TID; sloučení = nový řádek v listu */
+  /* zápis do EVIDENCE – list podle TID. Sloučení přepíše zapsaný řádek
+     cílové položky jejím novým celkovým množstvím a materiálem, takže jedna
+     položka v kartě = jeden řádek v listu (smazání pak vymaže vše)        */
   function postRow(c, card, refOver){
     var r = c.r;
-    var ref = refOver || ((c.same >= 0) ? null : (c.old ? c.old._href : null));
+    if (c.same >= 0 && c.target && c.target._href) r = c.target;
+    var ref = refOver || ((c.same >= 0) ? (c.target ? c.target._href || null : null) : (c.old ? c.old._href : null));
     return postToScript({
       memberId: MEMBERS[r.tid], ref: ref,
       tag: card[1], patient: card[0], anid: r.anid, qa: r.qa,
@@ -1945,6 +1953,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       if (!go) return;
       var c = commitRow(r, edit);
       if (!c) return;
+      /* editovaná položka se sloučila do jiné – její vlastní řádek v listu se vymaže */
+      if (c.same >= 0 && c.old && c.old._href && c.old._href !== c.target._href) clearInSheet(c.old);
       state.editIndex = null;
       clearForm(); resetDefaults(); renderRows(); save();
       return cardInfo().then(function(card){
