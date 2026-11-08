@@ -1007,17 +1007,28 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     return fetch(SCRIPT_URL + '?lotq=' + encodeURIComponent(text), { cache:'no-store' })
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){ return (d && Array.isArray(d.items)) ? d.items : null; })
+      .then(function(items){ (items || []).forEach(function(it){ didKnow(it.did); }); return items; })
       .catch(function(){ return null; });
   }
   function matQuery(ref){
     return fetch(SCRIPT_URL + '?matref=' + encodeURIComponent(ref), { cache:'no-store' })
       .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
   }
-  /* načtený kód LOT|DID → DID; čisté DID → DID; jinak '' */
-  function didOf(v){
+  /* DID = 'D' + base36 – číslici obsahovat nemusí (DYIG). DID bez číslice se od slova nedá poznat,
+     proto platí, jen když ho LOT už vrátil (KNOWN_DID). */
+  var KNOWN_DID = {};
+  function didKnow(d){ d = String(d || '').trim().toUpperCase(); if (d) KNOWN_DID[d] = true; }
+  /* načtený kód LOT|DID → DID; čisté DID → kandidát ve tvaru DID; jinak '' */
+  function didLoose(v){
     v = String(v || '').trim().toUpperCase();
     var p = v.lastIndexOf('|'); if (p >= 0) v = v.slice(p + 1).trim();
-    return /^D(?=[0-9A-Z]*[0-9])[0-9A-Z]{2,6}$/.test(v) ? v : '';   /* DID = D + base36 s číslicí */
+    return /^D[0-9A-Z]{2,6}$/.test(v) ? v : '';
+  }
+  /* jisté DID: s číslicí, nebo ověřené v LOT */
+  function didOf(v){
+    var d = didLoose(v);
+    if (!d) return '';
+    return (/[0-9]/.test(d) || KNOWN_DID[d]) ? d : '';
   }
   function n2(v){ var n = numParse(v); if (isNaN(n)) return ''; return (n % 1 === 0) ? String(n) : String(Math.round(n * 100) / 100).replace('.', ','); }
   function stLabel(it){ return it.status === 'NASAZENO' ? 'nasazeno' : 'založeno'; }
@@ -1073,9 +1084,13 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (!raw) { useSel(null); didListClose(); return; }
     if (!d) {                                    /* text → hledání */
       if (raw.length < 2) return;
+      var cand = didLoose(raw), qtext = (raw.indexOf('|') >= 0 && cand) ? cand : raw;
       $('didList').innerHTML = '<div class="lmsg">Hledám…</div>'; resize();
-      lotQuery(raw).then(function(list){
+      lotQuery(qtext).then(function(list){
         if (seq !== M.seq) return;
+        var exact = null;                        /* DID bez číslice (DYIG) – přesná shoda vybere balení */
+        (list || []).forEach(function(it){ if (cand && String(it.did).toUpperCase() === cand) exact = it; });
+        if (exact) { didListClose(); useSel(exact); $('mq').focus(); return; }
         if (!list) { $('didList').innerHTML = '<div class="lmsg">Hledání se nepovedlo – zkus to znovu.</div>'; resize(); return; }
         if (!list.length) { $('didList').innerHTML = '<div class="lmsg">Žádné založené ani nasazené balení.</div>'; resize(); return; }
         M.dl = list; M.dlSel = 0; $('didList').innerHTML = lresHtml(list, 0); resize();
@@ -1356,6 +1371,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   });
   var created = [];
   function createdShow(items, md){
+    items.forEach(function(x){ didKnow(x.did); });
     created = items.map(function(x){ return { did:x.did, ref:x.ref, lot:x.lot, q:x.q, md:md, stav:x.stav || 'ZALOŽENO', popis: $('nnam').value }; });
     var vyr = created.length && created[0].stav === 'NASAZENO';
     if (md) {                                       /* MD se rovnou připojí k výkonu */
@@ -1372,7 +1388,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   $('nDone').addEventListener('click', function(e){
     var b = e.target.closest('[data-c]'); if (!b) return;
     var x = created[+b.getAttribute('data-c')]; if (!x) return;
-    setMode('use');
+    setMode('use'); M.seq++; didListClose();
     useSel({ did:x.did, ref:x.ref, lot:x.lot, popis:x.popis, status:x.stav || 'ZALOŽENO', zbytek:numParse(x.q) });
     $('mq').focus();
   });
@@ -1390,7 +1406,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     $('eHint').className = 'hint'; $('eHint').textContent = it ? 'Balení se označí jako spotřebované, zbytek se vynuluje.' : '';
   }
   function endResolve(){
-    var d = didOf($('edid').value), seq = ++eSeq;
+    var d = didOf($('edid').value) || didLoose($('edid').value), seq = ++eSeq;   /* ověří se přesnou shodou v LOT */
     endSel(null); if (!d) { if ($('edid').value.trim()) mark($('edid'), false); return; }
     lotQuery(d).then(function(items){
       if (seq !== eSeq) return;
@@ -1524,7 +1540,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       if (!r) { ok = false; card.querySelector('.nt').style.color = 'var(--bad)'; return; }
       var lab = r.closest('.nopt'), inp = lab.querySelector('input.f'), v = inp ? inp.value.trim() : '';
       if (inp) {
-        if (inp.getAttribute('data-v') === 'newDid') v = didOf(v); else v = qaNorm(v);
+        if (inp.getAttribute('data-v') === 'newDid') v = didOf(v) || didLoose(v); else v = qaNorm(v);
         var good = inp.getAttribute('data-v') === 'val' ? (v !== '' && numParse(v) >= 0) : (inp.getAttribute('data-v') === 'q' ? qaValid(v) : !!v);
         mark(inp, good); if (!good) { ok = false; return; }
       }
