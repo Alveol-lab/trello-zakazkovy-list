@@ -1382,7 +1382,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       : (it.zbytek == null ? '<span class="chip">zbytek <b>neevidován</b></span>' : '<span class="chip">zbývá <b>' + esc(n2(it.zbytek)) + ' ks</b></span>')
         + (it.exp ? '<span class="chip">exp. <b>' + esc(it.exp) + '</b></span>' : '')
         + '<span class="chip ' + (it.status === 'NASAZENO' ? 'good">nasazeno' : 'warn">na skladě') + '</span>';
-    $('eHint').className = 'hint'; $('eHint').textContent = it ? 'Balení se uzavře jako spotřebované, zbytek se vynuluje.' : '';
+    $('eHint').className = 'hint'; $('eHint').textContent = it ? 'Balení se označí jako spotřebované, zbytek se vynuluje.' : '';
   }
   function endResolve(){
     var d = didOf($('edid').value), seq = ++eSeq;
@@ -1416,7 +1416,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   });
 
   /* ---- seznam materiálu výkonu ---- */
-  var RES_TXT = { close:'uzavřít', correct:'korekce zbytku', enough:'vystačilo – uzavřít', split:'+ další balení', reopen:'vrátit do výroby' };
+  var RES_TXT = { close:'spotřebovat', correct:'korekce zbytku', enough:'vystačilo – spotřebovat', split:'+ další balení', reopen:'vrátit do výroby' };
   function matDid(m){ return m.did || m.mnlot || ''; }
   function renderMats(){
     var el = $('mlist');
@@ -1485,8 +1485,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       var rest = numParse(n.q) - numParse(n.zbytek);
       h += '<div class="nt">' + who + '</div><div class="ns">Spotřeba <b>' + esc(n2(n.q)) + ' ks</b> je stejná nebo větší než zbytek <b>' + esc(n2(n.zbytek)) + ' ks</b>.</div>'
          + (n.chyba ? '<div class="ne">' + esc(n.chyba) + '</div>' : '')
-         + opt('close', 'balení došlo – odepsat zbytek ' + esc(n2(n.zbytek)) + ' ks a uzavřít', '', !n.chyba)
-         + opt('enough', 'spotřeboval jsem ' + esc(n2(n.q)) + ' ks a vystačilo – uzavřít', '')
+         + opt('close', 'balení došlo – odepsat zbytek ' + esc(n2(n.zbytek)) + ' ks a spotřebovat', '', !n.chyba)
+         + opt('enough', 'spotřeboval jsem ' + esc(n2(n.q)) + ' ks a vystačilo – spotřebovat', '')
          + opt('correct', 'balení pokračuje, skutečný zbytek je', '<input class="f hi ctr" data-v="val" inputmode="decimal" placeholder="ks">')
          + opt('split', 'zbylých ' + esc(n2(rest > 0 ? rest : 0)) + ' ks z dalšího balení', '<input class="f hi" data-v="newDid" placeholder="DID" autocomplete="off">', !!n.chyba && /DID/.test(n.chyba));
     }
