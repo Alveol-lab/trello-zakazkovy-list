@@ -112,7 +112,7 @@ input[type=date].f::-webkit-calendar-picker-indicator{opacity:.6;cursor:pointer;
 .r1 #anid{width:66rem}
 .r1 #qa{width:30rem}
 .r1 #lupa{width:21rem}
-.lupa-ic{width:12rem;height:12rem;display:block}
+.lupa-ic{width:14rem;height:14rem;display:block}
 .r2{margin-top:4rem}
 .r2 .outwrap{width:66rem}
 .r2 #ord{width:45rem}
@@ -307,9 +307,6 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 /* skupina = výrobek + jeho fáze + materiál */
 .grp{position:relative}
 .grp+.grp{box-shadow:inset 0 .5rem 0 color-mix(in srgb,var(--rule) 55%,transparent)}
-.grp.open{background:color-mix(in srgb,var(--bg) 45%,var(--panel));box-shadow:none;margin:2rem 0}
-.grp.open::before{content:"";position:absolute;left:0;top:0;bottom:0;width:1.3rem;background:var(--ok)}
-.grp.open+.grp{box-shadow:none}
 .tr{min-height:17rem}
 .tr>div{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:14rem;font-size:6.6rem}
 .tr .anid{font-size:7.083rem;color:var(--txt-hi)}
@@ -330,9 +327,6 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 .tr .ic:hover{background:var(--btn);color:var(--txt-hi)}
 .tr .ic:focus-visible{outline:.6rem solid var(--ok);outline-offset:.4rem}
 .tr .ic svg{width:8rem;height:8rem;display:block}
-.tr .ic.tg svg{transition:transform .15s}
-.tr .ic.tg.on{color:var(--ok-txt);background:var(--ok)}
-.tr .ic.tg.on svg{transform:rotate(180deg)}
 /* materiál výkonu – ikona s počtem DID */
 .tr .lot .dc{display:inline-flex;align-items:center;gap:2rem;height:10rem;font:inherit;font-size:5.8rem;padding:0 3rem;border:0;border-radius:2.5rem;
         background:var(--bg);color:var(--txt-hi);white-space:nowrap;cursor:pointer}
@@ -390,8 +384,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     <input class="f ctr" id="qa" placeholder="Q" autocomplete="off" inputmode="decimal" title="množství">
     <input class="f soft grow" id="anam" placeholder="popis výrobku – text + Enter hledá" autocomplete="off">
     <button type="button" class="btn" id="lupa" title="sady a vyhledávání výrobků">
-      <svg class="lupa-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-        <circle cx="10" cy="10" r="6.5"/><path d="M15 15l6 6"/><path d="M10 7v6M7 10h6"/>
+      <svg class="lupa-ic" viewBox="78 76 186 186">
+        <defs><mask id="lupaMask"><rect x="0" y="0" width="400" height="400" fill="#fff"/><rect x="76" y="146" width="91" height="91" fill="#000"/></mask></defs>
+        <g mask="url(#lupaMask)" fill="none" stroke="currentColor" stroke-width="17" stroke-linecap="round"><circle cx="172" cy="138" r="50"/><path d="M204 177L249 242"/></g>
+        <path fill="currentColor" fill-rule="evenodd" d="M85 155H158V228H85ZM101 170H150V177H101ZM101 187H150V194H101ZM101 204H150V211H101Z"/>
       </svg>
     </button>
   </div>
@@ -470,8 +466,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       </div>
       <div class="row">
         <div class="seg c1" id="nforma" title="forma: kus nebo balení">
-          <button type="button" data-v="ks" aria-pressed="false">kus</button>
-          <button type="button" data-v="bal" aria-pressed="true">balení</button>
+          <button type="button" data-v="ks" aria-pressed="true">kus</button>
+          <button type="button" data-v="bal" aria-pressed="false">balení</button>
         </div>
         <label class="fsx c1" title="počet kusů v jednom balení"><input class="f hi" id="nks" autocomplete="off" inputmode="decimal"><span>ks v 1 bal.</span></label>
         <input class="f hi grow" id="nexp" type="date" title="expirace">
@@ -942,6 +938,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       if (id === 'nforma') formaSync();
     });
   });
+  formaSync();                                      /* výchozí forma = kus → „ks v 1 bal.“ neaktivní */
 
   /* ---- dotazy do LOT / MAT ---- */
   function lotQuery(text){
@@ -1459,11 +1456,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   });
   function numFmt0(n){ return String(Math.round(n * 1000) / 1000).replace('.', ','); }
   $('msumH').addEventListener('click', function(){ $('msum').classList.toggle('open'); resize(); });
-  var IC_CHEV = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 6l4.5 4.5L12.5 6"/></svg>';
   var IC_MENU = '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.6"/><circle cx="8" cy="8" r="1.6"/><circle cx="8" cy="13" r="1.6"/></svg>';
   function rowHtml(r, kind){
     var i = state.rows.indexOf(r);
-    var s = '<div class="tgrid tr ' + kind + (state.open[r.id] ? ' open' : '') + (rowHl(r) ? ' hl' : '') + '"><div></div>';
+    var s = '<div class="tgrid tr ' + kind + (rowHl(r) ? ' hl' : '') + '"><div></div>';
     if (kind === 'pr') {
       s += '<div class="anid">' + esc(r.anid) + '</div><div class="qa">' + esc(r.qa) + '</div><div class="nm">' + esc(r.anam) + '</div>';
     } else {
@@ -1474,8 +1470,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     s += '<div class="tid">' + (tl ? '<span>' + esc(tl) + '</span>' : '') + '</div>'
        + '<div class="lot">' + lotsHtml(r) + '</div><div class="ics">';
     if (kind === 'pr') {
-      if (state.open[r.id]) s += '<button class="ic" data-menu="' + i + '" title="editovat / smazat">' + IC_MENU + '</button>';
-      s += '<button class="ic tg' + (state.open[r.id] ? ' on' : '') + '" data-tog="' + esc(r.id) + '" title="' + (state.open[r.id] ? 'sbalit' : 'rozbalit fáze a materiál') + '">' + IC_CHEV + '</button>';
+      s += '<button class="ic" data-menu="' + i + '" title="editovat / smazat">' + IC_MENU + '</button>';
     } else {
       s += '<button class="ic" data-menu="' + i + '" title="editovat / smazat">' + IC_MENU + '</button>';
     }
@@ -1486,10 +1481,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     var html = '', used = {};
     state.rows.forEach(function(r){
       if (isPhase(r)) return;
-      html += '<div class="grp' + (state.open[r.id] ? ' open' : '') + '">' + rowHtml(r, 'pr');
+      html += '<div class="grp">' + rowHtml(r, 'pr');
       var ch = childrenOf(r);
       ch.forEach(function(c){ used[c.id] = 1; });
-      if (state.open[r.id]) ch.forEach(function(c){ html += rowHtml(c, 'ph'); });
+      ch.forEach(function(c){ html += rowHtml(c, 'ph'); });   /* fáze jsou vždy vidět */
       html += '</div>';
     });
     /* fáze, ke kterým na kartě není výrobek – zobrazí se samostatně */
