@@ -1467,7 +1467,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       h += '<div class="nt">' + who + '</div><div class="ns">Chybí spotřeba.</div>'
          + opt('q', 'spotřeba', '<input class="f hi ctr" data-v="q" inputmode="decimal" placeholder="ks">', true);
     } else if (n.typ === 'spotrebovane') {
-      h += '<div class="nt">' + who + '</div><div class="ns">Balení je už <b>spotřebované</b> (uzavřené).</div>'
+      h += '<div class="nt">' + who + '</div><div class="ns">Balení je už <b>spotřebované</b>.</div>'
          + opt('reopen', 'vrátit balení do výroby a odepsat ' + esc(n2(n.q)) + ' ks', '', true)
          + opt('reject', 'nezapočítat – odebrat z výkonu', '');
     } else if (n.typ === 'zbytek') {
