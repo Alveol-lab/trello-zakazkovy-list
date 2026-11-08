@@ -1116,7 +1116,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       $('didList').innerHTML = lresHtml(M.dl, M.dlSel);
     } else if (e.key === 'Escape') didListClose();
   });
-  $('did').addEventListener('input', function(){ if (M.sel && $('did').value.trim().toUpperCase() !== M.sel.did) useSel(null); });
+  $('did').addEventListener('input', function(){
+    if (M.sel && $('did').value.trim().toUpperCase() !== M.sel.did) useSel(null);
+    if (M.dl.length || $('didList').innerHTML) { M.seq++; didListClose(); }   /* změna textu = staré výsledky neplatí */
+  });
   $('did').addEventListener('change', function(){ if (didOf(this.value)) didResolve(); });
   $('didList').addEventListener('mousedown', function(e){ e.preventDefault(); });
   $('didList').addEventListener('click', function(e){ var b = e.target.closest('button[data-i]'); if (b) didPick(+b.getAttribute('data-i')); });
