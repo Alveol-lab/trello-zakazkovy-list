@@ -297,6 +297,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 .acts{display:flex;justify-content:flex-end;gap:4rem;margin-top:8rem;padding:0 5rem}
 .acts #clear{width:24rem;font-size:10rem;background:var(--del);color:var(--del-txt)}
 .acts #insert{width:70rem;background:var(--ok);color:var(--ok-txt)}
+.acts #insert:disabled{background:var(--btn);color:var(--txt-dim);opacity:.6}
 
 /* ---------- seznam výkonů ---------- */
 .caption{display:flex;align-items:center;gap:4rem;font-size:8.333rem;line-height:10rem;margin:6rem 0 0 5rem;color:var(--txt-strong)}
@@ -1721,6 +1722,20 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   function cardInfo(){ return Promise.all([ currentCardName(), tagFromCustomField(), cardDue() ]); }
 
   var insBusy = false;
+  /* vložit je aktivní, jen když jsou vyplněná všechna pole potřebná pro zápis
+     (Q, kód, ceník, ORD, technik) – kontrola bez červeného značení polí      */
+  function insReady(){
+    return qaValid($('qa').value) && anidValid($('anid').value) && cenyValid($('ceny').value)
+        && ordValid($('ord').value) && tidValid($('tid').value);
+  }
+  function insSync(){
+    var ok = !insBusy && insReady();
+    if ($('insert').disabled === ok) $('insert').disabled = !ok;
+    $('insert').title = ok ? '' : 'vyplň Q, kód produktu, ceník, ORD a technika';
+  }
+  document.addEventListener('input', insSync);
+  document.addEventListener('change', insSync);
+  setInterval(insSync, 400);                        /* hodnoty doplněné skriptem (ORD z karty, lupa, editace) */
   $('insert').addEventListener('click', function(){
     if (insBusy || !$('mNeed').hidden) return;
     $('qa').value = qaNorm($('qa').value);
@@ -1732,7 +1747,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     var edit = state.editIndex, ref = (edit != null && state.rows[edit]) ? state.rows[edit]._href : null;
     insBusy = true; $('insert').disabled = true; $('insert').textContent = 'kontrola…';
     lotGate(r.mats, ref).then(function(go){
-      insBusy = false; $('insert').disabled = false; updateInsertLabel();
+      insBusy = false; updateInsertLabel(); insSync();
       state.mats = r.mats.map(function(m){ return JSON.parse(JSON.stringify(m)); }); renderMats();
       if (!go) return;
       var c = commitRow(r, edit);
@@ -1741,7 +1756,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       clearForm(); resetDefaults(); renderRows(); save();
       return cardInfo().then(function(card){ return postRow(c, card); }).then(refreshOdmeny);
     }).catch(function(err){
-      insBusy = false; $('insert').disabled = false; updateInsertLabel();
+      insBusy = false; updateInsertLabel(); insSync();
       werr('chyba při přípravě dat (' + (err && err.message ? err.message : err) + ').');
     });
   });
