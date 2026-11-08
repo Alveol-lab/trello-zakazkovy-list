@@ -1303,9 +1303,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       ['nlot','nexp'].forEach(function(f){ $(f).value = ''; });
       $('nq').value = '1';
       wmsg((stav === 'NASAZENO' && !md ? 'Nasazeno do výroby: ' : 'Založeno: ') + (d.items || []).map(function(x){ return x.did; }).join(', '), 6);
-    }).catch(function(err){
+    }).then(function(){ M.busy = false; $('nGo').disabled = false; mdSync(); }, function(err){
+      M.busy = false; $('nGo').disabled = false; mdSync();       /* chyba se zobrazí až po mdSync, aby ji nepřepsala nápověda */
       $('nHint').className = 'hint bad'; $('nHint').textContent = 'Založení se nepovedlo – ' + (err && err.message ? err.message : err) + '.';
-    }).then(function(){ M.busy = false; $('nGo').disabled = false; mdSync(); });
+    });
   });
   var created = [];
   function createdShow(items, md){
