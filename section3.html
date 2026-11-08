@@ -718,6 +718,17 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
   }
 
+  /* fronta zápisů z karty: zápis / výmaz se odešle až po dokončení
+     předchozího, aby dva rychle vložené výkony nedostaly stejný řádek */
+  var postQ = Promise.resolve(), postN = 0;
+  function queued(job){
+    if (postN > 0) wmsg('Zápis čeká ve frontě – předchozí se ještě ukládá…', 4);
+    postN++;
+    var p = postQ.then(job);
+    postQ = p.then(function(){ postN--; }, function(){ postN--; });
+    return p;
+  }
+
   /* zápis jde do listu podle TID řádku (odešle se Trello účet technika,
      kterému list patří – Apps Script podle něj list vybírá)            */
   function sheetAllowed(letter, op){
@@ -735,7 +746,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (!ref) { wmsg('VÝMAZ NEPROBĚHL ! - nutno provést ručně v tabulce', 15); return Promise.resolve(null); }
     if (!letter) letter = String(ref).split('_')[0];
     if (!sheetAllowed(letter, 'Výmaz')) { wmsg('VÝMAZ NEPROBĚHL ! - nutno provést ručně v tabulce', 15); return Promise.resolve(null); }
-    return postToScript({ action:'clearEvidence', memberId: MEMBERS[letter], ref: ref }, 'Vymazáno z ', 'Výmaz');
+    return queued(function(){ return postToScript({ action:'clearEvidence', memberId: MEMBERS[letter], ref: ref }, 'Vymazáno z ', 'Výmaz'); });
   }
 
   /* =================================================================
@@ -1711,7 +1722,21 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     $('sumCena').textContent = anyT ? numFmt(tot) : '';
     $('sumZaloha').textContent = anyZ ? numFmt(zal) : '';
   }
-  var odmSeq = 0;
+  var odmSeq = 0, odmShown = 0;
+  /* součet odměn přišel rovnou v odpovědi na zápis (jen když řádek patří
+     přihlášenému technikovi – odměny v kartě jsou z jeho listu)        */
+  function odmShow(d){
+    ++odmSeq; ++odmShown;
+    var el = $('sumOdmeny'); el.classList.remove('wait');
+    el.textContent = (d && d.rows) ? numFmt(d.sum) : '';
+  }
+  /* zápis ve frontě; když odpověď součet nepřinesla, načte se zvlášť */
+  function postJob(fn){
+    return queued(function(){
+      var n0 = odmShown;
+      return Promise.resolve().then(fn).then(function(){ if (odmShown === n0) refreshOdmeny(); });
+    });
+  }
   function refreshOdmeny(){
     var el = $('sumOdmeny'), seq = ++odmSeq;
     el.classList.add('wait');
@@ -1851,6 +1876,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       ceny: r.ceny, lot: matLotText(r.mats), mat: matPayload(r.mats), due: card[2]
     }, 'Zapsáno do ', 'Zápis').then(function(resp){
       if (!resp) return;
+      if (resp.ok && resp.odm && r.tid === myLetter) odmShow(resp.odm);
       if (resp.ok && resp.ref) {
         if (c.same >= 0) { if (!c.target._href) { c.target._href = resp.ref; save(); } }
         else { var idx = findIndexById(c.target.id); if (idx >= 0) { state.rows[idx]._href = resp.ref; save(); renderRows(); } }
@@ -1910,7 +1936,9 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       if (!c) return;
       state.editIndex = null;
       clearForm(); resetDefaults(); renderRows(); save();
-      return cardInfo().then(function(card){ return postRow(c, card); }).then(refreshOdmeny);
+      return cardInfo().then(function(card){
+        return postJob(function(){ return postRow(c, card); });
+      });
     }).catch(function(err){
       insBusy = false; updateInsertLabel(); insSync();
       werr('chyba při přípravě dat (' + (err && err.message ? err.message : err) + ').');
@@ -2072,8 +2100,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       renderRows(); save();
       /* zápisy do EVIDENCE postupně, aby se v listu nepřekrývaly řádky */
       return cardInfo().then(function(card){
-        return commits.reduce(function(p, c){ return p.then(function(){ return postRow(c, card); }); }, Promise.resolve());
-      }).then(refreshOdmeny);
+        return postJob(function(){
+          return commits.reduce(function(p, c){ return p.then(function(){ return postRow(c, card); }); }, Promise.resolve());
+        });
+      });
     }).catch(function(err){
       $('lpok').disabled = false;
       werr('chyba při přípravě dat (' + (err && err.message ? err.message : err) + ').');
