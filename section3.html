@@ -35,6 +35,7 @@
   --doc:#3111BC;   --doc-txt:#D6EEF1;
   --inv:#CC9E13;   --inv-txt:#FFFAE6;
   --del:#6B2C31;   --del-txt:#F2D3D5;     /* zrušit                      */
+  --edit:#6B4A1F;  --edit-txt:#F5E0C2;    /* editovat                    */
   --bad:#E2686B;
   --warn:#E0A526;        /* upozornění (spotřeba přes zbytek, rozhodnutí) */
   --good:#3FA36B;        /* nasazeno                                      */
@@ -66,6 +67,7 @@ html[data-theme="light"]{
   --doc:#3111BC;   --doc-txt:#FFFFFF;
   --inv:#CC9E13;   --inv-txt:#FFFFFF;
   --del:#F4D6D8;   --del-txt:#AE2E24;
+  --edit:#FBE3C7;  --edit-txt:#9A4A00;
   --warn:#B65C02;
   --good:#216E4E;
   --wait:#8993A4;
@@ -359,6 +361,13 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 .mgrid .q{text-align:center;color:var(--txt-hi)}
 .mgrid .v{font-size:5.4rem;color:var(--txt-dim);padding-left:4rem}
 .mgrid.hd>div{font-size:5.8rem;color:var(--txt-dim)}
+/* menu řádku výkonu (místo popupu Trella) */
+.rmenu{position:absolute;z-index:40;display:flex;gap:2.5rem;padding:2.5rem;border-radius:3.2rem;background:var(--panel);
+       box-shadow:0 2rem 8rem var(--menu-shadow),inset 0 0 0 .5rem var(--rule)}
+.rmenu .btn{height:15rem;padding:0 6rem;font-size:6.6rem;border-radius:2.5rem}
+.rmenu .ed{background:var(--edit);color:var(--edit-txt)}
+.rmenu .dl{background:var(--del);color:var(--del-txt)}
+.rmenu .btn:hover{filter:brightness(1.15)}
 .tempty{font-size:7.083rem;color:var(--txt-dim);padding:4rem 10rem}
 
 /* ---------- sumář ---------- */
@@ -512,6 +521,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     <div class="mlist" id="mlist"></div>
   </section>
 
+  <div class="rmenu" id="rmenu" hidden>
+    <button type="button" class="btn ed" id="rmEd">editovat</button>
+    <button type="button" class="btn dl" id="rmDl">smazat</button>
+  </div>
   <div class="lp" id="lp" hidden>
     <div id="lpS1">
       <div class="lrow">
@@ -1496,13 +1509,26 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     var tog = e.target.closest('[data-tog]');
     if (tog) { var id = tog.getAttribute('data-tog'); state.open[id] = !state.open[id]; renderRows(); return; }
     var m = e.target.closest('[data-menu]'); if (!m) return;
+    e.stopPropagation();
     var i = parseInt(m.getAttribute('data-menu'), 10);
-    if (!t) return;
-    t.popup({ title: 'Výkon', mouseEvent: e, items: [
-      { text: 'editovat', callback: function(tt){ loadRow(i); return tt.closePopup(); } },
-      { text: 'smazat',   callback: function(tt){ deleteRow(i); return tt.closePopup(); } }
-    ]});
+    if (rmIdx === i && !$('rmenu').hidden) { rmClose(); return; }
+    rmOpen(i, m);
   });
+  /* malé menu u tří teček: editovat (oranžová) / smazat (tlumená červená) */
+  var rmIdx = null;
+  function rmOpen(i, btn){
+    var el = $('rmenu'), app = $('app');
+    rmIdx = i; el.hidden = false;
+    var a = app.getBoundingClientRect(), b = btn.getBoundingClientRect();
+    var top = b.bottom - a.top + 2, left = b.right - a.left - el.offsetWidth;
+    if (top + el.offsetHeight > app.offsetHeight - 4) top = b.top - a.top - el.offsetHeight - 2;
+    el.style.top = Math.max(0, top) + 'px'; el.style.left = Math.max(4, left) + 'px';
+  }
+  function rmClose(){ $('rmenu').hidden = true; rmIdx = null; }
+  $('rmEd').addEventListener('click', function(e){ e.stopPropagation(); var i = rmIdx; rmClose(); if (i != null) loadRow(i); });
+  $('rmDl').addEventListener('click', function(e){ e.stopPropagation(); var i = rmIdx; rmClose(); if (i != null) deleteRow(i); });
+  document.addEventListener('click', function(e){ if (!$('rmenu').hidden && !e.target.closest('#rmenu')) rmClose(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') rmClose(); });
   function deleteRow(i){
     var r = state.rows[i]; if (!r) return;
     if (!isPhase(r) && childrenOf(r).length) {
