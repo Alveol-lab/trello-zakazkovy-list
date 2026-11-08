@@ -1167,9 +1167,20 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     else if ((!$('nks').value || $('nks').value === '1') && nMat && numParse(nMat.jednotek) > 1) $('nks').value = n2(nMat.jednotek);
     $('nq').title = ks ? 'počet kusů – každý dostane vlastní DID' : 'počet balení – každé dostane vlastní DID';
   }
+  /* MD: expirace se předvyplní na dnešek + 24 měsíců (technik ji může přepsat);
+     při odchodu z MD se předvyplněná hodnota smaže, ručně zadaná zůstane */
+  var mdExpAuto = '';
+  function mdExpDefault(){
+    var d = new Date(), t = new Date(d.getFullYear(), d.getMonth() + 24, d.getDate());
+    if (t.getDate() !== d.getDate()) t = new Date(d.getFullYear(), d.getMonth() + 25, 0);   /* 29.–31. → konec měsíce */
+    return t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2) + '-' + ('0' + t.getDate()).slice(-2);
+  }
   function mdSync(){
     var on = M.op === 'md';
-    $('nlot').placeholder = on ? 'LOT (nepovinné)' : 'LOT';
+    $('nlot').placeholder = 'LOT';
+    var ex = $('nexp');
+    if (on && !ex.value) { mdExpAuto = mdExpDefault(); ex.value = mdExpAuto; }
+    else if (!on && mdExpAuto && ex.value === mdExpAuto) { ex.value = ''; mdExpAuto = ''; }
     var vyr = M.op === 'vyroba';
     $('ntuse').classList.toggle('off', !vyr);  /* typ spotřeby jen při nasazení; sklad a MD ho nemají */
     $('nGo').textContent = (on ? 'založit MD' : (vyr ? 'nasadit' : 'založit')) + (newMat ? ' + karta' : '');
@@ -1310,7 +1321,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       if (!segVal('nkat2')) { $('nkat2').classList.add('bad'); ok = false; }
       if (!mn.vyrobce) { mark($('nvyr'), false); ok = false; }
     } else if (!ref || !nMat) { mark($('nref'), false); ok = false; }
-    if (!md && !lot) { mark($('nlot'), false); ok = false; }
+    if (!lot) { mark($('nlot'), false); ok = false; }
     if (!qaValid(q)) { mark($('nks'), false); ok = false; }
     if (poc < 1 || poc > 20) { mark($('nq'), false); ok = false; }
     if (!ok) { $('nHint').className = 'hint bad'; $('nHint').textContent = 'Doplň označená pole' + (poc > 20 ? ' (najednou max. 20 balení).' : '.'); return; }
