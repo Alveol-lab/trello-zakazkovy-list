@@ -181,6 +181,7 @@ input[type=date].f::-webkit-calendar-picker-indicator{opacity:.6;cursor:pointer;
 .btn:disabled{opacity:.5;cursor:default;filter:none}
 .btn.glyph{font-size:15rem;font-weight:300}
 .btn.pri{background:var(--ok);color:var(--ok-txt)}
+#skipMat{flex:0 0 auto;padding:0 7rem;font-size:6.6rem;color:var(--txt-hi)}
 .btn.ghost{background:transparent;box-shadow:inset 0 0 0 .6rem var(--bd-soft)}
 .ic12{width:11rem;height:11rem;display:block}
 
@@ -465,6 +466,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
         <div class="chips" id="mChips">
           <span class="chip">zbývá <b>—</b></span><span class="chip">exp. <b>—</b></span>
         </div>
+        <button type="button" class="btn ghost" id="skipMat" hidden title="nový materiál teď k zakázce nepřipojovat – zůstane založený">přeskočit</button>
         <button type="button" class="btn glyph pri c4" id="addMat" title="přidat materiál k výkonu">+</button>
       </div>
       <div class="hint" id="mHint"></div>
@@ -938,6 +940,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   function setMode(m){
     if (!$('mNeed').hidden) return;                 /* nejdřív dokonči rozhodnutí */
     M.mode = m;
+    if (m !== 'use') step2Off();
     $('mUse').hidden = m !== 'use'; $('mFind').hidden = m !== 'find';
     $('mOps').hidden = m !== 'new';
     $('mNew').hidden = !(m === 'new' && M.op !== 'end'); $('mEnd').hidden = !(m === 'new' && M.op === 'end');
@@ -1037,6 +1040,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     var h = $('mHint'), q = numParse($('mq').value), it = M.sel;
     h.className = 'hint'; h.textContent = '';
     $('mq').classList.remove('warn');
+    if (step2 && it) { h.className = 'hint warn'; h.textContent = 'Krok 2 – zadej množství nového materiálu spotřebované k této zakázce a potvrď +, nebo přeskoč.'; }
     if (!it) {
       if (didOf($('did').value)) { h.textContent = 'Balení není mezi založenými ani nasazenými – při zápisu se ověří.'; h.className = 'hint warn'; }
       return;
@@ -1097,9 +1101,23 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     state.mats.forEach(function(m){ if (m.did === d && !m.md) hit = m; });
     if (hit) { hit.q = qaNorm(String(numParse(hit.q) + numParse(q))); clearRes(hit); }
     else state.mats.push({ did:d, q:q, mnam: String($('mnam').value || '').slice(0, 40), lot: String($('mlot').value || '') });
+    step2Off();
     $('did').value = ''; $('mq').value = ''; useSel(null);
     renderMats(); $('did').focus();
   }
+  /* krok 2 po založení nového materiálu (nová karta MAT): rovnou potvrzení množství k zakázce, jde přeskočit */
+  var step2 = false;
+  function step2On(x){
+    setMode('use'); M.seq++; didListClose();
+    step2 = true; $('skipMat').hidden = false;
+    $('mq').value = '';
+    useSel({ did:x.did, ref:x.ref, lot:x.lot, popis:x.popis, status:x.stav || 'ZALOŽENO', zbytek:numParse(x.q) });
+    $('mq').focus(); resize();
+  }
+  function step2Off(){ if (!step2) return; step2 = false; $('skipMat').hidden = true; mqHint(); }
+  $('skipMat').addEventListener('click', function(){
+    step2Off(); $('did').value = ''; $('mq').value = ''; useSel(null); setMode('new');
+  });
   function clearRes(m){ ['res','val','newDid','res2','val2','newDid2'].forEach(function(k){ delete m[k]; }); }
   $('addMat').addEventListener('click', addMaterial);
 
@@ -1299,6 +1317,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
         newMatOff(); nMat = { nazev:mn.nazev, jednotek:mn.jednotek, vyrobce:mn.vyrobce, dodavatel:mn.dodavatel, forma:mn.forma };
         $('nnam').value = mn.nazev; $('nnam').classList.add('got'); mark($('nref'), true);
         $('nInfo').textContent = [mn.vyrobce, mn.dodavatel].filter(Boolean).join(' / ');
+        if (!md && created.length) step2On(created[0]);
       }
       ['nlot','nexp'].forEach(function(f){ $(f).value = ''; });
       $('nq').value = '1';
