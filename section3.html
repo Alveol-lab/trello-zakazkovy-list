@@ -1586,7 +1586,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   /* zvýraznění vazby výkon ↔ DID */
   var hl = { dids: [], row: null };
   function rowHl(r){ if (!hl.dids.length) return false; var d = rowDids(r); return d.some(function(x){ return hl.dids.indexOf(x) >= 0; }); }
-  var MFLAG = { close:'uzavřeno', correct:'korekce', enough:'vystačilo', split:'+ bal.', reopen:'vráceno' };
+  var MFLAG = { close:'spotřebováno', correct:'korekce', enough:'vystačilo', split:'+ bal.', reopen:'vráceno' };
   function vykonLab(r){
     if (!isPhase(r)) return r.anid;
     var par = r.pid ? state.rows[findIndexById(r.pid)] : null;
