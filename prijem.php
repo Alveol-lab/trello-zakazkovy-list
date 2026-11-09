@@ -159,6 +159,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 /* štítky Brother P-touch */
 .lblbar{display:flex;align-items:center;gap:4rem;margin-top:6rem}
 .lblbar .lab{width:auto;margin-right:2rem}
+.lab.exl{width:auto}
 .lblbar .seg{width:84rem}
 .lblbar .btn{padding:0 9rem}
 .lblprev{margin-top:5rem;padding:5rem;border-radius:3.2rem;background:var(--panel);overflow-x:auto}
@@ -286,6 +287,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     <div class="bhead"><span class="n">2</span>Dodávka</div>
     <div class="row">
       <input class="f hi grow" id="lot" placeholder="LOT (šarže z obalu)" autocomplete="off" spellcheck="false">
+      <span class="lab exl">EXP</span>
       <input class="f hi c4" id="exp" type="date" title="expirace z obalu">
     </div>
     <div class="row">
