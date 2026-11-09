@@ -1,4 +1,8 @@
-<!doctype html>
+<?php
+require __DIR__ . '/prijem-auth.php';
+prijem_nocache();
+if (!prijem_logged()) { header('Location: prijem-login.php'); exit; }
+?><!doctype html>
 <html lang="cs" data-theme="light">
 <head>
 <meta charset="utf-8">
@@ -36,6 +40,8 @@ body{margin:0;background:var(--page);font-family:Arial,"Helvetica Neue",-apple-s
 [hidden]{display:none!important}
 
 /* hlavička */
+.top .seg{width:40rem;height:22rem}
+.top .seg button{font-size:8rem}
 .top{display:flex;align-items:center;gap:4rem;padding:0 5rem;height:22rem}
 .top h1{flex:1;margin:0;font-size:10rem;font-weight:700;color:var(--txt-strong);white-space:nowrap}
 .top .btn{width:22rem;height:22rem}
@@ -171,6 +177,36 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   #print .lbl{break-after:page;page-break-after:always}
   #print .lbl:last-child{break-after:auto;page-break-after:auto}
 }
+/* seznam zapsaných příjmů */
+.zl{padding:0 5rem}
+.zr{border-radius:3.2rem;background:var(--bg);padding:4rem 5rem;box-shadow:inset 0 0 0 .5rem var(--rule)}
+.zr+.zr{margin-top:3rem}
+.zr.new{box-shadow:inset 0 0 0 .7rem var(--good)}
+.zr .l1{display:flex;align-items:center;gap:4rem;min-height:16rem}
+.zr .did{flex:none;font-size:9.5rem;font-weight:700;color:var(--txt-strong);letter-spacing:.4rem;min-width:30rem}
+.zr .nm{flex:1;min-width:0;font-size:7.6rem;color:var(--txt-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.zr .l2{font-size:6.9rem;line-height:9rem;color:var(--txt-dim);padding-left:34rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.zr .acts{flex:none;display:flex;gap:2.5rem}
+.zr .acts .btn{height:15rem;font-size:7.1rem;padding:0 5rem}
+.zr .btn.del{background:var(--del);color:var(--del-txt)}
+.zr .lock{font-size:6.7rem;color:var(--txt-dim);align-self:center;padding:0 2rem}
+.zr .ed{display:flex;gap:3rem;align-items:center;margin-top:4rem;flex-wrap:wrap}
+.zr .ed .f{height:17rem;line-height:17rem;font-size:7.6rem}
+.zr .ed .btn{height:17rem;padding:0 7rem;font-size:7.4rem}
+.zr .er{font-size:7.1rem;color:var(--bad);margin-top:3rem}
+.zr .ask{margin-top:4rem;display:flex;align-items:center;gap:4rem;font-size:7.4rem;color:var(--bad)}
+.zr .ask .btn{height:15rem;padding:0 7rem;font-size:7.1rem}
+.zempty{padding:2rem 5rem;font-size:7.1rem;color:var(--txt-dim)}
+.loadbad{margin:6rem 5rem 0;padding:4rem 5rem;border-radius:2.5rem;font-size:7.4rem;line-height:9.5rem;color:var(--bad);box-shadow:inset 0 0 0 .6rem var(--bad)}
+.btn.sq{width:20rem}
+.btn[aria-pressed="true"]{box-shadow:inset 0 0 0 .7rem var(--focus)}
+.band .nacts{padding:0 5rem}
+.f[readonly].lk{background:transparent;--c:var(--bd-soft);color:var(--txt-dim)}
+.sr{display:block;width:100%;text-align:left;font:inherit;border:0;cursor:pointer;color:inherit}
+.sr:hover,.sr.on{box-shadow:inset 0 0 0 .7rem var(--focus)}
+.sr .did{min-width:56rem;font-size:8.333rem;letter-spacing:0}
+.sr .l2{padding-left:60rem}
+.foot a{color:var(--txt-dim)}
 .foot{padding:10rem 5rem 0;font-size:6.7rem;line-height:8.5rem;color:var(--txt-dim)}
 .demo{margin:0 5rem 6rem;padding:3rem 5rem;border-radius:2.5rem;font-size:7.1rem;color:var(--warn);box-shadow:inset 0 0 0 .6rem var(--warn)}
 </style>
@@ -178,24 +214,27 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 <body>
 <div id="app">
   <div class="demo" id="demoBar" hidden>Ukázkový režim – data nejsou skutečná a nic se nezapisuje.</div>
+  <div class="loadbad" id="loadBad" hidden></div>
 
   <div class="top">
     <h1>Příjem materiálu</h1>
+    <div class="seg" id="oper" title="kdo zapisuje">
+      <button type="button" data-v="H" aria-pressed="true" title="Jan Novák">H</button>
+      <button type="button" data-v="M" aria-pressed="false" title="Marie Vosiková">M</button>
+    </div>
+    <button type="button" class="btn ghost" id="gear" title="nastavení materiálu – hledání a úprava karet MAT" aria-pressed="false">
+      <svg class="ic12" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.47.47 0 0 0-.47.41l-.36 2.54a7.4 7.4 0 0 0-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54a7 7 0 0 0 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.48.48 0 0 0-.12-.61zM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"/></svg>
+    </button>
     <button type="button" class="btn ghost" id="theme" title="přepnout světlý / tmavý motiv">
       <svg class="ic12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a9 9 0 1 0 9 9A9 9 0 0 0 12 3zm0 16V5a7 7 0 0 1 0 14z"/></svg>
     </button>
   </div>
   <div class="sub">Založení dodaného materiálu na sklad. Každé balení (u kusových položek každý kus) dostane vlastní DID.</div>
 
-  <!-- 1 kdo zakládá -->
-  <div class="band">
-    <div class="bhead"><span class="n">1</span>Kdo zakládá</div>
-    <div class="row"><div class="seg grow" id="oper"></div></div>
-  </div>
-
+  <div id="formView">
   <!-- 2 materiál -->
   <div class="band">
-    <div class="bhead"><span class="n">2</span>Materiál<span class="s" id="matState"></span></div>
+    <div class="bhead"><span class="n">1</span>Materiál<span class="s" id="matState"></span></div>
     <div class="row">
       <input class="f hi c1" id="ref" placeholder="REF" autocomplete="off" spellcheck="false" title="REF (katalogové číslo) z obalu">
       <input class="f ro grow" id="nam" placeholder="název z číselníku MAT" readonly tabindex="-1">
@@ -244,7 +283,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 
   <!-- 3 dodávka -->
   <div class="band">
-    <div class="bhead"><span class="n">3</span>Dodávka</div>
+    <div class="bhead"><span class="n">2</span>Dodávka</div>
     <div class="row">
       <input class="f hi grow" id="lot" placeholder="LOT (šarže z obalu)" autocomplete="off" spellcheck="false">
       <input class="f hi c4" id="exp" type="date" title="expirace z obalu">
@@ -272,7 +311,74 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   <!-- výsledek -->
   <div class="created" id="done" hidden></div>
 
-  <div class="foot">Materiál se zakládá jako ZALOŽENO (na skladě). Nasazení do výroby dělá technik ve formuláři 3.1 v Trellu.</div>
+  <!-- zapsané příjmy -->
+  <div class="band" id="zBand">
+    <div class="bhead">Zapsané příjmy<span class="s" id="zState">posledních 30 dní · na skladě</span></div>
+    <div class="zl" id="zList"></div>
+  </div>
+  </div>
+
+  <!-- nastavení materiálu (ozubené kolo) -->
+  <div id="setView" hidden>
+    <div class="band">
+      <div class="bhead">Nastavení materiálu<span class="s" id="sState"></span></div>
+      <div class="row">
+        <input class="f hi grow" id="sQ" placeholder="hledat podle REF nebo názvu" autocomplete="off" spellcheck="false">
+        <button type="button" class="btn ghost sq" id="sNew" title="nová karta materiálu (nový REF)">
+          <svg class="ic12" viewBox="0 0 24 24" fill="currentColor"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
+        </button>
+      </div>
+      <div class="hint" id="sHint">Hledá v REF i v názvu, bez ohledu na diakritiku a velikost písmen. Víc slov = musí sedět všechna.</div>
+      <div class="zl" id="sList"></div>
+    </div>
+
+    <div class="band" id="eBand" hidden>
+      <div class="bhead"><span id="eTitle">Karta materiálu</span><span class="s" id="eState"></span></div>
+      <div class="row">
+        <input class="f c1" id="eRef" placeholder="REF" autocomplete="off" spellcheck="false" title="REF (katalogové číslo) – u existující karty se nemění">
+        <input class="f hi grow" id="eNam" placeholder="název materiálu" autocomplete="off">
+      </div>
+      <div class="row">
+        <div class="seg c1" id="eKat1" title="legislativní kategorie">
+          <button type="button" data-v="F" aria-pressed="false" title="fixní protetika">F</button>
+          <button type="button" data-v="R" aria-pressed="false" title="snímatelná protetika">R</button>
+          <button type="button" data-v="O" aria-pressed="false" title="ortodoncie">O</button>
+          <button type="button" data-v="U" aria-pressed="false" title="univerzální">U</button>
+        </div>
+        <div class="seg c2" id="eKat2" title="hlavní / pomocný materiál">
+          <button type="button" data-v="M" aria-pressed="false" title="hlavní materiál – jde do úst pacienta">M</button>
+          <button type="button" data-v="S" aria-pressed="false" title="pomocný materiál">S</button>
+        </div>
+        <input class="f hi grow" id="eVyr" data-sg="vyr" placeholder="výrobce" autocomplete="off">
+      </div>
+      <div class="row">
+        <input class="f grow" id="eDod" data-sg="dod" placeholder="dodavatel (víc dodavatelů odděl čárkou)" autocomplete="off">
+      </div>
+      <div class="row">
+        <div class="seg c1" id="eForma" title="forma evidence">
+          <button type="button" data-v="ks" aria-pressed="false">kus</button>
+          <button type="button" data-v="bal" aria-pressed="false">balení</button>
+        </div>
+        <label class="fsx c1" title="počet jednotek v jednom balení"><input class="f hi" id="eJed" autocomplete="off" inputmode="decimal" disabled><span>ks v 1 bal.</span></label>
+      </div>
+      <div class="row">
+        <div class="seg grow" id="eOdpis" title="jak se materiál odepisuje do zakázek">
+          <button type="button" data-v="auto" aria-pressed="false" title="odepisuje se automaticky podle výrobku (MAT-SET / PRODB)">odpis auto</button>
+          <button type="button" data-v="ruční" aria-pressed="false" title="technik zapisuje DID ručně k zakázce (šrouby, implantáty, kusové komponenty)">odpis ruční</button>
+        </div>
+      </div>
+      <div class="row">
+        <input class="f grow" id="eSkup" data-sg="skup" placeholder="skupina SK-… (prázdné = samostatný materiál)" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="hint" id="eHint"></div>
+      <div class="nacts">
+        <button type="button" class="btn ghost" id="eCancel">zavřít</button>
+        <button type="button" class="btn pri" id="eSave" disabled>uložit</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">Materiál se zakládá jako ZALOŽENO (na skladě). Nasazení do výroby dělá technik ve formuláři 3.1 v Trellu. · <a href="prijem-login.php?odhlasit=1">odhlásit</a></div>
   <div class="sugg" id="sugg" hidden></div>
 </div>
 <div id="print"></div>
@@ -281,9 +387,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 <script>
 (function(){
   'use strict';
-  var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyoF5oQtNIh8YktGX9lNcwj1OwSKbthQovlYIr-vbi2fJ6CN1heJYJxnB96zTVZDQpz/exec';
+  var SCRIPT_URL = 'prijem-api.php';               /* proxy na denteo.space: přihlášení + klíč pro Apps Script */
   var DEMO = /[?&]demo=1/.test(location.search);
   function $(id){ return document.getElementById(id); }
+  function toLogin(){ location.href = 'prijem-login.php'; }
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 
   /* ---- motiv ---- */
@@ -300,15 +407,15 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   window.addEventListener('resize', scale); scale();
 
   /* ---- data ze serveru ---- */
-  var DATA = { karty:[], skupiny:[], osoby:[], vyrobci:[], dodavatele:[] }, DEMO_DB = null;
+  var DATA = { karty:[], skupiny:[], osoby:[['H', 'Jan Novák'], ['M', 'Marie Vosiková']], vyrobci:[], dodavatele:[], zapsane:[] }, DEMO_DB = null;
   function getJSON(qs){
     if (DEMO) return demoGet(qs);
-    return fetch(SCRIPT_URL + qs, { cache:'no-store' }).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
+    return fetch(SCRIPT_URL + qs, { cache:'no-store', credentials:'same-origin' }).then(function(r){ if (r.status === 401) { toLogin(); return null; } return r.ok ? r.json() : null; }).catch(function(){ return null; });
   }
   function post(payload){
     if (DEMO) return demoPost(payload);
-    return fetch(SCRIPT_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(payload) })
-      .then(function(r){ return r.ok ? r.json() : { ok:false, error:'server odmítl požadavek (HTTP ' + r.status + ')' }; })
+    return fetch(SCRIPT_URL, { method:'POST', credentials:'same-origin', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(payload) })
+      .then(function(r){ if (r.status === 401) { toLogin(); return { ok:false, error:'přihlášení vypršelo' }; } return r.json().catch(function(){ return { ok:false, error:'server odmítl požadavek (HTTP ' + r.status + ')' }; }); })
       .catch(function(e){ return { ok:false, error:'nedostupné spojení (' + (e && e.message ? e.message : e) + ')' }; });
   }
 
@@ -350,7 +457,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     $(id).addEventListener('click', function(e){
       var b = e.target.closest('button'); if (!b) return;
       segSet(id, b.getAttribute('data-v'));
-      if (id === 'oper') { try { localStorage.setItem('prijemOper', b.getAttribute('data-v')); } catch(er){} }
+      if (id === 'oper') { try { localStorage.setItem('prijemOper', b.getAttribute('data-v')); } catch(er){} if (E.mode === 'new') $('eState').textContent = 'zakládá: ' + b.getAttribute('title'); }
       if (id === 'forma') formaSync();
       invalidate();
     });
@@ -447,22 +554,23 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 
   /* ---- našeptávač výrobce / dodavatele / skupiny ---- */
   var SG = { inp:null, list:[], idx:-1 };
+  function sgK(inp){ return inp.getAttribute('data-sg') || inp.id; }
   function sgSource(id){
     if (id === 'vyr') return DATA.vyrobci.map(function(x){ return [x, '']; });
     if (id === 'dod') return DATA.dodavatele.map(function(x){ return [x, '']; });
     return DATA.skupiny.map(function(x){ return [x[0], x[1] + ' karet']; });
   }
   function sgPart(inp){
-    var v = inp.value; if (inp.id !== 'dod') return { pre:'', q:v };
+    var v = inp.value; if (sgK(inp) !== 'dod') return { pre:'', q:v };
     var p = v.lastIndexOf(','); return p < 0 ? { pre:'', q:v } : { pre:v.slice(0, p + 1) + ' ', q:v.slice(p + 1) };
   }
   function sgOpen(inp){
     var part = sgPart(inp), k = nameKey(part.q), el = $('sugg');
-    var hit = sgSource(inp.id).filter(function(x){ return !k || nameKey(x[0]).indexOf(k) >= 0; });
+    var hit = sgSource(sgK(inp)).filter(function(x){ return !k || nameKey(x[0]).indexOf(k) >= 0; });
     hit.sort(function(a, b){ return (nameKey(a[0]).indexOf(k) === 0 ? 0 : 1) - (nameKey(b[0]).indexOf(k) === 0 ? 0 : 1) || a[0].localeCompare(b[0], 'cs'); });
     SG.inp = inp; SG.list = hit.slice(0, 12); SG.idx = SG.list.length && k ? 0 : -1;
     if (!SG.list.length && !k) { sgClose(); return; }
-    var what = inp.id === 'vyr' ? 'výrobce' : (inp.id === 'dod' ? 'dodavatel' : 'skupina');
+    var what = sgK(inp) === 'vyr' ? 'výrobce' : (sgK(inp) === 'dod' ? 'dodavatel' : 'skupina');
     el.innerHTML = SG.list.map(function(x, i){ return '<button type="button" data-i="' + i + '"' + (i === SG.idx ? ' class="on"' : '') + '>' + esc(x[0]) + (x[1] ? '<small>' + esc(x[1]) + '</small>' : '') + '</button>'; }).join('')
       + (k && !SG.list.length ? '<div class="nw">' + (what === 'skupina' ? 'nová skupina – založ ji jen po domluvě' : 'nový ' + what + ' – zkontroluj zápis') + '</div>' : '');
     el.hidden = false;
@@ -472,19 +580,19 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   function sgClose(){ $('sugg').hidden = true; SG.inp = null; SG.list = []; SG.idx = -1; }
   function sgPick(i){ var inp = SG.inp, x = SG.list[i]; if (!inp || !x) return; inp.value = sgPart(inp).pre + x[0]; mark(inp, ''); sgClose(); invalidate(); }
   function sgCanon(inp){
-    if (inp.id === 'skup') { inp.value = inp.value.toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9-]/g, ''); return; }
-    var src = sgSource(inp.id).map(function(x){ return x[0]; });
-    var parts = inp.id === 'dod' ? inp.value.split(',') : [inp.value];
+    if (sgK(inp) === 'skup') { inp.value = inp.value.toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9-]/g, ''); return; }
+    var src = sgSource(sgK(inp)).map(function(x){ return x[0]; });
+    var parts = sgK(inp) === 'dod' ? inp.value.split(',') : [inp.value];
     inp.value = parts.map(function(x){
       var k = nameKey(x); if (!k) return '';
       for (var i = 0; i < src.length; i++) if (nameKey(src[i]) === k) return src[i];
       return x.trim().replace(/\s+/g, ' ');
     }).filter(Boolean).join(', ');
   }
-  ['vyr','dod','skup'].forEach(function(id){
-    var inp = $(id);
+  ['vyr','dod','skup','eVyr','eDod','eSkup'].forEach(function(id){
+    var inp = $(id), ed = id.charAt(0) === 'e';
     inp.addEventListener('focus', function(){ sgOpen(inp); });
-    inp.addEventListener('input', function(){ mark(inp, ''); sgOpen(inp); invalidate(); });
+    inp.addEventListener('input', function(){ mark(inp, ''); sgOpen(inp); if (ed) eSync(); else invalidate(); });
     inp.addEventListener('keydown', function(e){
       if ($('sugg').hidden || SG.inp !== inp) return;
       var n = SG.list.length;
@@ -495,7 +603,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       else return;
       Array.prototype.forEach.call($('sugg').querySelectorAll('button'), function(b, i){ b.classList.toggle('on', i === SG.idx); });
     });
-    inp.addEventListener('blur', function(){ setTimeout(function(){ if (SG.inp === inp) sgClose(); sgCanon(inp); }, 150); });
+    inp.addEventListener('blur', function(){ setTimeout(function(){ if (SG.inp === inp) sgClose(); sgCanon(inp); if (ed) eSync(); }, 150); });
   });
   $('sugg').addEventListener('mousedown', function(e){ e.preventDefault(); });
   $('sugg').addEventListener('click', function(e){ var b = e.target.closest('[data-i]'); if (b) sgPick(parseInt(b.getAttribute('data-i'), 10)); });
@@ -529,7 +637,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   }
   function validate(r){
     var E = r.err, W = r.warn;
-    if (!r.oper) { E.push('Vyber, kdo materiál zakládá.'); $('oper').classList.add('bad'); }
+    if (!r.oper) { E.push('Nahoře přepínačem H / M vyber, kdo materiál zakládá.'); $('oper').classList.add('bad'); }
     if (!r.ref) { E.push('Chybí REF.'); mark($('ref'), 'bad'); }
     else if (!S.mat && !S.newMat) E.push('REF ještě nebyl ověřen v číselníku.');
     if (S.newMat && r.mn) {
@@ -636,6 +744,11 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
         + '<div class="s">Štítek nalep na každé balení (kus). Čárový kód obsahuje DID.</div>'
         + '<div class="nacts"><button type="button" class="btn ghost" id="again">další šarže stejného materiálu</button><button type="button" class="btn pri" id="fresh">nový materiál</button></div>';
       LBL.items = ds.map(function(x){ return { did:x, nazev:r.nazev, ref:r.ref, lot:r.lot, exp:r.exp ? dFmt(dParse(r.exp)) : '' }; });
+      var nowS = new Date(), zs = nowS.getDate() + '.' + (nowS.getMonth() + 1) + '.' + nowS.getFullYear() + ' ' + nowS.getHours() + ':' + ('0' + nowS.getMinutes()).slice(-2);
+      (d.items || []).slice().reverse().forEach(function(x){
+        DATA.zapsane.unshift({ did:x.did, ref:r.ref, nazev:r.nazev, lot:r.lot, exp:r.exp || '', q:x.q, jed:r.forma === 'ks' ? 'ks' : 'bal', zal:zs, kdo:r.oper, lze:true, _new:true });
+      });
+      zRender();
       lblPreview();
       $('review').hidden = true; $('done').hidden = false;
       $('done').scrollIntoView({ behavior:'smooth', block:'nearest' });
@@ -704,18 +817,256 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     window.print();
   }
 
+  /* ---- seznam zapsaných příjmů: štítek / upravit / smazat ----
+     Upravit a smazat jde jen u balení na skladě (ZALOŽENO), které ještě nikdo nepoužil.
+     Smazání vymaže obsah řádku v LOT, řádek zůstává; DID se znovu nepřidělí. */
+  var Z = { edit:'', ask:'', err:{}, busy:'' };
+  function zFind(did){ return DATA.zapsane.filter(function(x){ return x.did === did; })[0]; }
+  function zName(it){
+    if (it.nazev) return it.nazev;
+    var k = DATA.karty.filter(function(c){ return refClean(c[0]) === refClean(it.ref); })[0];
+    return k ? k[1] : it.ref;
+  }
+  function zRender(){
+    var L = DATA.zapsane;
+    $('zState').textContent = 'posledních 30 dní · na skladě' + (L.length ? ' · ' + L.length : '');
+    if (!L.length) { $('zList').innerHTML = '<div class="zempty">Zatím nic. Po založení se tu balení objeví i s DID a tiskem štítku.</div>'; return; }
+    $('zList').innerHTML = L.map(function(it){
+      var d = it.did, busy = Z.busy === d, kdo = (DATA.osoby.filter(function(o){ return o[0] === it.kdo; })[0] || [0, it.kdo || ''])[1];
+      var l2 = ['LOT ' + it.lot, 'EXP ' + (it.exp ? dFmt(dParse(it.exp)) : '—'),
+                it.jed === 'ks' ? 'kus' : 'bal. ' + (it.q == null ? '?' : it.q) + ' ks', it.zal, kdo, 'REF ' + it.ref].filter(Boolean).join(' · ');
+      var acts = '<button type="button" class="btn" data-a="lbl" data-d="' + esc(d) + '" title="vytisknout štítek pro toto balení">štítek</button>'
+        + (it.lze ? '<button type="button" class="btn" data-a="edit" data-d="' + esc(d) + '"' + (busy ? ' disabled' : '') + '>upravit</button>'
+                  + '<button type="button" class="btn del" data-a="ask" data-d="' + esc(d) + '"' + (busy ? ' disabled' : '') + '>smazat</button>'
+                  : '<span class="lock" title="balení už bylo použito – opravu udělá technik v Trellu">použito</span>');
+      var h = '<div class="zr' + (it._new ? ' new' : '') + '" data-d="' + esc(d) + '"><div class="l1"><span class="did">' + esc(d) + '</span><span class="nm">' + esc(zName(it)) + '</span><span class="acts">' + acts + '</span></div>'
+        + '<div class="l2">' + esc(l2) + '</div>';
+      if (Z.edit === d) {
+        h += '<div class="ed"><input class="f hi grow" id="zLot" value="' + esc(it.lot) + '" placeholder="LOT" autocomplete="off" spellcheck="false">'
+          + '<input class="f hi c4" id="zExp" type="date" value="' + esc(it.exp || '') + '">'
+          + (it.jed === 'ks' ? '' : '<label class="fsx c1"><input class="f hi" id="zQ" value="' + esc(it.q == null ? '' : it.q) + '" inputmode="decimal" autocomplete="off"><span>ks v 1 bal.</span></label>')
+          + '<button type="button" class="btn ghost" data-a="cancel" data-d="' + esc(d) + '">zrušit</button>'
+          + '<button type="button" class="btn pri" data-a="save" data-d="' + esc(d) + '"' + (busy ? ' disabled' : '') + '>' + (busy ? 'ukládám…' : 'uložit') + '</button></div>';
+      }
+      if (Z.ask === d) {
+        h += '<div class="ask"><span>Smazat ' + esc(d) + '? Řádek v LOT se vyprázdní a DID se už nepoužije. Vyhoď i vytištěný štítek.</span>'
+          + '<button type="button" class="btn ghost" data-a="cancel" data-d="' + esc(d) + '">ne</button>'
+          + '<button type="button" class="btn del" data-a="del" data-d="' + esc(d) + '"' + (busy ? ' disabled' : '') + '>' + (busy ? 'mažu…' : 'ano, smazat') + '</button></div>';
+      }
+      if (Z.err[d]) h += '<div class="er">' + esc(Z.err[d]) + '</div>';
+      return h + '</div>';
+    }).join('');
+  }
+  function zLabel(it){ return { did:it.did, nazev:zName(it), ref:it.ref, lot:it.lot, exp:it.exp ? dFmt(dParse(it.exp)) : '' }; }
+  $('zList').addEventListener('click', function(e){
+    var b = e.target.closest('button[data-a]'); if (!b) return;
+    var a = b.getAttribute('data-a'), d = b.getAttribute('data-d'), it = zFind(d); if (!it) return;
+    delete Z.err[d];
+    if (a === 'lbl') { LBL.items = [zLabel(it)]; lblPrint(); return; }
+    if (a === 'edit') { Z.edit = d; Z.ask = ''; zRender(); var f = $('zLot'); if (f) f.focus(); return; }
+    if (a === 'ask') { Z.ask = d; Z.edit = ''; zRender(); return; }
+    if (a === 'cancel') { Z.edit = ''; Z.ask = ''; zRender(); return; }
+    var oper = segVal('oper');
+    if (!oper) { Z.err[d] = 'Nahoře přepínačem H / M vyber, kdo opravu dělá.'; zRender(); return; }
+    var payload;
+    if (a === 'save') {
+      var lot = $('zLot').value.replace(/\u00a0/g, ' ').trim(), exp = $('zExp').value, q = $('zQ') ? $('zQ').value.replace(',', '.').trim() : '1';
+      if (!lot) { Z.err[d] = 'LOT nesmí být prázdný.'; zRender(); return; }
+      if (it.jed !== 'ks' && !(+q > 0)) { Z.err[d] = 'Počet ks v balení musí být kladné číslo.'; zRender(); return; }
+      payload = { action:'lotCreate', op:'edit', operator:oper, did:d, lot:lot, exp:exp, q:q };
+    } else if (a === 'del') {
+      payload = { action:'lotCreate', op:'delete', operator:oper, did:d };
+    } else return;
+    Z.busy = d; zRender();
+    post(payload).then(function(r){
+      Z.busy = '';
+      if (!r || !r.ok) { Z.err[d] = 'Nepovedlo se – ' + ((r && r.error) || 'server neodpověděl') + '.'; zRender(); return; }
+      if (a === 'del') DATA.zapsane = DATA.zapsane.filter(function(x){ return x.did !== d; });
+      else { it.lot = r.lot || lot; it.exp = exp; if (it.jed !== 'ks') it.q = r.q != null ? r.q : +q; }
+      Z.edit = ''; Z.ask = ''; zRender();
+    });
+  });
+
+  /* ---- nastavení materiálu (ozubené kolo) ----
+     Hledání karet MAT podle REF a názvu (fulltext, bez diakritiky, víc slov = všechna musí sedět).
+     Úprava přednastavení: název, kategorie, výrobce, dodavatel, forma + ks v 1 bal., odpis, skupina.
+     REF existující karty se nemění. Cena, vzorce a údaj, kdo kartu založil, se v nastavení neukazují ani nemění.
+     Ukládají se jen změněné údaje. Ikona + založí novou kartu bez příjmu balení. */
+  var E = { mode:'', orig:null, busy:false };
+  var E_POLE = { nazev:'název', kat:'kategorie', vyrobce:'výrobce', dodavatel:'dodavatel', forma:'forma', jednotek:'ks v 1 bal.', odpis:'odpis', skupina:'skupina' };
+  function setOpen(on){
+    $('setView').hidden = !on; $('formView').hidden = on; $('gear').setAttribute('aria-pressed', on ? 'true' : 'false');
+    sgClose();
+    if (on) { sSearch(); setTimeout(function(){ $('sQ').focus(); }, 0); }
+  }
+  $('gear').addEventListener('click', function(){ setOpen($('setView').hidden); });
+
+  function sSearch(){
+    var words = $('sQ').value.split(' ').map(nameKey).filter(Boolean);
+    if (!words.length) { $('sList').innerHTML = ''; $('sState').textContent = DATA.karty.length ? DATA.karty.length + ' karet' : ''; return; }
+    var q1 = refKey($('sQ').value), hit = [];
+    DATA.karty.forEach(function(x){
+      var hay = nameKey(x[0]) + ' ' + nameKey(x[1]);
+      if (!words.every(function(w){ return hay.indexOf(w) >= 0; })) return;
+      var rk = refKey(x[0]);
+      hit.push({ x:x, s: rk === q1 ? 0 : (rk.indexOf(q1) === 0 ? 1 : (nameKey(x[0]).indexOf(words[0]) >= 0 ? 2 : 3)) });
+    });
+    hit.sort(function(a, b){ return a.s - b.s || String(a.x[1]).localeCompare(String(b.x[1]), 'cs'); });
+    $('sState').textContent = hit.length + ' z ' + DATA.karty.length;
+    if (!hit.length) { $('sList').innerHTML = '<div class="zempty">Nic nenalezeno. Novou kartu založíš ikonou +.</div>'; return; }
+    var cur = E.orig ? refClean(E.orig.ref) : '';
+    $('sList').innerHTML = hit.slice(0, 40).map(function(h){
+      var x = h.x, l2 = [x[2] ? 'skupina ' + x[2] : 'samostatný', x[3] ? 'odpis ' + x[3] : 'odpis nenastaven'].join(' · ');
+      return '<button type="button" class="zr sr' + (refClean(x[0]) === cur ? ' on' : '') + '" data-ref="' + esc(x[0]) + '"><div class="l1"><span class="did">' + esc(x[0]) + '</span><span class="nm">' + esc(x[1]) + '</span></div>'
+        + '<div class="l2">' + esc(l2) + '</div></button>';
+    }).join('') + (hit.length > 40 ? '<div class="zempty">Zobrazeno prvních 40 – upřesni hledání.</div>' : '');
+  }
+  $('sQ').addEventListener('input', sSearch);
+  $('sList').addEventListener('click', function(e){ var b = e.target.closest('[data-ref]'); if (b) eOpen(b.getAttribute('data-ref')); });
+
+  function eHint(cls, html){ $('eHint').className = 'hint' + (cls ? ' ' + cls : ''); $('eHint').innerHTML = html; }
+  function eFill(c){
+    $('eRef').value = c.ref || ''; $('eNam').value = c.nazev || '';
+    var k = String(c.kat || '').toUpperCase();
+    segSet('eKat1', /^[FROU]/.test(k) ? k.charAt(0) : ''); segSet('eKat2', /^.[MS]$/.test(k) ? k.charAt(1) : '');
+    $('eVyr').value = c.vyrobce || ''; $('eDod').value = c.dodavatel || '';
+    segSet('eForma', c.forma || ''); $('eJed').value = c.forma === 'bal' ? c.jednotek : '';
+    segSet('eOdpis', c.odpis || ''); $('eSkup').value = c.skupina || '';
+    ['eRef','eNam','eVyr','eDod','eJed','eSkup'].forEach(function(id){ mark($(id), ''); });
+  }
+  function eNorm(d){                                /* karta ze serveru → hodnoty editoru */
+    var f = formaOf(d.forma), j = parseFloat(String(d.jednotek == null ? '' : d.jednotek).replace(',', '.'));
+    return { ref:String(d.ref || '').trim(), nazev:String(d.nazev == null ? '' : d.nazev).trim(), kat:String(d.kat || '').trim().toUpperCase(),
+             vyrobce:String(d.vyrobce || '').trim(), dodavatel:String(d.dodavatel || '').trim(), forma:f,
+             jednotek:f === 'bal' && !isNaN(j) ? String(j) : (f === 'ks' ? '1' : ''), odpis:String(d.odpis || '').trim(), skupina:String(d.skupina || '').trim().toUpperCase() };
+  }
+  function eVals(){
+    var f = segVal('eForma');
+    return { ref:refClean($('eRef').value), nazev:$('eNam').value.trim(), kat:segVal('eKat1') + segVal('eKat2'), vyrobce:$('eVyr').value.trim(),
+             dodavatel:$('eDod').value.trim(), forma:f, jednotek:f === 'ks' ? '1' : $('eJed').value.replace(',', '.').trim(),
+             odpis:segVal('eOdpis'), skupina:$('eSkup').value.trim().toUpperCase() };
+  }
+  function eDiff(){                                 /* jen opravdu změněné údaje */
+    var o = E.orig, v = eVals(), z = {};
+    if (!o) return z;
+    if (v.nazev !== o.nazev) z.nazev = v.nazev;
+    if (v.kat.length === 2 && v.kat !== o.kat) z.kat = v.kat;
+    if (v.vyrobce !== o.vyrobce) z.vyrobce = v.vyrobce;
+    if (v.dodavatel !== o.dodavatel) z.dodavatel = v.dodavatel;
+    if (v.forma && v.forma !== o.forma) z.forma = v.forma;
+    if (v.forma === 'bal' && parseFloat(v.jednotek) !== parseFloat(o.jednotek)) z.jednotek = v.jednotek;
+    if (v.odpis && v.odpis !== o.odpis) z.odpis = v.odpis;
+    if (v.skupina !== o.skupina) z.skupina = v.skupina;
+    return z;
+  }
+  function eErrors(v, z){
+    var E2 = [], chk = function(k){ return E.mode === 'new' || z.hasOwnProperty(k); };
+    if (E.mode === 'new') {
+      if (!v.ref) { E2.push('Chybí REF.'); mark($('eRef'), 'bad'); }
+      else if (DATA.karty.some(function(x){ return refClean(x[0]) === v.ref; })) { E2.push('REF ' + v.ref + ' už v číselníku je – otevři existující kartu.'); mark($('eRef'), 'bad'); }
+      if (!v.kat || v.kat.length < 2) E2.push('Vyber kategorii F / R / O / U a M / S.');
+      if (!v.forma) E2.push('Vyber formu kus / balení.');
+      if (!v.odpis) E2.push('Vyber odpis auto / ruční.');
+      if (!segVal('oper')) E2.push('Nahoře přepínačem H / M vyber, kdo kartu zakládá.');
+    }
+    if (chk('nazev') && !v.nazev) { E2.push('Název nesmí být prázdný.'); mark($('eNam'), 'bad'); }
+    if (chk('vyrobce') && !v.vyrobce) { E2.push('Výrobce nesmí být prázdný.'); mark($('eVyr'), 'bad'); }
+    if (v.forma === 'bal' && (chk('jednotek') || chk('forma')) && !(parseFloat(v.jednotek) > 0)) { E2.push('Doplň počet kusů v 1 balení.'); mark($('eJed'), 'bad'); }
+    if (chk('skupina') && v.skupina && !/^SK-[A-Z0-9-]+$/.test(v.skupina)) { E2.push('Skupina musí začínat SK- (např. SK-ORTO-POLYMER).'); mark($('eSkup'), 'bad'); }
+    return E2;
+  }
+  function eSync(){
+    $('eJed').disabled = segVal('eForma') !== 'bal';
+    if ($('eJed').disabled) $('eJed').value = '';
+    if (E.busy) return;
+    if (E.mode === 'new') { $('eSave').disabled = false; $('eSave').textContent = 'založit kartu'; return; }
+    var z = Object.keys(eDiff());
+    $('eSave').disabled = !z.length; $('eSave').textContent = z.length ? 'uložit (' + z.length + ')' : 'uložit';
+    if (z.length) eHint('warn', 'Změněno: ' + z.map(function(k){ return E_POLE[k]; }).join(', ') + '. Ulož, nebo zavři bez uložení.' + (z.indexOf('jednotek') >= 0 ? '<br>Nový počet ks v balení platí pro nově zakládaná balení, už zapsaná se nemění.' : ''));
+    else if (/warn/.test($('eHint').className)) eHint('', '');
+  }
+  ['eKat1','eKat2','eForma','eOdpis'].forEach(function(id){
+    $(id).addEventListener('click', function(e){ var b = e.target.closest('button'); if (!b) return; segSet(id, b.getAttribute('data-v')); eSync(); });
+  });
+  ['eRef','eNam','eJed'].forEach(function(id){ $(id).addEventListener('input', function(){ mark(this, ''); if (id === 'eJed') this.value = this.value.replace(/,/g, '.').replace(/[^0-9.]/g, ''); eSync(); }); });
+  $('eRef').addEventListener('blur', function(){ if (!this.readOnly) this.value = refClean(this.value); });
+
+  function eShow(mode){
+    E.mode = mode; $('eBand').hidden = false;
+    var ro = mode === 'edit', r = $('eRef');
+    r.readOnly = ro; r.tabIndex = ro ? -1 : 0; r.classList.toggle('lk', ro); r.classList.toggle('hi', !ro);
+    $('eTitle').textContent = mode === 'new' ? 'Nová karta materiálu' : 'Karta materiálu';
+  }
+  function eOpen(ref){
+    eShow('edit'); E.orig = null; E.busy = false;
+    eFill({ ref:ref, nazev:'načítám kartu…' }); $('eState').textContent = ''; eHint('', ''); $('eSave').disabled = true;
+    sSearch();
+    getJSON('?matref=' + encodeURIComponent(ref)).then(function(d){
+      if (!d || d.nazev == null) { eHint('bad', 'Kartu se nepodařilo načíst.'); return; }
+      E.orig = eNorm(d); eFill(E.orig); sSearch();
+      $('eState').textContent = 'REF se nemění';
+      eSync();
+      $('eBand').scrollIntoView({ behavior:'smooth', block:'nearest' });
+    });
+  }
+  $('sNew').addEventListener('click', function(){
+    eShow('new'); E.orig = null; E.busy = false;
+    var q = refClean($('sQ').value);
+    eFill({ ref: q && /[0-9]/.test(q) && q.indexOf(' ') < 0 ? q : '' });
+    $('eState').textContent = 'zakládá: ' + ((DATA.osoby.filter(function(o){ return o[0] === segVal('oper'); })[0] || [0, 'vyber H / M nahoře'])[1]);
+    eHint('', 'Vyplň kartu nového materiálu. Balení se tu nezakládají – to dělá příjem.');
+    eSync(); $('eBand').scrollIntoView({ behavior:'smooth', block:'nearest' }); $($('eRef').value ? 'eNam' : 'eRef').focus();
+  });
+  $('eCancel').addEventListener('click', function(){ $('eBand').hidden = true; E.mode = ''; E.orig = null; sgClose(); sSearch(); });
+
+  function listAdd(arr, v){ v = String(v || '').trim(); if (v && !arr.some(function(x){ return nameKey(x) === nameKey(v); })) { arr.push(v); arr.sort(function(a, b){ return a.localeCompare(b, 'cs'); }); } }
+  $('eSave').addEventListener('click', function(){
+    if (E.busy) return;
+    sgCanon($('eVyr')); sgCanon($('eDod')); sgCanon($('eSkup'));
+    var v = eVals(), z = E.mode === 'edit' ? eDiff() : null, err = eErrors(v, z || {});
+    if (err.length) { eHint('bad', err.map(esc).join('<br>')); return; }
+    if (E.mode === 'edit' && !Object.keys(z).length) return;
+    var payload = E.mode === 'new'
+      ? { action:'lotCreate', op:'matNew', operator:segVal('oper'), matNew:{ ref:v.ref, nazev:v.nazev, kat:v.kat, vyrobce:v.vyrobce, dodavatel:v.dodavatel, forma:v.forma, jednotek:v.jednotek, skupina:v.skupina, odpis:v.odpis } }
+      : { action:'lotCreate', op:'matEdit', ref:E.orig.ref, zmeny:z };
+    E.busy = true; $('eSave').disabled = true; $('eSave').textContent = 'ukládám…';
+    post(payload).then(function(r){
+      E.busy = false;
+      if (!r || !r.ok) { eHint('bad', 'Nepovedlo se – ' + esc((r && r.error) || 'server neodpověděl') + '. Nic se nezměnilo.'); eSync(); return; }
+      listAdd(DATA.vyrobci, v.vyrobce); v.dodavatel.split(',').forEach(function(d){ listAdd(DATA.dodavatele, d); });
+      if (v.skupina && !DATA.skupiny.some(function(g){ return g[0] === v.skupina; })) DATA.skupiny.push([v.skupina, 1]);
+      if (E.mode === 'new') {
+        DATA.karty.push([v.ref, v.nazev, v.skupina, v.odpis]);
+        $('sQ').value = v.ref; eOpen(v.ref);
+        setTimeout(function(){ eHint('good', 'Karta založena' + (r.matRow ? ' (MAT řádek ' + r.matRow + ')' : '') + '.'); }, 0);
+        return;
+      }
+      var k = eNorm(r.karta || merge(E.orig, z));
+      DATA.karty.forEach(function(x){ if (refClean(x[0]) === refClean(k.ref)) { x[1] = k.nazev; x[2] = k.skupina; x[3] = k.odpis; } });
+      E.orig = k; eFill(k); sSearch();
+      eHint('good', (r.zmeneno && r.zmeneno.length ? 'Uloženo: ' + r.zmeneno.map(function(f){ return E_POLE[f] || f; }).join(', ') : 'Beze změny – hodnoty už v kartě byly') + (r.row ? ' (MAT řádek ' + r.row + ').' : '.'));
+      eSync();
+      if (refClean($('ref').value) === refClean(k.ref)) refResolve();
+    });
+  });
+  function merge(a, b){ var o = {}; Object.keys(a).forEach(function(k){ o[k] = a[k]; }); Object.keys(b).forEach(function(k){ o[k] = b[k]; }); return o; }
+
   /* ---- start ---- */
   function renderOper(){
-    var saved = ''; try { saved = localStorage.getItem('prijemOper') || ''; } catch(e){}
-    $('oper').innerHTML = DATA.osoby.map(function(o){ return '<button type="button" data-v="' + esc(o[0]) + '" aria-pressed="' + (o[0] === saved ? 'true' : 'false') + '" title="' + esc(o[1]) + '">' + esc(o[1].split(' ')[0]) + ' ' + esc(o[0]) + '</button>'; }).join('')
-      || '<button type="button" disabled>seznam se nenačetl</button>';
+    var saved = 'H'; try { saved = localStorage.getItem('prijemOper') || 'H'; } catch(e){}   /* výchozí H (Novák) */
+    if (saved !== 'H' && saved !== 'M') saved = 'H';
+    segSet('oper', saved);
   }
   function init(){
     if (DEMO) $('demoBar').hidden = false;
     getJSON('?matlists=prijem').then(function(d){
       d = d || {};
-      ['karty','skupiny','osoby','vyrobci','dodavatele'].forEach(function(k){ if (Array.isArray(d[k])) DATA[k] = d[k]; });
-      renderOper(); chips();
+      ['karty','skupiny','osoby','vyrobci','dodavatele','zapsane'].forEach(function(k){ if (Array.isArray(d[k])) DATA[k] = d[k]; });
+      renderOper(); chips(); zRender();
+      var lb = $('loadBad');
+      if (!d.vyrobci) { lb.textContent = 'Nepodařilo se spojit se serverem (Apps Script). Zkontroluj připojení a obnov stránku.'; lb.hidden = false; }
+      else if (d.auth === false) { lb.textContent = 'Apps Script nezná klíč formuláře – ve Vlastnostech skriptu chybí nebo nesedí PRIJEM_KEY.'; lb.hidden = false; }
+      else if (!Array.isArray(d.osoby) || !Array.isArray(d.zapsane)) { lb.textContent = 'Server běží se starou verzí Lot.gs – chybí seznam osob, karet a zapsaných příjmů. Vlož nový Lot.gs a nasaď novou verzi (Nasadit → Spravovat nasazení → Nová verze).'; lb.hidden = false; }
     });
   }
 
@@ -739,8 +1090,19 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   }
   var demoN = 0;
   function demoPost(p){
+    if (p.op === 'matEdit') return demoLoad().then(function(db){
+      var c = db.cards.filter(function(x){ return refClean(x.ref) === refClean(p.ref); })[0] || {};
+      Object.keys(p.zmeny).forEach(function(k){ c[k] = k === 'forma' ? (p.zmeny[k] === 'ks' ? 'kus' : 'balení') : p.zmeny[k]; });
+      if (c.forma === 'kus') c.jednotek = 1;
+      return new Promise(function(res){ setTimeout(function(){ res({ ok:true, row:120, zmeneno:Object.keys(p.zmeny), karta:c }); }, 500); });
+    });
+    if (p.op === 'matNew') return demoLoad().then(function(db){
+      var m = p.matNew; db.cards.push({ ref:m.ref, nazev:m.nazev, kat:m.kat, vyrobce:m.vyrobce, dodavatel:m.dodavatel, forma:m.forma === 'ks' ? 'kus' : 'balení', jednotek:m.jednotek, skupina:m.skupina, odpis:m.odpis });
+      return new Promise(function(res){ setTimeout(function(){ res({ ok:true, matRow:463, ref:m.ref }); }, 500); });
+    });
+    if (p.op) return new Promise(function(res){ setTimeout(function(){ res({ ok:true, did:p.did, lot:p.lot, q:+p.q || 1 }); }, 500); });
     return new Promise(function(res){ setTimeout(function(){
-      res({ ok:true, matRow: p.matNew ? 462 : null, items: p.items.map(function(){ demoN++; return { did:'D' + (3600 + demoN).toString(36).toUpperCase() }; }) });
+      res({ ok:true, matRow: p.matNew ? 462 : null, items: p.items.map(function(x){ demoN++; return { did:'D' + (3600 + demoN).toString(36).toUpperCase(), q:x.forma === 'ks' ? 1 : (+x.q || 1) }; }) });
     }, 600); });
   }
   init();
