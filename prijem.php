@@ -220,8 +220,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   <div class="top">
     <h1>Příjem materiálu</h1>
     <div class="seg" id="oper" title="kdo zapisuje">
-      <button type="button" data-v="H" aria-pressed="true" title="Jan Novák">H</button>
-      <button type="button" data-v="M" aria-pressed="false" title="Marie Vosiková">M</button>
+      <button type="button" data-v="H" aria-pressed="false" title="Jan Novák">H</button>
+      <button type="button" data-v="M" aria-pressed="true" title="Marie Vosiková">M</button>
     </div>
     <button type="button" class="btn ghost" id="gear" title="nastavení materiálu – hledání a úprava karet MAT" aria-pressed="false">
       <svg class="ic12" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.47.47 0 0 0-.47.41l-.36 2.54a7.4 7.4 0 0 0-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54a7 7 0 0 0 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.48.48 0 0 0-.12-.61zM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"/></svg>
@@ -459,7 +459,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     $(id).addEventListener('click', function(e){
       var b = e.target.closest('button'); if (!b) return;
       segSet(id, b.getAttribute('data-v'));
-      if (id === 'oper') { try { localStorage.setItem('prijemOper', b.getAttribute('data-v')); } catch(er){} if (E.mode === 'new') $('eState').textContent = 'zakládá: ' + b.getAttribute('title'); }
+      if (id === 'oper') { if (E.mode === 'new') $('eState').textContent = 'zakládá: ' + b.getAttribute('title'); }
       if (id === 'forma') formaSync();
       invalidate();
     });
@@ -1055,9 +1055,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 
   /* ---- start ---- */
   function renderOper(){
-    var saved = 'H'; try { saved = localStorage.getItem('prijemOper') || 'H'; } catch(e){}   /* výchozí H (Novák) */
-    if (saved !== 'H' && saved !== 'M') saved = 'H';
-    segSet('oper', saved);
+    segSet('oper', 'M');   /* po načtení vždy M (Vosiková) */
   }
   function init(){
     if (DEMO) $('demoBar').hidden = false;
