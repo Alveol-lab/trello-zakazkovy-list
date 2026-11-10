@@ -1759,7 +1759,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     var d = rowDids(r);
     var za = String(r.za || '').split('|').map(function(x){ return x.trim(); }).filter(String);
     return (d.length ? '<button class="dc" data-hlrow="' + esc(r.id) + '" title="ukázat materiál výkonu: ' + esc(d.join(', ')) + '">' + IC_MAT + d.length + '</button>' : '')
-         + (za.length ? '<span class="dc auto" title="automatická DID: ' + esc(za.join(', ')) + '"><em>auto</em> ' + za.length + '</span>' : '');
+         + (za.length ? '<span class="dc auto" title="ADID (automatic dedicated ID): ' + esc(za.join(', ')) + '"><em>ADID</em> ' + za.length + '</span>' : '');
   }
   /* zvýraznění vazby výkon ↔ DID */
   var hl = { dids: [], row: null };
