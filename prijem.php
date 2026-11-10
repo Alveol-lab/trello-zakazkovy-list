@@ -790,16 +790,21 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   }
   var MOD = 0.282;                                   /* šířka modulu = 2 body při 180 dpi */
   function lblLen(){ return LBL.tape <= 9 ? 80 : 70; }
+  /* výška stránky = šířka pásky: ovladač Brother bere jako velikost papíru šířku vložené pásky
+     a při nesouladu hlásí chybu. Obsah se drží uvnitř tiskové výšky (9 mm páska max. 7 mm). */
+  function lblH(){ return LBL.tape; }
   function lblHtml(it){
     LBL.len = lblLen();
-    /* tisková výška PT-P750W: 9 mm páska 7,1 mm, 12 mm 9,9 mm, 24 mm 18 mm */
-    var H = LBL.tape, pad = H <= 9 ? 1.0 : (H <= 12 ? 1.2 : 3.0), inner = H - 2 * pad, narrow = H <= 12;
-    var did = H <= 9 ? 4.2 : (H <= 12 ? 4.6 : 6.4), small = H <= 9 ? 1.8 : (H <= 12 ? 1.75 : 2.7);
-    var lines = H <= 9 ? [it.nazev, 'LOT ' + it.lot + (it.exp ? ' · EXP ' + it.exp : '')]
+    /* T = šířka pásky = výška stránky. Svislý okraj = netisknutelný pruh + rezerva:
+       9 mm páska 2 mm ze všech stran (obsah 5 mm), 12 mm obsah 9,5 mm, 24 mm obsah 17 mm */
+    var T = LBL.tape, H = lblH(), pad = T <= 9 ? 2.0 : (T <= 12 ? 1.25 : 3.5), padX = T <= 9 ? 2.0 : (T <= 12 ? 2.0 : 3.8);
+    var inner = H - 2 * pad, narrow = T <= 12;
+    var did = T <= 9 ? 4.2 : (T <= 12 ? 4.6 : 6.4), small = T <= 9 ? 1.8 : (T <= 12 ? 1.75 : 2.7);
+    var lines = T <= 9 ? [it.nazev, 'LOT ' + it.lot + (it.exp ? ' · EXP ' + it.exp : '')]
               : narrow ? [it.nazev, 'REF ' + it.ref + ' · LOT ' + it.lot, it.exp ? 'EXP ' + it.exp : '']
                        : [it.nazev, 'REF ' + it.ref, 'LOT ' + it.lot, it.exp ? 'EXP ' + it.exp : ''];
     var txt = '<div class="lt" style="font-size:' + small + 'mm;line-height:1.2">' + lines.filter(Boolean).map(function(l, i){ return '<div' + (i === 0 ? ' style="font-weight:700"' : '') + '>' + esc(l) + '</div>'; }).join('') + '</div>';
-    var box = 'width:' + LBL.len + 'mm;height:' + H + 'mm;padding:' + pad + 'mm ' + (pad + 0.8) + 'mm;gap:' + (narrow ? 1.6 : 2.6) + 'mm';
+    var box = 'width:' + LBL.len + 'mm;height:' + H + 'mm;padding:' + pad + 'mm ' + padX + 'mm;gap:' + (narrow ? 1.6 : 2.6) + 'mm';
     if (narrow) return '<div class="lbl" style="' + box + '"><div class="ld" style="font-size:' + did + 'mm;line-height:1">' + esc(it.did) + '</div>'
       + c128svg(it.did, inner, MOD) + txt + '</div>';
     var bcH = inner - did * 1.05 - 0.8;                /* širší páska: DID nad čárovým kódem, text vpravo */
@@ -814,7 +819,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   function lblPrint(){
     if (!LBL.items.length) return;
     LBL.len = lblLen();
-    $('pageSize').textContent = '@page{size:' + LBL.len + 'mm ' + LBL.tape + 'mm;margin:0}';
+    $('pageSize').textContent = '@page{size:' + LBL.len + 'mm ' + lblH() + 'mm;margin:0}';
     $('print').innerHTML = LBL.items.map(lblHtml).join('');
     window.print();
   }
