@@ -363,6 +363,9 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 .tr.hl{background:color-mix(in srgb,var(--ok) 16%,transparent)}
 .tr.hl .lot .dc{box-shadow:inset 0 0 0 .6rem var(--ok)}
 .tr .lot .dc.err{background:var(--del);color:var(--del-txt)}
+/* automatická DID výkonu (sloupec Z) – tlumeně, jen informace */
+.tr .lot .dc.auto{background:transparent;color:var(--txt-dim);box-shadow:inset 0 0 0 .5rem var(--bg);cursor:default;margin-left:2rem}
+.tr .lot .dc.auto em{font-style:normal}
 /* souhrn materiálu zakázky */
 .msum{margin:6rem 0 0;background:var(--panel)}
 .msum .mh{display:flex;align-items:center;gap:4rem;height:16rem;padding:0 5rem;cursor:pointer;font-size:7.083rem;color:var(--txt-strong);
@@ -1754,7 +1757,9 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   function lotsHtml(r){
     if (r.lotErr) return '<span class="dc err" title="řádek je zapsaný, ale odpis materiálu selhal – edituj a vlož znovu">odpis selhal</span>';
     var d = rowDids(r);
-    return d.length ? '<button class="dc" data-hlrow="' + esc(r.id) + '" title="ukázat materiál výkonu: ' + esc(d.join(', ')) + '">' + IC_MAT + d.length + '</button>' : '';
+    var za = String(r.za || '').split('|').map(function(x){ return x.trim(); }).filter(String);
+    return (d.length ? '<button class="dc" data-hlrow="' + esc(r.id) + '" title="ukázat materiál výkonu: ' + esc(d.join(', ')) + '">' + IC_MAT + d.length + '</button>' : '')
+         + (za.length ? '<span class="dc auto" title="automatická DID: ' + esc(za.join(', ')) + '"><em>auto</em> ' + za.length + '</span>' : '');
   }
   /* zvýraznění vazby výkon ↔ DID */
   var hl = { dids: [], row: null };
@@ -2059,6 +2064,11 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       if (resp.ok && c.auto) c.auto.end = [];
       if (resp.autoEndErr && resp.autoEndErr.length) wmsg('Balení se nepodařilo ukončit: ' + resp.autoEndErr.join(', '), 15);
       if (resp.ok && resp.odm && r.tid === myLetter) odmShow(resp.odm);
+      /* automatická DID ze zápisu (obsah Z) – do karty jen kompaktně */
+      if (resp.ok && c.target && typeof resp.autoDid === 'string') {
+        var za = resp.autoDid.replace(/ /g, '');
+        if ((c.target.za || '') !== za) { if (za) c.target.za = za; else delete c.target.za; save(); renderRows(); }
+      }
       if (resp.ok && resp.ref) {
         if (c.same >= 0) { if (!c.target._href) { c.target._href = resp.ref; save(); } }
         else { var idx = findIndexById(c.target.id); if (idx >= 0) { state.rows[idx]._href = resp.ref; save(); renderRows(); } }
