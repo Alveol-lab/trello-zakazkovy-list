@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Zakázkový list 3.1</title>
 <script src="https://p.trellocdn.com/power-up.min.js"></script>
+<script src="stitek.js"></script>
 <style>
 /* =========================================================
    ZAKÁZKOVÝ LIST 3.1
@@ -274,6 +275,13 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 .created .it span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .created .it b{flex:none;width:30rem}
 .created .btn{height:15rem;font-size:7.1rem;padding:0 5rem}
+/* tisk štítků DID (Brother P-touch) po založení – stejný štítek jako formulář příjmu */
+.created .lblbar{display:flex;align-items:center;gap:4rem;margin-top:4rem}
+.created .lblbar .lab{font-size:7.1rem;color:var(--txt-dim)}
+.created .lblbar .seg{height:15rem;width:96rem}
+.created .lblbar .seg button{font-size:7.1rem}
+.created .lblbar .btn{margin-left:auto}
+.created .lblmsg{font-size:7.1rem;line-height:8rem;color:var(--warn);margin-top:2rem}
 
 /* rozhodnutí o materiálu (spotřebované balení, spotřeba ≥ zbytek …) */
 .need{margin:6rem 5rem 0;border-radius:3.2rem;background:var(--bg);box-shadow:inset 0 0 0 .8rem var(--warn);padding:6rem 6rem 6rem}
@@ -1375,7 +1383,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   var created = [];
   function createdShow(items, md){
     items.forEach(function(x){ didKnow(x.did); });
-    created = items.map(function(x){ return { did:x.did, ref:x.ref, lot:x.lot, q:x.q, md:md, stav:x.stav || 'ZALOŽENO', popis: $('nnam').value }; });
+    var ex = /^(\d{4})-(\d{2})-(\d{2})$/.exec($('nexp').value || ''), exT = ex ? (+ex[3]) + '. ' + (+ex[2]) + '. ' + ex[1] : '';
+    created = items.map(function(x){ return { did:x.did, ref:x.ref, lot:x.lot, q:x.q, md:md, stav:x.stav || 'ZALOŽENO', popis: $('nnam').value, exp: exT }; });
     var vyr = created.length && created[0].stav === 'NASAZENO';
     if (md) {                                       /* MD se rovnou připojí k výkonu */
       created.forEach(function(x){ state.mats.push({ did:x.did, q:String(x.q), mnam:String(x.popis).slice(0, 40), lot:String(x.lot || ''), md:true }); });
@@ -1385,10 +1394,23 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       + created.map(function(x, i){
           return '<div class="it"><b>' + esc(x.did) + '</b><span>' + esc(x.popis) + ' · LOT ' + esc(x.lot || '—') + ' · ' + esc(n2(x.q)) + ' ks</span>'
                + (md ? '' : '<button type="button" class="btn" data-c="' + i + '">použít k zakázce</button>') + '</div>';
-        }).join('') + '</div>';
+        }).join('')
+      + (md || !window.Stitek ? '' : '<div class="lblbar"><span class="lab">páska</span><div class="seg" id="nTape">'
+          + Stitek.tapes.map(function(w){ return '<button type="button" data-v="' + w + '" aria-pressed="' + (w === Stitek.tape() ? 'true' : 'false') + '">' + w + ' mm</button>'; }).join('')
+          + '</div><button type="button" class="btn pri" id="nLbl">tisk štítků (' + created.length + ')</button></div><div class="lblmsg" id="nLblMsg" hidden></div>')
+      + '</div>';
     resize();
   }
   $('nDone').addEventListener('click', function(e){
+    var tb = e.target.closest('#nTape button');
+    if (tb) { Stitek.setTape(tb.getAttribute('data-v')); segSet('nTape', String(Stitek.tape())); return; }
+    if (e.target.closest('#nLbl')) {                /* štítky DID na popisovač Brother – stejné jako ve formuláři příjmu */
+      var r = Stitek.print(created.map(function(x){ return { did:x.did, nazev:x.popis, ref:x.ref, lot:x.lot, exp:x.exp }; }));
+      var m = $('nLblMsg');
+      m.hidden = r === 'print';
+      m.textContent = r === 'window' ? 'Štítky se tisknou v novém okně prohlížeče.' : (r === 'blocked' ? 'Prohlížeč zablokoval nové okno – povol vyskakovací okna pro Trello a zkus to znovu.' : '');
+      resize(); return;
+    }
     var b = e.target.closest('[data-c]'); if (!b) return;
     var x = created[+b.getAttribute('data-c')]; if (!x) return;
     setMode('use'); M.seq++; didListClose();

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tisk štítků DID</title>
+<style>
+/* Záložní tisková stránka štítků DID – otevře ji formulář v Trellu,
+   když prohlížeč tisk přímo v iframe Trella nedovolí. Data jsou v adrese za #. */
+body{margin:0;padding:24px;font-family:Arial,"Helvetica Neue",sans-serif;background:#F7F8F9;color:#172B4D}
+h1{font-size:18px;margin:0 0 6px}
+p{font-size:13px;color:#626F86;margin:0 0 16px}
+.bar{display:flex;gap:12px;align-items:center;margin-bottom:16px}
+.seg{display:flex;background:#E9EBEE;border-radius:6px;padding:2px}
+.seg button{border:0;background:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:13px;color:#172B4D}
+.seg button[aria-pressed="true"]{background:#0C66E4;color:#fff;font-weight:700}
+.go{border:0;background:#1F845A;color:#fff;font-size:14px;font-weight:700;padding:8px 18px;border-radius:6px;cursor:pointer}
+#prev .lbl{box-shadow:0 0 0 .5px #8993A4;margin:0 0 8px}
+</style>
+</head>
+<body>
+<h1>Tisk štítků DID</h1>
+<p>Tiskárna Brother, velikost papíru = šířka pásky, okraje žádné, měřítko výchozí.</p>
+<div class="bar"><div class="seg" id="tape"></div><button type="button" class="go" id="go">tisk štítků</button></div>
+<div id="prev"></div>
+<script src="stitek.js"></script>
+<script>
+(function(){
+  var d = {};
+  try { d = JSON.parse(decodeURIComponent(location.hash.slice(1))) || {}; } catch(e){}
+  var items = d.items || [];
+  if (d.tape) Stitek.setTape(d.tape);
+  function seg(){
+    document.getElementById('tape').innerHTML = Stitek.tapes.map(function(w){ return '<button type="button" data-v="' + w + '" aria-pressed="' + (w === Stitek.tape() ? 'true' : 'false') + '">' + w + ' mm</button>'; }).join('');
+    document.getElementById('prev').innerHTML = items.map(function(it){ return Stitek.preview(it); }).join('') || '<p>Žádné štítky k tisku.</p>';
+    document.getElementById('go').textContent = 'tisk štítků (' + items.length + ')';
+  }
+  document.getElementById('tape').addEventListener('click', function(e){ var b = e.target.closest('button'); if (!b) return; Stitek.setTape(b.getAttribute('data-v')); seg(); });
+  document.getElementById('go').addEventListener('click', function(){ Stitek.print(items, { noFallback:true }); });
+  seg();
+  if (items.length) setTimeout(function(){ Stitek.print(items, { noFallback:true }); }, 300);
+})();
+</script>
+</body>
+</html>
