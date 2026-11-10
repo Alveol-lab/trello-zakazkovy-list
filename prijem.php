@@ -235,7 +235,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   <div id="formView">
   <!-- 2 materiál -->
   <div class="band">
-    <div class="bhead"><span class="n">1</span>Materiál<span class="s" id="matState"></span></div>
+    <div class="bhead">Materiál<span class="s" id="matState"></span></div>
     <div class="row">
       <input class="f hi c1" id="ref" placeholder="REF" autocomplete="off" spellcheck="false" title="REF (katalogové číslo) z obalu">
       <input class="f ro grow" id="nam" placeholder="název z číselníku MAT" readonly tabindex="-1">
@@ -284,7 +284,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 
   <!-- 3 dodávka -->
   <div class="band">
-    <div class="bhead"><span class="n">2</span>Dodávka</div>
+    <div class="bhead">Forma balení</div>
     <div class="row">
       <input class="f hi grow" id="lot" placeholder="LOT (šarže z obalu)" autocomplete="off" spellcheck="false">
       <span class="lab exl">EXP</span>
