@@ -314,6 +314,9 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 .mrow .k4{font-size:6.7rem;color:var(--txt-dim);text-align:center;padding:0}
 .mrow .btn{width:20rem;height:18rem;font-size:13rem;background:var(--bg)}
 .mempty{font-size:7.4rem;color:var(--txt-dim);padding:2rem 1rem}
+.mrow.auto .k3 em{color:var(--txt-dim)}
+.need .nchk{display:flex;align-items:center;gap:4rem;margin-top:4rem;font-size:6.8rem;color:var(--txt);cursor:pointer;padding:1rem 4rem}
+.need .nchk input{flex:none;width:9rem;height:9rem;margin:0;accent-color:var(--warn)}
 
 /* ---------- akce ---------- */
 .acts{display:flex;justify-content:flex-end;gap:4rem;margin-top:8rem;padding:0 5rem}
@@ -556,6 +559,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     <!-- rozhodnutí o materiálu před zápisem -->
     <div class="need" id="mNeed" hidden></div>
 
+    <div class="need" id="aNeed" hidden></div>
     <div class="mlist" id="mlist"></div>
   </section>
 
@@ -852,7 +856,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   $('outMenu').addEventListener('click', function(e){
     e.stopPropagation();
     var b = e.target.closest('button'); if (!b) return;
-    outSet(b.getAttribute('data-v')); outMenu(false);
+    outSet(b.getAttribute('data-v')); outMenu(false); renderMats();
   });
   document.addEventListener('click', function(){ outMenu(false); });
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape') outMenu(false); });
@@ -909,6 +913,9 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     mark(this, anidValid(this.value));
   });
   $('anid').addEventListener('change', refreshAnam);
+  $('anid').addEventListener('change', function(){ renderMats(); });
+  $('ord').addEventListener('change', function(){ renderMats(); });
+  $('tid').addEventListener('change', function(){ renderMats(); });
   $('ord').addEventListener('input', function(){ var c = ordClean(this.value); if (c !== this.value) this.value = c; mark(this, ordValid(this.value)); applyPrice(lastHit); });
   $('tid').addEventListener('input', function(){ var c = tidClean(this.value); if (c !== this.value) this.value = c; mark(this, tidValid(this.value)); });
   $('ceny').addEventListener('input', function(){ var c = cenyClean(this.value); if (c !== this.value) this.value = c; mark(this, cenyValid(this.value)); });
@@ -1466,7 +1473,12 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   function matDid(m){ return m.did || m.mnlot || ''; }
   function renderMats(){
     var el = $('mlist');
-    if (!state.mats.length) { el.innerHTML = '<div class="mempty">K výkonu zatím není připojený materiál.</div>'; resize(); return; }
+    autoSchedule();
+    var aRows = autoRowsHtml();
+    renderAutoNeed();
+    if (!state.mats.length && !aRows) {
+      el.innerHTML = '<div class="mempty">' + (A.busy ? 'Hledám automatický materiál…' : 'K výkonu zatím není připojený materiál.') + '</div>'; resize(); return;
+    }
     el.innerHTML = state.mats.map(function(m, i){
       var note = m.md ? '<em>MD</em> ' : '';
       if (m.res && RES_TXT[m.res]) note += '<em>' + RES_TXT[m.res] + (m.newDid ? ' ' + esc(m.newDid) : '') + '</em> ';
@@ -1474,13 +1486,117 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
            + '<div class="k3">' + note + esc(m.mnam || '') + '</div>'
            + '<div class="k4" title="' + esc(m.tuse || '') + '">' + (m.tuse === 'společné' ? 'SP' : '') + '</div>'
            + '<button class="btn" data-del="' + i + '" title="odebrat">−</button></div>';
-    }).join('');
+    }).join('') + aRows;
     resize();
   }
   $('mlist').addEventListener('click', function(e){
+    var a = e.target.closest('[data-adel]');
+    if (a) { A.off[a.getAttribute('data-adel')] = true; renderMats(); return; }
     var b = e.target.closest('[data-del]'); if (!b) return;
     state.mats.splice(parseInt(b.getAttribute('data-del'), 10), 1); renderMats();
   });
+  /* =================================================================
+     AUTOMATICKÁ DID (AutoDid.gs) – náhled hned po zadání kódu
+       • u každého REF jedno balení (dříve nasazené)
+       • víc nasazených balení stejného REF → technik potvrdí, ze kterého
+         čerpá; ostatní může vést jako spotřebované (END)
+       • tlačítko − u řádku = materiál na výrobku použit není (celý REF)
+       • při zápisu jde výsledný seznam v autoDids, k ukončení v autoEnd
+     ================================================================= */
+  var A = { key:'', seq:0, t:null, busy:false, ok:false, keep:false, items:[], off:{}, pick:{}, conf:{}, end:{} };
+  function autoReset(){ A.key = ''; A.seq++; clearTimeout(A.t); A.busy = false; A.ok = false; A.keep = false; A.items = []; A.off = {}; A.pick = {}; A.conf = {}; A.end = {}; }
+  function autoCtx(){
+    var anid = anidClean($('anid').value), tid = $('tid').value, outs = $('outs').value;
+    if (!anidValid(anid) || !MEMBERS[tid]) return null;
+    var ref = (state.editIndex != null && state.rows[state.editIndex]) ? (state.rows[state.editIndex]._href || '') : '';
+    return { anid:anid, ord: outs || ordClean($('ord').value), tid:tid, ref:ref, x: matLotText(state.mats) };
+  }
+  function autoKeyOf(c){ return c ? [c.anid, c.ord, c.tid, c.ref, c.x].join('~') : ''; }
+  function autoSchedule(){
+    var c = autoCtx(), key = autoKeyOf(c);
+    if (key === A.key) return;
+    var codeKey = function(k){ return String(k).split('~').slice(0, 4).join('~'); };
+    if (codeKey(key) !== codeKey(A.key)) { A.off = {}; A.pick = {}; A.conf = {}; A.end = {}; }
+    A.key = key; A.seq++;
+    clearTimeout(A.t);
+    if (!c) { A.busy = false; A.ok = false; A.items = []; return; }
+    A.busy = true; A.ok = false;
+    var seq = A.seq;
+    A.t = setTimeout(function(){
+      postSilent({ action:'autoDidPreview', memberId: MEMBERS[c.tid], anid:c.anid, ord:c.ord, ref:c.ref, x:c.x }).then(function(d){
+        if (seq !== A.seq) return;
+        A.busy = false;
+        A.ok = !!(d && d.ok);
+        A.keep = !!(d && d.keep);
+        A.items = (d && d.ok && d.items) ? d.items : [];
+        A.items.forEach(function(it){
+          var still = (it.alts || []).some(function(x){ return x.did === A.pick[it.ref]; });
+          if (!still) { A.pick[it.ref] = it.did; delete A.conf[it.ref]; }
+        });
+        renderMats();
+      });
+    }, 350);
+  }
+  function autoDidOf(it){ return A.pick[it.ref] || it.did; }
+  function autoAlt(it, did){
+    var a = (it.alts || []).filter(function(x){ return x.did === did; })[0];
+    return a || { did: it.did, lot: it.lot, exp: it.exp, nas: it.nas };
+  }
+  function autoIsDup(it){ return !!(it.alts && it.alts.length > 1); }
+  function autoOpen(){ return A.items.filter(function(it){ return !A.off[it.ref] && autoIsDup(it) && !A.conf[it.ref]; }); }
+  function autoRowsHtml(){
+    return A.items.filter(function(it){ return !A.off[it.ref] && !(autoIsDup(it) && !A.conf[it.ref]); }).map(function(it){
+      var d = autoDidOf(it), a = autoAlt(it, d);
+      return '<div class="mrow auto"><div class="k1">' + esc(d) + '</div><div class="k2"></div>'
+           + '<div class="k3" title="' + esc((it.nazev || '') + (a.lot ? ' · LOT ' + a.lot : '')) + '"><em>auto</em> ' + esc(it.nazev || it.ref || '') + '</div>'
+           + '<div class="k4"></div>'
+           + '<button class="btn" data-adel="' + esc(it.ref) + '" title="materiál na výrobku použit není">−</button></div>';
+    }).join('');
+  }
+  function renderAutoNeed(){
+    var el = $('aNeed'), open = autoOpen();
+    if (!open.length) { if (!el.hidden) { el.hidden = true; el.innerHTML = ''; } return; }
+    el.innerHTML = '<h4>Materiál – stejný materiál ve více nasazených baleních</h4>' + open.map(function(it, i){
+      var nm = 'adup' + i;
+      return '<div class="ncard" data-aref="' + esc(it.ref) + '">'
+        + '<div class="nt"><b>' + esc(it.nazev || it.ref) + '</b> · REF ' + esc(it.ref) + '</div>'
+        + '<div class="ns">Vedeno ' + it.alts.length + ' nasazených balení. Zkontroluj, ze kterého čerpáš.</div>'
+        + it.alts.map(function(x){
+            return '<label class="nopt"><input type="radio" name="' + nm + '" value="' + esc(x.did) + '"' + (autoDidOf(it) === x.did ? ' checked' : '') + '>'
+                 + '<span><b>' + esc(x.did) + '</b> · ' + esc(x.nazev || it.nazev || it.ref) + ' · LOT ' + esc(x.lot || '—') + (x.nas ? ' · nasazeno ' + esc(x.nas) : '') + (x.exp ? ' · exp. ' + esc(x.exp) : '') + '</span></label>';
+          }).join('')
+        + '<label class="nchk"><input type="checkbox" data-aend="1"' + (A.end[it.ref] ? ' checked' : '') + '><span>ostatní balení vést jako spotřebované</span></label>'
+        + '<div class="nacts"><button type="button" class="btn ghost" data-aoff="1">nepoužito</button><button type="button" class="btn pri" data-aok="1">potvrdit</button></div>'
+        + '</div>';
+    }).join('');
+    el.hidden = false;
+  }
+  $('aNeed').addEventListener('change', function(e){
+    var card = e.target.closest('[data-aref]'); if (!card) return;
+    var ref = card.getAttribute('data-aref');
+    if (e.target.type === 'radio') A.pick[ref] = e.target.value;
+    if (e.target.hasAttribute('data-aend')) A.end[ref] = e.target.checked;
+  });
+  $('aNeed').addEventListener('click', function(e){
+    var card = e.target.closest('[data-aref]'); if (!card) return;
+    var ref = card.getAttribute('data-aref');
+    if (e.target.closest('[data-aok]')) { A.conf[ref] = true; renderMats(); insSync(); }
+    else if (e.target.closest('[data-aoff]')) { A.off[ref] = true; renderMats(); insSync(); }
+  });
+  /* podklad pro zápis; null = náhled není hotový → Z spočítá server */
+  function autoPayload(){
+    var c = autoCtx();
+    if (!c || A.busy || !A.ok || A.key !== autoKeyOf(c)) return null;
+    var dids = [], end = [];
+    A.items.forEach(function(it){
+      if (A.off[it.ref]) return;
+      var d = autoDidOf(it);
+      dids.push(d);
+      if (A.end[it.ref] && it.alts) it.alts.forEach(function(x){ if (x.did !== d) end.push(x.did); });
+    });
+    return { dids:dids, end:end };
+  }
+
   function clearMatRow(){
     ['did','mq'].forEach(function(f){ $(f).value = ''; $(f).classList.remove('bad','warn'); });
     useSel(null); didListClose();
@@ -1846,7 +1962,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     state.mats = (o && o.mats) ? o.mats.map(function(m){ return JSON.parse(JSON.stringify(m)); }) : [];
     renderMats();
   }
-  function clearForm(){ fill({}); state.editIndex = null; clearMatRow(); updateInsertLabel(); resize(); }
+  function clearForm(){ autoReset(); state.editIndex = null; fill({}); clearMatRow(); updateInsertLabel(); resize(); }
   function updateInsertLabel(){ $('insert').textContent = (state.editIndex != null) ? 'přepsat' : 'vložit'; }
   function resetDefaults(){
     if (!$('ceny').value) $('ceny').value = cenyDefault();
@@ -1860,7 +1976,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     var r = state.rows[i]; if (!r) return;
     fill(r);
     if (!$('tid').value && r._href) $('tid').value = String(r._href).split('_')[0];
-    state.editIndex = i; updateInsertLabel(); resetDefaults(); refreshAnam(); resize();
+    state.editIndex = i; updateInsertLabel(); resetDefaults(); refreshAnam(); renderMats(); resize();
   }
   $('clear').addEventListener('click', function(){ clearForm(); resetDefaults(); });
 
@@ -1933,9 +2049,15 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       memberId: MEMBERS[r.tid], ref: ref,
       tag: card[1], patient: card[0], anid: r.anid, qa: r.qa,
       i: isPhase(r) ? r.outs : r.ord,
-      ceny: r.ceny, lot: matLotText(r.mats), mat: matPayload(r.mats), due: card[2]
+      ceny: r.ceny, lot: matLotText(r.mats), mat: matPayload(r.mats), due: card[2],
+      /* automatická DID z náhledu – při sloučení do jiné položky se neposílají
+         (server ponechá Z cílového řádku); ukončení balení jen jednou      */
+      autoDids: (c.auto && c.same < 0) ? c.auto.dids : undefined,
+      autoEnd: (c.auto && c.auto.end.length) ? c.auto.end : undefined
     }, 'Zapsáno do ', 'Zápis').then(function(resp){
       if (!resp) return;
+      if (resp.ok && c.auto) c.auto.end = [];
+      if (resp.autoEndErr && resp.autoEndErr.length) wmsg('Balení se nepodařilo ukončit: ' + resp.autoEndErr.join(', '), 15);
       if (resp.ok && resp.odm && r.tid === myLetter) odmShow(resp.odm);
       if (resp.ok && resp.ref) {
         if (c.same >= 0) { if (!c.target._href) { c.target._href = resp.ref; save(); } }
@@ -1971,15 +2093,18 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
         && ordValid($('ord').value) && tidValid($('tid').value);
   }
   function insSync(){
-    var ok = !insBusy && insReady();
+    if (autoKeyOf(autoCtx()) !== A.key) renderMats();   /* kód / ORD / technik doplněné skriptem */
+    var dup = autoOpen().length > 0;
+    var ok = !insBusy && insReady() && !dup;
     if ($('insert').disabled === ok) $('insert').disabled = !ok;
-    $('insert').title = ok ? '' : 'vyplň Q, kód produktu, ceník, ORD a technika';
+    $('insert').title = ok ? '' : (dup ? 'potvrď, ze kterého balení materiálu čerpáš' : 'vyplň Q, kód produktu, ceník, ORD a technika');
   }
   document.addEventListener('input', insSync);
   document.addEventListener('change', insSync);
   setInterval(insSync, 400);                        /* hodnoty doplněné skriptem (ORD z karty, lupa, editace) */
   $('insert').addEventListener('click', function(){
     if (insBusy || !$('mNeed').hidden) return;
+    if (autoOpen().length) { wmsg('Potvrď, ze kterého balení materiálu čerpáš.', 8); return; }
     $('qa').value = qaNorm($('qa').value);
     if (!formValid()) return;
     if (didOf($('did').value) && qaValid($('mq').value)) addMaterial();   /* rozepsaný materiál se nezahodí */
@@ -1987,6 +2112,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (lastHit && !isPhase(r)) r.anam = lastHit.anam;   /* popis vždy z ceníku, ne z fulltextu */
     if (!sheetAllowed(r.tid, 'Zápis')) return;
     var edit = state.editIndex, ref = (edit != null && state.rows[edit]) ? state.rows[edit]._href : null;
+    var auto = isPhase(r) ? null : autoPayload();
     insBusy = true; $('insert').disabled = true; $('insert').textContent = 'kontrola…';
     lotGate(r.mats, ref).then(function(go){
       insBusy = false; updateInsertLabel(); insSync();
@@ -1994,6 +2120,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       if (!go) return;
       var c = commitRow(r, edit);
       if (!c) return;
+      c.auto = auto;
       /* editovaná položka se sloučila do jiné – její vlastní řádek v listu se vymaže */
       if (c.same >= 0 && c.old && c.old._href && c.old._href !== c.target._href) clearInSheet(c.old);
       state.editIndex = null;
