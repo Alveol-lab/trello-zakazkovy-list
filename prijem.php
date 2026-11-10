@@ -789,24 +789,40 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     return '<svg class="lb" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + total + ' 1" preserveAspectRatio="none" style="width:' + (total * modMm).toFixed(2) + 'mm;height:' + hMm.toFixed(2) + 'mm" shape-rendering="crispEdges" fill="#000">' + rects + '</svg>';
   }
   var MOD = 0.282;                                   /* šířka modulu = 2 body při 180 dpi */
-  function lblLen(){ return LBL.tape <= 9 ? 80 : 70; }
+  /* délka štítku: základ 80 mm (9 mm páska) / 70 mm; když se text nevejde, štítek se prodlouží
+     podle nejdelšího štítku v tiskové dávce (texty se neořezávají, celá dávka má jednu délku stránky) */
+  function lblBase(){ return LBL.tape <= 9 ? 80 : 70; }
+  function lblNeed(it){                             /* potřebná délka štítku v mm (měří se skutečné vykreslení) */
+    var host = document.createElement('div');
+    host.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden';
+    host.innerHTML = lblHtml(it, 'max-content');
+    document.body.appendChild(host);
+    var w = host.firstChild.getBoundingClientRect().width * 25.4 / 96;
+    document.body.removeChild(host);
+    return w;
+  }
+  function lblLen(items){
+    var len = lblBase();
+    (items || []).forEach(function(it){ len = Math.max(len, Math.ceil(lblNeed(it) + 1)); });
+    return len;
+  }
   /* výška stránky = šířka pásky: ovladač Brother bere jako velikost papíru šířku vložené pásky
      a při nesouladu hlásí chybu. Obsah se drží uvnitř tiskové výšky (9 mm páska max. 7 mm). */
   function lblH(){ return LBL.tape; }
-  function lblHtml(it){
-    LBL.len = lblLen();
+  function lblHtml(it, wAuto){
     /* T = šířka pásky = výška stránky. Svislý okraj = netisknutelný pruh + rezerva:
-       9 mm páska 2 mm ze všech stran (obsah 5 mm), 12 mm obsah 9,5 mm, 24 mm obsah 17 mm */
-    var T = LBL.tape, H = lblH(), pad = T <= 9 ? 2.0 : (T <= 12 ? 1.25 : 3.5), padX = T <= 9 ? 2.0 : (T <= 12 ? 2.0 : 3.8);
-    var inner = H - 2 * pad, narrow = T <= 12;
-    var did = T <= 9 ? 4.2 : (T <= 12 ? 4.6 : 6.4), small = T <= 9 ? 1.8 : (T <= 12 ? 1.75 : 2.7);
+       9 mm páska: text využívá celou tiskovou výšku 7 mm (okraj 1 mm), čárový kód drží okraj 2 mm (výška 5 mm);
+       12 mm obsah 9,5 mm, 24 mm obsah 17 mm */
+    var T = LBL.tape, H = lblH(), pad = T <= 9 ? 1.0 : (T <= 12 ? 1.25 : 3.5), padX = T <= 9 ? 2.0 : (T <= 12 ? 2.0 : 3.8);
+    var inner = H - 2 * pad, narrow = T <= 12, bcIn = T <= 9 ? H - 2 * 2.0 : inner;
+    var did = T <= 9 ? 5.6 : (T <= 12 ? 4.6 : 6.4), small = T <= 9 ? 2.5 : (T <= 12 ? 1.75 : 2.7);
     var lines = T <= 9 ? [it.nazev, 'LOT ' + it.lot + (it.exp ? ' · EXP ' + it.exp : '')]
               : narrow ? [it.nazev, 'REF ' + it.ref + ' · LOT ' + it.lot, it.exp ? 'EXP ' + it.exp : '']
                        : [it.nazev, 'REF ' + it.ref, 'LOT ' + it.lot, it.exp ? 'EXP ' + it.exp : ''];
     var txt = '<div class="lt" style="font-size:' + small + 'mm;line-height:1.2">' + lines.filter(Boolean).map(function(l, i){ return '<div' + (i === 0 ? ' style="font-weight:700"' : '') + '>' + esc(l) + '</div>'; }).join('') + '</div>';
-    var box = 'width:' + LBL.len + 'mm;height:' + H + 'mm;padding:' + pad + 'mm ' + padX + 'mm;gap:' + (narrow ? 1.6 : 2.6) + 'mm';
+    var box = 'width:' + (wAuto || LBL.len + 'mm') + ';height:' + H + 'mm;padding:' + pad + 'mm ' + padX + 'mm;gap:' + (narrow ? 1.6 : 2.6) + 'mm';
     if (narrow) return '<div class="lbl" style="' + box + '"><div class="ld" style="font-size:' + did + 'mm;line-height:1">' + esc(it.did) + '</div>'
-      + c128svg(it.did, inner, MOD) + txt + '</div>';
+      + c128svg(it.did, bcIn, MOD) + txt + '</div>';
     var bcH = inner - did * 1.05 - 0.8;                /* širší páska: DID nad čárovým kódem, text vpravo */
     return '<div class="lbl" style="' + box + '"><div style="flex:none;display:flex;flex-direction:column;align-items:center;gap:0.8mm">'
       + '<div class="ld" style="font-size:' + did + 'mm;line-height:1.05">' + esc(it.did) + '</div>'
@@ -814,13 +830,14 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   }
   function lblPreview(){
     var el = $('lblPrev'); if (!el || !LBL.items.length) return;
+    LBL.len = lblLen(LBL.items);
     el.innerHTML = lblHtml(LBL.items[0]);
   }
   function lblPrint(){
     if (!LBL.items.length) return;
-    LBL.len = lblLen();
+    LBL.len = lblLen(LBL.items);
     $('pageSize').textContent = '@page{size:' + LBL.len + 'mm ' + lblH() + 'mm;margin:0}';
-    $('print').innerHTML = LBL.items.map(lblHtml).join('');
+    $('print').innerHTML = LBL.items.map(function(it){ return lblHtml(it); }).join('');
     window.print();
   }
 
