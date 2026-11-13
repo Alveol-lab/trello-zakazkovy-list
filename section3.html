@@ -248,6 +248,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 .sugg button b{color:var(--txt-hi);font-weight:700}
 .sugg button.on,.sugg button:hover{background:var(--chip);color:var(--txt-hi)}
 .sugg .nw{padding:2rem 5rem 1rem;font-size:6.7rem;color:var(--warn)}
+.sugg .pd{padding:2rem 5rem 1rem;font-size:6.7rem;color:var(--txt-dim);white-space:nowrap}
+.sugg button .pr{margin-left:4rem;font-size:6.7rem;color:var(--txt-dim)}
 .hint{padding:3rem 5rem 0 75rem;font-size:7.1rem;line-height:8rem;color:var(--txt-dim);min-height:8rem}
 .hint.warn{color:var(--warn)}
 .hint.bad{color:var(--bad)}
@@ -1274,13 +1276,14 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       + (k && !SG.list.length ? '<div class="nw">nový ' + (inp.id === 'nvyr' ? 'výrobce' : 'dodavatel') + ' – zkontroluj zápis</div>' : '');
     el.hidden = false;
     var app = $('app'), a = app.getBoundingClientRect(), b = inp.getBoundingClientRect();
-    el.style.minWidth = b.width + 'px';
+    el.style.minWidth = b.width + 'px'; el.style.maxWidth = '';
     el.style.top = (b.bottom - a.top + 2) + 'px'; el.style.left = (b.left - a.left) + 'px';
     resize();
   }
-  function sgClose(){ $('sugg').hidden = true; SG.inp = null; SG.list = []; SG.idx = -1; }
+  function sgClose(){ $('sugg').hidden = true; SG.inp = null; SG.list = []; SG.idx = -1; SG.pd = false; }
   function sgPick(i){
     var inp = SG.inp, n = SG.list[i]; if (!inp || n == null) return;
+    if (SG.pd) { sgClose(); pdUse(n); return; }
     inp.value = sgPart(inp).pre + n; inp.classList.remove('bad'); sgClose();
   }
   function sgCanon(inp){
@@ -1296,7 +1299,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     var inp = $(id);
     inp.addEventListener('focus', function(){ sgOpen(inp); });
     inp.addEventListener('input', function(){ inp.classList.remove('bad'); sgOpen(inp); });
-    inp.addEventListener('keydown', function(e){
+    inp.addEventListener('keydown', function(e){ sgKeys(inp, e); });
+    inp.addEventListener('blur', function(){ setTimeout(function(){ if (SG.inp === inp) sgClose(); sgCanon(inp); }, 150); });
+  });
+  function sgKeys(inp, e){
       if ($('sugg').hidden || SG.inp !== inp) return;
       var n = SG.list.length;
       if (e.key === 'ArrowDown' && n) { e.preventDefault(); SG.idx = (SG.idx + 1) % n; }
@@ -1305,9 +1311,38 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       else if (e.key === 'Escape') { sgClose(); return; }
       else return;
       Array.prototype.forEach.call($('sugg').querySelectorAll('button'), function(b, i){ b.classList.toggle('on', i === SG.idx); if (i === SG.idx) b.scrollIntoView({ block:'nearest' }); });
+  }
+  /* podobné karty MAT pod polem název (REF nenalezen): karty se stejným začátkem REF a další karty
+     stejného výrobce; psaní názvu seznam zužuje; klik = použít existující kartu (REF se přepíše) */
+  var PD = [];
+  function pdOpen(){
+    var inp = $('nnam'), el = $('sugg');
+    if (!newMat || !PD.length) { if (SG.pd) sgClose(); return; }
+    var k = sgKey(inp.value);
+    var hit = PD.filter(function(c){ return !k || sgKey(c.nazev).indexOf(k) >= 0 || sgKey(c.ref).indexOf(k) >= 0; });
+    SG.inp = inp; SG.pd = true; SG.list = hit; SG.idx = -1;
+    var h = '<div class="pd">' + (hit.length ? 'podobné karty v MAT – klikni, pokud jde o existující materiál' : 'žádná podobná karta – zakládáš novou') + '</div>', vyr = false;
+    hit.forEach(function(c, i){
+      if (c.vyr && !vyr) { vyr = true; h += '<div class="pd">další karty výrobce ' + esc(c.vyrobce) + '</div>'; }
+      h += '<button type="button" data-i="' + i + '">' + sgHi(c.nazev, inp.value) + '<span class="pr">' + esc(c.ref) + (c.vyr ? '' : (c.vyrobce ? ' · ' + esc(c.vyrobce) : '')) + '</span></button>';
     });
-    inp.addEventListener('blur', function(){ setTimeout(function(){ if (SG.inp === inp) sgClose(); sgCanon(inp); }, 150); });
+    el.innerHTML = h; el.hidden = false;
+    var app = $('app'), a = app.getBoundingClientRect(), b = inp.getBoundingClientRect();
+    el.style.minWidth = b.width + 'px'; el.style.maxWidth = (a.right - b.left - 4) + 'px';
+    el.style.top = (b.bottom - a.top + 2) + 'px'; el.style.left = (b.left - a.left) + 'px';
+    resize();
+  }
+  document.addEventListener('mousedown', function(e){
+    if (SG.pd && !e.target.closest('#sugg') && e.target !== $('nnam')) sgClose();
   });
+  function pdUse(c){ var r = $('nref'); r.value = c.ref; r.dispatchEvent(new Event('change')); }
+  (function(){
+    var inp = $('nnam');
+    inp.addEventListener('focus', pdOpen);
+    inp.addEventListener('input', pdOpen);
+    inp.addEventListener('keydown', function(e){ sgKeys(inp, e); });
+    inp.addEventListener('blur', function(){ setTimeout(function(){ if (SG.inp === inp) sgClose(); }, 150); });
+  })();
   $('sugg').addEventListener('mousedown', function(e){ e.preventDefault(); });
   $('sugg').addEventListener('click', function(e){ var b = e.target.closest('[data-i]'); if (b) sgPick(parseInt(b.getAttribute('data-i'), 10)); });
 
@@ -1317,20 +1352,20 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     $('nMatRow').hidden = true;
     var n = $('nnam'); n.readOnly = true; n.tabIndex = -1; n.classList.add('ro'); n.classList.remove('hi', 'newm', 'bad');
     n.placeholder = 'název z číselníku MAT';
-    $('nref').classList.remove('newm'); $('nInfo').classList.remove('newm'); sgClose();
+    $('nref').classList.remove('newm'); $('nInfo').classList.remove('newm'); sgClose(); PD = [];
     ['nvyr','ndod'].forEach(function(f){ $(f).value = ''; $(f).classList.remove('bad'); });
     segSet('nkat1', ''); segSet('nkat2', '');
     mdSync(); resize();
   }
   $('nref').addEventListener('change', function(){
     var ref = this.value.trim(), seq = ++nSeq;
-    nMat = null; $('nnam').value = ''; $('nnam').classList.remove('got'); $('nInfo').textContent = 'výrobce / dodavatel';
+    nMat = null; PD = []; if (SG.pd) sgClose(); $('nnam').value = ''; $('nnam').classList.remove('got'); $('nInfo').textContent = 'výrobce / dodavatel';
     if (!ref) { newMatOff(); return; }
     $('nnam').classList.add('wait');
     matQuery(ref).then(function(d){
       if (seq !== nSeq) return;
       $('nnam').classList.remove('wait');
-      if (!d || d.nazev == null) { newMatOn(ref); return; }
+      if (!d || d.nazev == null) { PD = (d && Array.isArray(d.podobne)) ? d.podobne : []; newMatOn(ref); pdOpen(); return; }
       newMatOff();
       nMat = d; mark($('nref'), true);
       $('nnam').value = d.nazev; $('nnam').classList.add('got');
