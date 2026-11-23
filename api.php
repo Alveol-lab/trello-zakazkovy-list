@@ -30,6 +30,8 @@ const API_ACTORS = [
   '588fa9e7e5db691bfe653bce', '611cc39d9beb8e6028ba3ae4', '63cd0523a27f8901400a6dda',
   '63ea51fbb262b19c0189e9b8', '686d1aa4bc747a96bb0fd585', '63e911bcb90ab76e81ad4e6a',
 ];
+/* kdo smí formulář používat: technici + recepce (Marie Vosiková) + Brigit Denteo */
+const API_USERS = [...API_ACTORS, '655329144f809c15a1896437', '6b00d5c2c5be2a396f89949e'];
 
 const API_POST_OK = ['writeEvidence', 'clearEvidence', 'rewardSum', 'compliancePdf',
                      'autoDidPreview', 'lotCreate', 'lotCheck', 'lotEnd'];
@@ -88,7 +90,7 @@ if (!$c) { api_log('-', 'jwt', 'odmítnuto: ' . $why); api_out(['ok' => false, '
 $actor = (string) ($c['idMember'] ?? '');
 $plug  = (string) ($c['idPlugin'] ?? '');
 if (API_PLUGIN !== '' && !hash_equals(API_PLUGIN, $plug)) { api_log($actor, 'plugin ' . $plug, 'odmítnuto'); api_out(['ok' => false, 'error' => 'cizí Power-Up'], 403); }
-if (!in_array($actor, API_ACTORS, true)) { api_log($actor, 'člen', 'odmítnuto'); api_out(['ok' => false, 'error' => 'tento Trello účet nemá do EVIDENCE přístup'], 403); }
+if (!in_array($actor, API_USERS, true)) { api_log($actor, 'člen', 'odmítnuto'); api_out(['ok' => false, 'error' => 'tento Trello účet nemá do EVIDENCE přístup'], 403); }
 
 function api_gas(string $url, ?string $post, string $actor, string $what): void {
   $ch = curl_init($url);
