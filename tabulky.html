@@ -54,6 +54,56 @@ td.wrapcell{white-space:normal;min-width:220px}
 .msg{padding:24px;color:var(--txt-dim)}
 .msg.err{color:var(--bad)}
 footer{padding:6px 12px;border-top:1px solid var(--bd);color:var(--txt-dim);font-size:12px;display:flex;gap:12px}
+
+/* ---------- E2a: úpravy karet MAT (záložka Materiál) ---------- */
+.matbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.matbar label{display:flex;gap:4px;align-items:center;color:var(--txt);cursor:pointer;white-space:nowrap}
+.btn.prim{background:var(--act);color:var(--act-txt);border-color:var(--act);font-weight:600}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.bulk{display:flex;gap:8px;align-items:center;padding:7px 12px;background:var(--panel);border-bottom:1px solid var(--act)}
+.bulk b{color:var(--txt-strong)}
+.bulk select,.bulk input{font:inherit;color:var(--txt);background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:4px 6px}
+td.ed{cursor:text}
+td.ed:hover{outline:1px solid var(--bd);outline-offset:-1px}
+td.miss{color:var(--warn);font-style:normal;opacity:.85}
+td.miss::before{content:"chybí";font-size:11px}
+td.editing{padding:1px 2px;overflow:visible}
+td.editing input,td.editing select{width:100%;min-width:90px;font:inherit;color:var(--txt-strong);background:var(--bg);border:1px solid var(--act);border-radius:3px;padding:2px 5px}
+td.ro{color:var(--txt-dim)}
+td.chk,th.chk{width:26px;text-align:center;cursor:default}
+tr.sel td{background:color-mix(in srgb,var(--act) 14%,transparent)}
+tr.off td{opacity:.5;text-decoration:line-through}
+tr.off td.chk,tr.off td.rs,tr.off td.more{text-decoration:none}
+td.rs{width:20px;padding-right:0}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle}
+.dot.ok{background:var(--good)} .dot.wait{background:var(--warn)} .dot.bad{background:var(--bad)}
+td.more{cursor:pointer;color:var(--txt-dim);text-align:center}
+td.more:hover{color:var(--txt-strong)}
+.zas{font-variant-numeric:tabular-nums}
+.side{position:fixed;top:0;right:0;bottom:0;width:380px;max-width:92vw;background:var(--panel);border-left:1px solid var(--bd);box-shadow:-6px 0 18px rgba(0,0,0,.35);display:flex;flex-direction:column;z-index:5}
+.side h3{margin:0;padding:12px 14px 4px;color:var(--txt-strong);font-size:15px}
+.side .sub{padding:0 14px 10px;color:var(--txt-dim);border-bottom:1px solid var(--bd)}
+.side .body{flex:1;overflow:auto;padding:10px 14px}
+.side dl{display:grid;grid-template-columns:110px 1fr;gap:4px 8px;margin:0 0 14px}
+.side dt{color:var(--txt-dim)} .side dd{margin:0;color:var(--txt)}
+.side input.pin{width:110px;font:inherit;color:var(--txt);background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:3px 6px;text-align:right}
+.side input.pin:focus{outline:2px solid var(--act);outline-offset:0}
+.side h4{margin:10px 0 6px;font-size:12px;color:var(--txt-dim);text-transform:uppercase;letter-spacing:.04em}
+.hist{list-style:none;margin:0;padding:0}
+.hist li{padding:6px 0;border-bottom:1px solid var(--bd-soft)}
+.hist .t{color:var(--txt-dim);font-size:12px}
+.hist .v{color:var(--txt-strong)} .hist s{color:var(--txt-dim)}
+.side .foot{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--bd);flex-wrap:wrap}
+.side .why{flex-basis:100%;color:var(--txt-dim);font-size:12px}
+.dlgbg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:6}
+.dlg{background:var(--panel);border:1px solid var(--bd);border-radius:6px;width:440px;max-width:94vw;max-height:80vh;display:flex;flex-direction:column}
+.dlg h3{margin:0;padding:12px 14px;color:var(--txt-strong);font-size:15px;border-bottom:1px solid var(--bd)}
+.dlg .body{padding:10px 14px;overflow:auto}
+.dlg ul{margin:6px 0 0;padding-left:18px;columns:2;color:var(--txt)}
+.dlg .foot{display:flex;justify-content:flex-end;gap:8px;padding:10px 14px;border-top:1px solid var(--bd)}
+.toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);max-width:560px;background:var(--head);color:var(--txt-strong);border:1px solid var(--bad);border-left:4px solid var(--bad);border-radius:4px;padding:9px 12px;z-index:7;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.toast.ok{border-color:var(--good)}
+.nahled{background:var(--act);color:var(--act-txt);font-weight:700;padding:2px 8px;border-radius:3px}
 </style>
 </head>
 <body>
@@ -66,15 +116,25 @@ footer{padding:6px 12px;border-top:1px solid var(--bd);color:var(--txt-dim);font
     <option value="NASAZENO">NASAZENO</option>
     <option value="SPOTŘEBOVANÉ">SPOTŘEBOVANÉ</option>
   </select>
+  <div class="matbar" id="matbar" hidden>
+    <label><input type="checkbox" id="fNeupl"> jen neúplné</label>
+    <label><input type="checkbox" id="fZas"> jen se zásobou</label>
+    <label><input type="checkbox" id="fOff"> i vyřazené</label>
+    <button class="btn" id="mNew" type="button">+ karta</button>
+  </div>
   <button class="btn" id="csv" type="button">Export CSV</button>
   <div class="info" id="info"></div>
 </header>
+<div class="bulk" id="bulk" hidden></div>
 <div class="wrap" id="wrap"><div class="msg">Načítám…</div></div>
-<footer><span id="count"></span><span>Jen ke čtení. Data jsou kopie sešitu EVIDENCE k uvedenému času, ne živý stav.</span></footer>
+<footer><span id="count"></span><span id="foottxt">Jen ke čtení. Data jsou kopie sešitu EVIDENCE k uvedenému času, ne živý stav.</span></footer>
 <script>
 (function(){
   /* z=prijem: otevřeno z formuláře příjmu materiálu, mimo Trello – ověřuje cookie přihlášení k příjmu */
   var P = new URLSearchParams(location.search), PRIJEM = P.get('z') === 'prijem';
+  /* nahled=…json: náhled záložky Materiál bez serveru a bez zápisu, jen z disku / localhostu */
+  var NAHLED = !!P.get('nahled') && (location.protocol === 'file:' || location.hostname === 'localhost');
+  if (NAHLED) { PRIJEM = true; if (P.get('theme') === 'light') document.documentElement.setAttribute('data-theme','light'); }
   var t = PRIJEM ? null : window.TrelloPowerUp.iframe();
   if (PRIJEM) {
     var pth = null; try { pth = localStorage.getItem('prijemTheme'); } catch(e){}
@@ -85,7 +145,7 @@ footer{padding:6px 12px;border-top:1px solid var(--bd);color:var(--txt-dim);font
   }
   function arg(k){ return PRIJEM ? P.get(k) : t.arg(k); }
 
-  var API = 'tabulky-api.php';
+  var API = 'tabulky-api.php', MAT_API = 'mat-api.php';   /* krok 5: záložka Materiál živě ze SQL, jinak kopie */
   var jwtTok = '', jwtExp = 0, cache = {}, cur = null, sortK = null, sortDir = 1;
   var $ = function(id){ return document.getElementById(id); };
 
@@ -99,12 +159,23 @@ footer{padding:6px 12px;border-top:1px solid var(--bd);color:var(--txt-dim);font
     });
   }
   function get(q){
-    var url = API + (q ? '?' + q : '');
+    if (NAHLED) {
+      if (!q) return Promise.resolve({ ok:true, stav:{ cas:'23. 11. 2026 16:32', verze:'176085' },
+        tables:[{ id:'mat', title:'Materiál (MAT)' }, { id:'baleni', title:'Balení (LOT)' }, { id:'lotlog', title:'Deník odpisů (LOTLOG)' }, { id:'vyrobky', title:'Výrobky (PRODB)' }] });
+      if (q === 't=mat') return fetch(P.get('nahled')).then(function(r){ return r.json(); });
+      return Promise.reject(new Error('v náhledu je jen záložka Materiál'));
+    }
+    if (q === 't=mat') return req(MAT_API).catch(function(){ return req(API + '?' + q); });   /* SQL vypnuté → kopie sešitu */
+    return req(API + (q ? '?' + q : ''));
+  }
+  function req(url, body){
+    var o = { cache: 'no-store', headers: {} };
+    if (body) { o.method = 'POST'; o.body = JSON.stringify(body); o.headers['Content-Type'] = 'application/json'; }
     return (PRIJEM
-      ? fetch(url, { credentials: 'same-origin', cache: 'no-store' })
-      : token().then(function(j){ return fetch(url, { headers: { 'X-Trello-JWT': j }, cache: 'no-store' }); })
+      ? (o.credentials = 'same-origin', fetch(url, o))
+      : token().then(function(j){ o.headers['X-Trello-JWT'] = j; return fetch(url, o); })
     ).then(function(r){ return r.json(); }).then(function(d){
-      if (!d || !d.ok) throw new Error((d && d.error) || 'chyba serveru');
+      if (!d || (!d.ok && !d.konflikt)) throw new Error((d && d.error) || 'chyba serveru');
       return d;
     });
   }
@@ -119,6 +190,7 @@ footer{padding:6px 12px;border-top:1px solid var(--bd);color:var(--txt-dim);font
     cur = id; sortK = null; sortDir = 1;
     Array.prototype.forEach.call($('tabs').children, function(b){ b.setAttribute('aria-selected', b.dataset.id === id ? 'true' : 'false'); });
     $('stav').hidden = id !== 'baleni';
+    $('matbar').hidden = true; $('bulk').hidden = true; $('bulk').style.display = 'none'; M.close();
     if (cache[id]) return render();
     showMsg('Načítám…');
     get('t=' + encodeURIComponent(id)).then(function(d){ cache[id] = d; if (cur === id) render(); })
@@ -162,6 +234,8 @@ footer{padding:6px 12px;border-top:1px solid var(--bd);color:var(--txt-dim);font
 
   function render(){
     var d = cache[cur]; if (!d) return;
+    if (cur === 'mat' && d.zdroj === 'sql') return M.render(d);
+    $('foottxt').textContent = 'Jen ke čtení. Data jsou kopie sešitu EVIDENCE k uvedenému času, ne živý stav.';
     var rows = rowsNow(), max = 1500;
     var h = '<table><thead><tr>' + d.cols.map(function(c, i){
       return '<th data-i="' + i + '">' + esc(c.label) + (sortK === i ? '<span class="ar">' + (sortDir > 0 ? '▲' : '▼') + '</span>' : '') + '</th>';
@@ -174,10 +248,299 @@ footer{padding:6px 12px;border-top:1px solid var(--bd);color:var(--txt-dim);font
   }
 
   $('wrap').addEventListener('click', function(e){
+    if (cur === 'mat' && cache.mat && cache.mat.zdroj === 'sql') return;
     var th = e.target.closest('th'); if (!th) return;
     var i = +th.dataset.i; if (sortK === i) sortDir = -sortDir; else { sortK = i; sortDir = 1; }
     render();
   });
+  /* =======================================================
+     E2a: úpravy karet MAT (zdroj SQL). Pravidla podle návrhu etapy 2a:
+     REF, založil, založeno, zásoba = jen čtení; kus ⇒ 1 jednotka; odpis nejde vyprázdnit;
+     ceny vidí jen role s vidi_ceny; každá úprava nese verzi (souběh dvou lidí).
+     ======================================================= */
+  var M = (function(){
+    var KAT = ['FM','FS','RM','RS','OM','OS','UM','US'];
+    var COLS = [
+      { k:'ref', l:'REF', ro:1 }, { k:'nazev', l:'Název', req:1 }, { k:'kat', l:'Kat.', sel:KAT, req:1 }, { k:'druh', l:'Druh', ro:1 },
+      { k:'forma', l:'Forma', sel:['kus','balení'], req:1 }, { k:'jednotek', l:'Jedn. v bal.', n:1, req:1 },
+      { k:'vyrobce', l:'Výrobce', dl:1, req:1 }, { k:'dodavatel', l:'Dodavatel', dl:1 },
+      { k:'skupina', l:'Skupina', sk:1 }, { k:'odpis', l:'Odpis', sel:['auto','ruční'], req:1 },
+      { k:'cena_nakup', l:'Nákup Kč/jedn.', n:1, cena:1, det:1 }, { k:'navyseni_pct', l:'Navýšení %', n:1, cena:1, det:1 },
+      { k:'otev', l:'Zásoba', ro:1, n:1 }, { k:'sarzi', l:'Balení celkem', ro:1, n:1 },
+      { k:'zalozil', l:'Založil', ro:1 }, { k:'zalozeno', l:'Založeno', ro:1, d:1 }
+    ];
+    var D = null, R = [], byId = {}, sel = {}, rs = {}, edit = null, side = null, sortK = null, sortDir = 1, lists = {};
+
+    function prep(d){
+      if (D === d) return; D = d; byId = {}; sel = {}; rs = {};
+      R = d.rows.map(function(r){ var o = {}; d.cols.forEach(function(c, i){ o[c] = r[i]; }); byId[o.id] = o; return o; });
+      (d.cekaji || []).forEach(function(i){ rs[i] = { c:'wait', t:'uloženo v SQL, čeká na propis do listu MAT' }; });
+      ['vyrobce','dodavatel'].forEach(function(k){
+        var m = {}; R.forEach(function(o){ if (o[k]) m[o[k]] = 1; });
+        lists[k] = Object.keys(m).sort(function(a, b){ return a.localeCompare(b, 'cs'); });
+      });
+      var h = ''; ['vyrobce','dodavatel'].forEach(function(k){
+        h += '<datalist id="dl-' + k + '">' + lists[k].map(function(v){ return '<option value="' + esc(v) + '">'; }).join('') + '</datalist>';
+      });
+      var x = document.getElementById('mdl'); if (!x) { x = document.createElement('div'); x.id = 'mdl'; document.body.appendChild(x); }
+      x.innerHTML = h;
+    }
+    function cols(){ return COLS.filter(function(c){ return !c.det && (!c.cena || D.vidi_ceny); }); }   /* ceny jen v detailu karty (23. 11.) */
+    function uplna(o){ return !!(o.kat && o.vyrobce && o.forma && o.jednotek && o.odpis); }
+    function shown(){
+      var q = $('q').value.trim().toLowerCase(), fN = $('fNeupl').checked, fZ = $('fZas').checked, fO = $('fOff').checked;
+      var rows = R.filter(function(o){
+        if (!fO && o.stav === 'neaktivní') return false;
+        if (fN && uplna(o)) return false;
+        if (fZ && !o.otev) return false;
+        if (!q) return true;
+        return ['ref','nazev','vyrobce','dodavatel','skupina'].some(function(k){ return o[k] && String(o[k]).toLowerCase().indexOf(q) >= 0; });
+      });
+      var k = sortK || (fN ? 'sarzi' : null), dir = sortK ? sortDir : -1;
+      if (k) rows = rows.slice().sort(function(a, b){
+        var x = a[k], y = b[k];
+        if (x === null || x === '') return 1; if (y === null || y === '') return -1;
+        return (typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'cs', { numeric:true })) * dir;
+      });
+      return rows;
+    }
+    function show(c, v){
+      if (v === null || v === undefined || v === '') return '';
+      if (c.d) return fmtD(v);
+      if (c.k === 'druh') return v === 'MD' ? 'MD' : '';
+      if (c.k === 'otev') return v ? v + ' bal.' : '–';
+      if (c.n) return fmtN(v);
+      return v;
+    }
+    function td(o, c){
+      if (edit && edit.id === o.id && edit.k === c.k) return '<td class="editing" data-k="' + c.k + '">' + ctrl(o, c) + '</td>';
+      var v = o[c.k], miss = c.req && (v === null || v === '') && !c.ro;
+      var locked = c.k === 'jednotek' && o.forma === 'kus';
+      var cls = (c.ro || locked || o.stav === 'neaktivní' || !D.smi_upravovat) ? 'ro' : 'ed';
+      if (miss) cls += ' miss';
+      if (c.n) cls += ' n';
+      return '<td class="' + cls + '" data-k="' + c.k + '" title="' + esc(locked ? 'forma kus = 1 jednotka' : (v === null ? '' : v)) + '">' + esc(show(c, v)) + '</td>';
+    }
+    function ctrl(o, c){
+      var v = o[c.k] === null ? '' : o[c.k];
+      if (c.sel) return '<select>' + (v === '' ? '<option value="">– vyber –</option>' : '') +
+        c.sel.map(function(x){ return '<option' + (x === v ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select>';
+      if (c.sk) return '<select><option value="">samostatný</option>' + D.skupiny.map(function(x){ return '<option' + (x === v ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select>';
+      return '<input ' + (c.n ? 'inputmode="decimal" ' : '') + (c.dl ? 'list="dl-' + c.k + '" ' : '') + 'value="' + esc(c.n ? fmtN(v) : v) + '">';
+    }
+    function rowHtml(o){
+      var st = rs[o.id], dot = st ? '<span class="dot ' + st.c + '" title="' + esc(st.t) + '"></span>' : '';
+      return '<tr data-id="' + o.id + '" class="' + (sel[o.id] ? 'sel ' : '') + (o.stav === 'neaktivní' ? 'off' : '') + '">' +
+        '<td class="chk"><input type="checkbox"' + (sel[o.id] ? ' checked' : '') + (o.stav === 'neaktivní' ? ' disabled' : '') + '></td>' +
+        '<td class="rs">' + dot + '</td>' + cols().map(function(c){ return td(o, c); }).join('') +
+        '<td class="more" title="detail a historie">⋯</td></tr>';
+    }
+    function render(d){
+      prep(d);
+      $('matbar').hidden = false;
+      var rows = shown(), max = 1500, cs = cols();
+      var h = '<table><thead><tr><th class="chk"><input type="checkbox" id="mAll"></th><th class="rs"></th>' + cs.map(function(c){
+        var dk = !sortK && $('fNeupl').checked && c.k === 'sarzi';
+        return '<th data-k="' + c.k + '">' + esc(c.l) + (sortK === c.k ? '<span class="ar">' + (sortDir > 0 ? '▲' : '▼') + '</span>' : (dk ? '<span class="ar" title="výchozí řazení neúplných">▼</span>' : '')) + '</th>';
+      }).join('') + '<th></th></tr></thead><tbody>' + rows.slice(0, max).map(rowHtml).join('') + '</tbody></table>';
+      $('wrap').innerHTML = h;
+      var n = Object.keys(sel).length, nu = R.filter(function(o){ return o.stav === 'aktivní' && !uplna(o); }).length;
+      $('count').textContent = rows.length + ' z ' + R.length + ' karet · neúplných ' + nu;
+      $('info').innerHTML = (NAHLED ? '<span class="nahled">NÁHLED – nic se neukládá</span> ' : '') + 'Živá data · ' + esc(d.tabulka || 'SQL');
+      $('foottxt').textContent = 'Materiál: živá data ze SQL. Změna se hned propíše do listu MAT (čeká na propis = ještě není v listu). Ostatní záložky jsou kopie.';
+      bulk(n);
+      if (side) openSide(side);
+      if (edit) { var f = $('wrap').querySelector('td.editing input, td.editing select'); if (f) { f.focus(); if (f.select) try { f.select(); } catch(e){} } }
+    }
+    function bulk(n){
+      var b = $('bulk'); b.hidden = !n; b.style.display = n ? '' : 'none'; if (!n) return;   /* CSS display přebíjí hidden */
+      var pole = [['odpis','Odpis'],['skupina','Skupina'],['vyrobce','Výrobce'],['dodavatel','Dodavatel'],['forma','Forma'],['kat','Kategorie']];
+      b.innerHTML = '<b>Vybráno ' + n + (n === 1 ? ' karta' : (n < 5 ? ' karty' : ' karet')) + '</b> · nastavit ' +
+        '<select id="bPole">' + pole.map(function(p){ return '<option value="' + p[0] + '">' + p[1] + '</option>'; }).join('') + '</select> na <span id="bVal"></span>' +
+        '<button class="btn prim" id="bGo" type="button">Použít…</button><button class="btn" id="bClr" type="button">Zrušit výběr</button>';
+      bVal();
+      $('bPole').addEventListener('change', bVal);
+      $('bClr').addEventListener('click', function(){ sel = {}; render(D); });
+      $('bGo').addEventListener('click', confirmBulk);
+    }
+    function bVal(){
+      var k = $('bPole').value, c = COLS.filter(function(x){ return x.k === k; })[0];
+      $('bVal').innerHTML = ctrl({}, c).replace('– vyber –', '– vyber –');
+    }
+    function confirmBulk(){
+      var k = $('bPole').value, f = $('bVal').firstChild, v = f.value.trim(), c = COLS.filter(function(x){ return x.k === k; })[0];
+      if (!v && k !== 'skupina') return toast('Vyber hodnotu.', 1);
+      var ids = Object.keys(sel).map(Number), refs = ids.map(function(i){ return byId[i].ref; });
+      var zmena = ids.filter(function(i){ return (byId[i][k] || '') !== v; }).length;
+      dlg('Nastavit ' + c.l.toLowerCase() + ' = ' + (v || 'samostatný') + ' u ' + ids.length + ' karet',
+        '<div>Změní se ' + zmena + ' karet, ' + (ids.length - zmena) + ' už hodnotu má. Každá změna se zapíše do historie karty a propíše do listu MAT.</div><ul>' +
+        refs.map(function(r){ return '<li>' + esc(r) + '</li>'; }).join('') + '</ul>', 'Uložit ' + zmena + ' změn', function(){
+          /* krok 5: uložit všechny s odloženým propisem, pak jeden společný propis (ne 50 volání Apps Scriptu) */
+          var pr = ids.filter(function(i){ return (byId[i][k] || '') !== v; }).map(function(i){ return save(byId[i], k, v || null, true, true); });
+          sel = {}; render(D);
+          Promise.all(pr).then(function(ok){
+            var cek = ok.filter(function(x){ return x && x.propis === 'čeká'; }).map(function(x){ return x.id; });
+            if (!cek.length || NAHLED) return;
+            return post({ propis: cek }).then(function(r){
+              cek.forEach(function(i){ rs[i] = (r.vysledky || {})[i] === 'hotovo' ? { c:'ok', t:'uloženo a propsáno' } : { c:'wait', t:'uloženo v SQL, propis do listu MAT doběhne do 15 minut' }; });
+            }).catch(function(e){ toast('Uloženo v SQL, propis do listu MAT doběhne do 15 minut (' + esc(e.message) + ').', 1); })
+              .then(function(){ if (cur === 'mat') render(D); });
+          });
+        });
+    }
+    function dlg(title, body, okTxt, ok){
+      var x = document.createElement('div'); x.className = 'dlgbg';
+      x.innerHTML = '<div class="dlg" role="dialog"><h3>' + esc(title) + '</h3><div class="body">' + body + '</div><div class="foot">' +
+        '<button class="btn" type="button" data-a="no">Zpět</button><button class="btn prim" type="button" data-a="ok">' + esc(okTxt) + '</button></div></div>';
+      x.addEventListener('click', function(e){ var a = e.target.dataset.a; if (a) { x.remove(); if (a === 'ok') ok(); } });
+      document.body.appendChild(x);
+    }
+    var tt; function toast(m, bad){
+      var x = document.getElementById('toast'); if (!x) { x = document.createElement('div'); x.id = 'toast'; document.body.appendChild(x); }
+      x.className = 'toast' + (bad ? '' : ' ok'); x.innerHTML = m; x.hidden = false;
+      clearTimeout(tt); tt = setTimeout(function(){ x.hidden = true; }, bad ? 9000 : 3500);
+    }
+    function check(o, k, v){
+      if (k === 'nazev' && !v) return 'Název nesmí být prázdný.';
+      if (k === 'odpis' && !v) return 'Odpis nejde vyprázdnit.';
+      if ((k === 'jednotek' || k === 'cena_nakup' || k === 'navyseni_pct') && v !== null) {
+        var n = Number(String(v).replace(',', '.'));
+        if (isNaN(n) || n < 0 || (k === 'jednotek' && n <= 0) || (k === 'navyseni_pct' && n > 100)) return 'Neplatné číslo.';
+      }
+      return '';
+    }
+    function post(p){
+      if (NAHLED) return new Promise(function(res){ setTimeout(function(){
+        var o = byId[p.id];
+        if (P.get('konflikt') && o.ref === P.get('konflikt')) return res({ ok:false, konflikt:{ kdo:'M', kdy:'před 2 min', pole:p.pole, hodnota:p.pole === 'skupina' ? 'samostatný' : 'jiná hodnota' } });
+        res({ ok:true, verze:o.verze + 1, propis:'čeká' });
+      }, 350); });
+      return req(MAT_API, p);
+    }
+    function reload(o){                       /* po konfliktu: načíst aktuální stav karty ze SQL */
+      if (NAHLED) return;
+      req(MAT_API).then(function(d){
+        d.rows.forEach(function(r){ if (r[0] === o.id) d.cols.forEach(function(c, i){ o[c] = r[i]; }); });
+        if (cur === 'mat') render(D);
+      }).catch(function(){});
+    }
+    function save(o, k, v, quiet, odlozit){
+      var e = check(o, k, v); if (e) { toast(e, 1); return Promise.resolve(null); }
+      if (v !== null && (k === 'jednotek' || k === 'cena_nakup' || k === 'navyseni_pct')) v = Number(String(v).replace(',', '.'));
+      var old = o[k], kdo = D.kdo || '?';
+      o[k] = v; if (k === 'forma' && v === 'kus') o.jednotek = 1;
+      if (k === 'cena_nakup') o.cena_datum = new Date().toISOString().slice(0, 10);
+      rs[o.id] = { c:'wait', t:'ukládám…' }; if (!quiet) render(D);
+      var q = { id:o.id, verze:o.verze, pole:k, hodnota:v }; if (odlozit) q.odlozit = 1;
+      return post(q).then(function(r){
+        if (!r.ok && r.konflikt) {
+          o[k] = old; rs[o.id] = { c:'bad', t:'neuloženo – kartu mezitím změnil ' + r.konflikt.kdo }; reload(o);
+          toast('<b>' + esc(o.ref) + '</b>: kartu mezitím upravil(a) ' + esc(r.konflikt.kdo) + ' (' + esc(r.konflikt.kdy) + ', ' + esc(r.konflikt.pole) + ' = ' + esc(r.konflikt.hodnota) + '). Tvoje změna se neuložila, řádek je načtený znovu.', 1);
+        } else if (!r.ok) { o[k] = old; rs[o.id] = { c:'bad', t:'chyba: ' + (r.error || '') }; toast(esc(r.error || 'chyba'), 1); }
+        else {
+          o.verze = r.verze;
+          var nw = new Date(), p2 = function(x){ return (x < 10 ? '0' : '') + x; };
+          D.zmeny.push([o.id, nw.getFullYear() + '-' + p2(nw.getMonth() + 1) + '-' + p2(nw.getDate()) + ' ' + p2(nw.getHours()) + ':' + p2(nw.getMinutes()), kdo, 'prohlizec', k, old === null ? null : String(old), v === null ? null : String(v)]);
+          rs[o.id] = r.propis === 'čeká' ? { c:'wait', t:'uloženo v SQL, čeká na propis do listu MAT' } : { c:'ok', t:'uloženo a propsáno' };
+          if (NAHLED) setTimeout(function(){ if (rs[o.id] && rs[o.id].c === 'wait') { rs[o.id] = { c:'ok', t:'uloženo a propsáno do listu MAT' }; if (cur === 'mat') render(D); } }, 2500);
+        }
+        if (cur === 'mat') render(D);
+        return r.ok ? { id:o.id, propis:r.propis } : null;
+      }).catch(function(e){
+        o[k] = old; rs[o.id] = { c:'bad', t:'chyba: ' + e.message }; toast(esc(e.message), 1);
+        if (cur === 'mat') render(D);
+        return null;
+      });
+    }
+    function priceIn(o, k){
+      var ed = D.smi_upravovat && o.stav !== 'neaktivní';
+      var v = o[k] === null || o[k] === undefined ? '' : fmtN(o[k]);
+      return ed ? '<input class="pin" data-k="' + k + '" inputmode="decimal" value="' + esc(v) + '" title="Enter uloží">' : esc(v || '–');
+    }
+    function openSide(id){
+      side = id; var o = byId[id], x = document.getElementById('side');
+      if (!x) { x = document.createElement('aside'); x.id = 'side'; x.className = 'side'; document.body.appendChild(x); }
+      var hz = D.zmeny.filter(function(z){ return z[0] === id; }).slice().reverse();
+      var POPIS = { nazev:'název', kat:'kategorie', forma:'forma', jednotek:'jednotek', vyrobce:'výrobce', dodavatel:'dodavatel', skupina:'skupina', odpis:'odpis', cena_nakup:'nákupní cena', navyseni_pct:'navýšení', stav:'stav', ref:'REF' };
+      var ZDR = { 'import':'import ze sešitu', prohlizec:'prohlížeč', prijem:'příjem', trello:'zakázkový list' };
+      var lastOk = hz.length && hz[0][3] !== 'import';
+      var blok = o.otev > 0;
+      x.innerHTML = '<h3>' + esc(o.nazev) + '</h3><div class="sub">REF ' + esc(o.ref) + ' · ' + (o.stav === 'neaktivní' ? 'vyřazená' : (uplna(o) ? 'úplná karta' : 'neúplná karta')) + '</div>' +
+        '<div class="body"><dl>' +
+        '<dt>Zásoba</dt><dd>' + (o.otev ? o.otev + (o.otev === 1 ? ' otevřené balení' : (o.otev < 5 ? ' otevřená balení' : ' otevřených balení')) : 'žádná') + '</dd>' +
+        '<dt>Balení celkem</dt><dd>' + o.sarzi + '</dd>' +
+        '<dt>Založil</dt><dd>' + esc(o.zalozil || '–') + (o.zalozeno ? ', ' + esc(fmtD(o.zalozeno)) : '') + '</dd>' +
+        '<dt>Druh</dt><dd>' + (o.druh === 'MD' ? 'MD – dodává se k zakázce, na sklad se nepřijímá' : 'sklad') + '</dd>' +
+        (D.vidi_ceny ? '<dt>Nákup Kč / jedn.</dt><dd>' + priceIn(o, 'cena_nakup') + (o.cena_datum ? ' <span class="t">od ' + esc(fmtD(o.cena_datum)) + '</span>' : '') + '</dd>' +
+          '<dt>Navýšení %</dt><dd>' + priceIn(o, 'navyseni_pct') + '</dd>' +
+          '<dt>Okamžitý náklad</dt><dd>' + (o.cena_nakup !== null ? fmtN(o.cena_nakup * (1 + (o.navyseni_pct || 0) / 100)) + ' Kč / jedn.' : 'bez ceny') + '</dd>' : '') +
+        '<dt>Verze</dt><dd>' + o.verze + '</dd></dl>' +
+        '<h4>Historie</h4>' + (hz.length ? '<ul class="hist">' + hz.map(function(z){
+          return '<li><div class="t">' + esc(fmtT(z[1])) + ' · ' + esc(z[2]) + ' · ' + esc(ZDR[z[3]] || z[3]) + '</div>' + esc(POPIS[z[4]] || z[4]) + ': ' +
+            (z[5] !== null ? '<s>' + esc(z[5]) + '</s> → ' : '') + '<span class="v">' + esc(z[6] === null ? 'prázdné' : z[6]) + '</span></li>';
+        }).join('') + '</ul>' : '<div class="t">Bez změn od importu.</div>') + '</div>' +
+        '<div class="foot"><button class="btn" type="button" data-a="undo"' + (lastOk ? '' : ' disabled') + '>Vrátit poslední změnu</button>' +
+        (o.stav === 'neaktivní' ? '<button class="btn" type="button" data-a="on">Vrátit do aktivních</button>'
+          : '<button class="btn" type="button" data-a="off"' + (blok ? ' disabled' : '') + '>Vyřadit kartu</button>') +
+        '<button class="btn" type="button" data-a="x" style="margin-left:auto">Zavřít</button>' +
+        (blok && o.stav !== 'neaktivní' ? '<div class="why">Vyřadit nejde: na kartě jsou otevřená balení (ZALOŽENO / NASAZENO).</div>' : '') +
+        (!lastOk && hz.length ? '<div class="why">Úpravy z importu se nevracejí.</div>' : '') + '</div>';
+      x.onkeydown = function(e){
+        var f = e.target; if (!f.classList || !f.classList.contains('pin')) return;
+        if (e.key === 'Escape') { e.preventDefault(); return openSide(id); }
+        if (e.key !== 'Enter') return; e.preventDefault();
+        var k = f.dataset.k, v = f.value.trim().replace(',', '.'); v = v === '' ? null : v;
+        var cur_ = o[k] === null || o[k] === undefined ? null : Number(o[k]);
+        if ((v === null && cur_ === null) || (v !== null && cur_ !== null && Number(v) === cur_)) return;
+        save(o, k, v);
+      };
+      x.onclick = function(e){
+        var a = e.target.dataset.a; if (!a) return;
+        if (a === 'x') return close();
+        if (a === 'off') return dlg('Vyřadit kartu ' + o.ref, 'Karta se skryje a nepůjde vybírat pro nová balení. Nic se nemaže, vrátit ji jde kdykoli.', 'Vyřadit', function(){ save(o, 'stav', 'neaktivní'); });
+        if (a === 'on') return save(o, 'stav', 'aktivní');
+        if (a === 'undo') { var z = hz[0]; save(o, z[4], z[5]); }
+      };
+    }
+    function fmtT(v){ var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}:\d{2})/.exec(String(v || '')); return m ? (+m[3]) + '. ' + (+m[2]) + '. ' + m[1] + ' ' + m[4] : v; }
+    function close(){ side = null; var x = document.getElementById('side'); if (x) x.remove(); }
+    function newCard(){
+      dlg('Nová karta materiálu', '<div>Stejná pole a pravidla jako ozubené kolo v příjmu: REF, název, kategorie, forma, jednotek, výrobce, dodavatel, skupina a odpis jsou povinné, karta musí být úplná. Balení se tu nezakládají – to dělá příjem.</div>', 'Pokračovat', function(){ toast('Formulář nové karty bude v kroku 3 sdílený s příjmem.', 0); });
+    }
+
+    $('wrap').addEventListener('click', function(e){
+      if (!(cur === 'mat' && D && cache.mat === D)) return;
+      var th = e.target.closest('th');
+      if (th) {
+        if (e.target.id === 'mAll') { var on = e.target.checked; shown().forEach(function(o){ if (o.stav === 'aktivní') { if (on) sel[o.id] = 1; else delete sel[o.id]; } }); return render(D); }
+        var k = th.dataset.k; if (!k) return; if (sortK === k) sortDir = -sortDir; else { sortK = k; sortDir = 1; } return render(D);
+      }
+      var tr = e.target.closest('tr[data-id]'); if (!tr) return;
+      var id = +tr.dataset.id, cell_ = e.target.closest('td');
+      if (cell_.classList.contains('chk')) { if (e.target.type === 'checkbox') { if (e.target.checked) sel[id] = 1; else delete sel[id]; render(D); } return; }
+      if (cell_.classList.contains('more')) return openSide(id);
+      if (cell_.classList.contains('ed') && !(edit && edit.id === id && edit.k === cell_.dataset.k)) { edit = { id:id, k:cell_.dataset.k }; render(D); }
+    });
+    function commit(f){
+      var o = byId[edit.id], k = edit.k, v = f.value.trim(); edit = null;
+      var c = COLS.filter(function(x){ return x.k === k; })[0];
+      if (c.n && v !== '') v = v.replace(',', '.');
+      v = v === '' ? null : v;
+      var cur_ = o[k] === null ? null : String(o[k]);
+      if (String(v) === String(cur_) || (c.n && v !== null && cur_ !== null && Number(v) === Number(cur_))) return render(D);
+      save(o, k, v);
+    }
+    $('wrap').addEventListener('keydown', function(e){
+      if (!edit) return; var f = e.target;
+      if (e.key === 'Enter') { e.preventDefault(); commit(f); }
+      else if (e.key === 'Escape') { edit = null; render(D); }
+    });
+    $('wrap').addEventListener('change', function(e){ if (edit && e.target.tagName === 'SELECT' && e.target.closest('td.editing')) commit(e.target); });
+    ['fNeupl','fZas','fOff'].forEach(function(id){ $(id).addEventListener('change', function(){ if (D) render(D); }); });
+    $('mNew').addEventListener('click', newCard);
+    return { render:render, close:close, _s:function(){ return { R:R, byId:byId, sel:sel, rs:rs, setEdit:function(x){ edit = x; }, openSide:openSide, save:save, D:function(){ return D; } }; } };
+  })();
+
   var tmr; $('q').addEventListener('input', function(){ clearTimeout(tmr); tmr = setTimeout(render, 150); });
   $('stav').addEventListener('change', render);
 
@@ -198,6 +561,7 @@ footer{padding:6px 12px;border-top:1px solid var(--bd);color:var(--txt-dim);font
     Array.prototype.forEach.call($('tabs').children, function(b){ b.addEventListener('click', function(){ load(b.dataset.id); }); });
     load(arg('tab') || 'baleni');
   }).catch(function(e){ showMsg('Prohlížeč se nepodařilo otevřít: ' + e.message, true); });
+  window.__M = NAHLED ? M : null;
 })();
 </script>
 </body>

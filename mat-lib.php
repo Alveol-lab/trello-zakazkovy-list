@@ -1,0 +1,447 @@
+<?php
+/* =========================================================
+   AutoLAB – karta materiálu v SQL (etapa 2a, krok 5)
+   Jedno místo pro pravidla karty MAT. Volají ho:
+     prijem-api.php  – ozubené kolo (matEdit, matNew) a příjem (matNew, matFill)
+     api.php         – zakázkový list (nová karta spolu s balením)
+     mat-api.php     – prohlížeč tabulek (úpravy v buňce, hromadně, ceny, stav)
+     mat-propis.php  – Timer: dočerpání fronty a denní kontrola shody
+   Po přepnutí je zdrojem pravdy SQL. List MAT dostává změny hned
+   přes Apps Script matSync; když propis selže, zůstane ve frontě.
+   Přepínač: soubor autolab-mat.json mimo web, {"sql": true, "tab": "mat"}.
+   Bez souboru (nebo "sql": false) jde všechno postaru do Apps Scriptu.
+   Pravidla a texty chyb odpovídají Lot.gs (matValid_, matEdit_,
+   matNewOnly_, matFill_), aby se formuláře chovaly stejně.
+   ========================================================= */
+
+if (basename($_SERVER['SCRIPT_FILENAME'] ?? '') === basename(__FILE__)) { http_response_code(404); exit; }
+
+const MAT_CFG_FILE = __DIR__ . '/../../autolab-mat.json';
+const MAT_DB_CNF   = __DIR__ . '/../../autolab-db.cnf';
+const MAT_LOG      = __DIR__ . '/../../autolab-api.log';
+const MAT_GAS_URL  = 'https://script.google.com/macros/s/AKfycbyoF5oQtNIh8YktGX9lNcwj1OwSKbthQovlYIr-vbi2fJ6CN1heJYJxnB96zTVZDQpz/exec';
+const MAT_ODPIS    = ['auto', 'ruční'];
+const MAT_POLE_UI  = ['nazev', 'kat', 'forma', 'jednotek', 'vyrobce', 'dodavatel', 'skupina', 'odpis',
+                      'cena_nakup', 'navyseni_pct', 'stav'];
+/* Trello účet → technik (list v EVIDENCE). Kopie MEMBER_SHEET_MAP z Apps Scriptu
+   a MEMBERS ze section3.html – při změně technika upravit všechna tři místa. */
+const MAT_TECHNIK = [
+  '588fa9e7e5db691bfe653bce' => 'H', '611cc39d9beb8e6028ba3ae4' => 'J', '63cd0523a27f8901400a6dda' => 'Z',
+  '63ea51fbb262b19c0189e9b8' => 'P', '686d1aa4bc747a96bb0fd585' => 'U', '63e911bcb90ab76e81ad4e6a' => 'I',
+];
+
+function mat_cfg(): array {
+  static $c = null;
+  if ($c === null) {
+    $j = is_file(MAT_CFG_FILE) ? json_decode((string) file_get_contents(MAT_CFG_FILE), true) : null;
+    $c = is_array($j) ? $j : [];
+    $c['sql'] = ($c['sql'] ?? false) === true;
+    $c['tab'] = in_array($c['tab'] ?? '', ['mat', 't2a_mat'], true) ? $c['tab'] : 'mat';
+    if (defined('MAT_TAB')) $c['tab'] = MAT_TAB;      // kontrola před přepnutím: sada tabulek bez ohledu na přepínač
+  }
+  return $c;
+}
+function mat_on(): bool { return mat_cfg()['sql']; }
+/* názvy tabulek: mat, mat_zmena, mat_propis, mat_skupina, mat_alias (test: t2a_…) */
+function mat_t(string $k): string { return (mat_cfg()['tab'] === 't2a_mat' ? 't2a_' : '') . $k; }
+
+function mat_log(string $kdo, string $co, string $vysl): void {
+  @file_put_contents(MAT_LOG, date('c') . "\t" . $kdo . "\tmat " . $co . "\t" . $vysl . "\n", FILE_APPEND | LOCK_EX);
+}
+
+function mat_pdo(): PDO {
+  static $pdo = null;
+  if ($pdo) return $pdo;
+  $cfg = @parse_ini_file(MAT_DB_CNF, true, INI_SCANNER_RAW);
+  $c = $cfg['client'] ?? null;
+  if (!$c || empty($c['host']) || empty($c['user']) || !isset($c['password'])) throw new RuntimeException('server: chybí konfigurace databáze');
+  $db = $c['database'] ?? $c['user'];
+  $pdo = new PDO("mysql:host={$c['host']};dbname={$db};charset=utf8mb4", $c['user'], trim($c['password'], "\"'"), [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_TIMEOUT => 5, PDO::ATTR_EMULATE_PREPARES => false,
+  ]);
+  return $pdo;
+}
+
+function mat_txt($v): string { return trim(str_replace("\u{00A0}", ' ', (string) ($v ?? ''))); }
+function mat_num($v): ?float {
+  if ($v === null || $v === '') return null;
+  $s = str_replace([' ', ','], ['', '.'], (string) $v);
+  return is_numeric($s) ? (float) $s : null;
+}
+function mat_ref_key($v): string { return mb_strtoupper(mat_txt($v)); }
+function mat_now(): string { return (new DateTime('now', new DateTimeZone('Europe/Prague')))->format('Y-m-d H:i:s'); }
+function mat_today(): string { return substr(mat_now(), 0, 10); }
+
+function mat_by_ref(string $ref, bool $lock = false): ?array {
+  $st = mat_pdo()->prepare('SELECT * FROM ' . mat_t('mat') . ' WHERE ref = ?' . ($lock ? ' FOR UPDATE' : ''));
+  $st->execute([mat_txt($ref)]);                       // kolace _ai_ci: bez ohledu na velikost písmen
+  return $st->fetch() ?: null;
+}
+function mat_by_id(int $id, bool $lock = false): ?array {
+  $st = mat_pdo()->prepare('SELECT * FROM ' . mat_t('mat') . ' WHERE id = ?' . ($lock ? ' FOR UPDATE' : ''));
+  $st->execute([$id]);
+  return $st->fetch() ?: null;
+}
+function mat_skupina_ok(string $kod): bool {
+  $st = mat_pdo()->prepare('SELECT 1 FROM ' . mat_t('mat_skupina') . ' WHERE kod = ?');
+  $st->execute([$kod]);
+  return (bool) $st->fetchColumn();
+}
+
+/* ---------------------------------------------------------------------
+   Kontrola a normalizace hodnot. $z = změny {pole: hodnota}; vrací
+   [hodnoty, chyba]. Pole, která v $z nejsou, se nekontrolují (úprava),
+   u nové karty se volá s úplnou sadou.
+   --------------------------------------------------------------------- */
+function mat_check(array $z, bool $ui = false): array {
+  $v = [];
+  foreach ($z as $k => $x) {
+    if (!in_array($k, MAT_POLE_UI, true)) continue;
+    if (!$ui && in_array($k, ['cena_nakup', 'navyseni_pct', 'stav'], true)) continue;   // ceny a stav jen z prohlížeče
+    $v[$k] = is_string($x) || is_numeric($x) ? mat_txt($x) : ($x === null ? '' : '');
+  }
+  if (array_key_exists('nazev', $v) && $v['nazev'] === '') return [null, 'název nesmí být prázdný'];
+  if (array_key_exists('kat', $v) && !preg_match('/^[FROU][MS]$/', $v['kat'])) return [null, 'kategorie musí být F / R / O / U + M / S'];
+  if (array_key_exists('vyrobce', $v) && $v['vyrobce'] === '') return [null, 'výrobce nesmí být prázdný'];
+  if (array_key_exists('forma', $v)) {
+    $f = ['ks' => 'kus', 'bal' => 'balení', 'kus' => 'kus', 'balení' => 'balení'][$v['forma']] ?? null;
+    if (!$f) return [null, 'forma musí být kus / balení'];
+    $v['forma'] = $f;
+    if ($f === 'kus') $v['jednotek'] = '1';
+  }
+  if (array_key_exists('jednotek', $v)) {
+    $j = mat_num($v['jednotek']);
+    if (!($j > 0)) return [null, 'počet ks v 1 balení musí být kladné číslo'];
+    $v['jednotek'] = $j;
+  }
+  if (array_key_exists('skupina', $v)) {
+    $v['skupina'] = mb_strtoupper($v['skupina']);
+    if ($v['skupina'] === '' || $v['skupina'] === 'SAMOSTATNÝ') $v['skupina'] = null;
+    elseif (!preg_match('/^SK-[A-Z0-9-]+$/', $v['skupina'])) return [null, 'skupina musí mít tvar SK-…'];
+    elseif (!mat_skupina_ok($v['skupina'])) return [null, 'skupina ' . $v['skupina'] . ' neexistuje – nové skupiny zakládá jen Honza'];
+  }
+  if (array_key_exists('odpis', $v) && !in_array($v['odpis'], MAT_ODPIS, true)) return [null, 'odpis musí být auto / ruční'];
+  if (array_key_exists('dodavatel', $v) && $v['dodavatel'] === '') $v['dodavatel'] = null;
+  if (array_key_exists('cena_nakup', $v)) {
+    if ($v['cena_nakup'] === '') $v['cena_nakup'] = null;
+    else { $c = mat_num($v['cena_nakup']); if ($c === null || $c < 0) return [null, 'cena musí být číslo ≥ 0']; $v['cena_nakup'] = round($c, 2); }
+  }
+  if (array_key_exists('navyseni_pct', $v)) {
+    $n = mat_num($v['navyseni_pct']);
+    if ($n === null || $n < 0 || $n > 100) return [null, 'navýšení musí být 0 až 100 %'];
+    $v['navyseni_pct'] = round($n, 2);
+  }
+  if (array_key_exists('stav', $v) && !in_array($v['stav'], ['aktivní', 'neaktivní'], true)) return [null, 'stav musí být aktivní / neaktivní'];
+  return [$v, ''];
+}
+
+/* matValid_ z Lot.gs – nová karta z příjmu, ze zakázkového listu i z ozubeného kola */
+function mat_valid_new(array $mn, bool $plna): string {
+  if (mat_txt($mn['nazev'] ?? '') === '') return 'chybí název';
+  if (!preg_match('/^[FROU][MS]$/', (string) ($mn['kat'] ?? ''))) return 'chybí kategorie';
+  if (mat_txt($mn['vyrobce'] ?? '') === '') return 'chybí výrobce';
+  if (array_key_exists('odpis', $mn) && $mn['odpis'] !== null && !in_array((string) $mn['odpis'], MAT_ODPIS, true)) return 'chybí odpis (auto / ruční)';
+  if (!empty($mn['skupina']) && !preg_match('/^SK-[A-Z0-9-]+$/', mb_strtoupper((string) $mn['skupina']))) return 'skupina musí mít tvar SK-…';
+  if ($plna) {                                         // matNewOnly_: ozubené kolo / prohlížeč
+    if (!in_array($mn['forma'] ?? '', ['ks', 'bal', 'kus', 'balení'], true)) return 'vyber formu kus / balení';
+    if (in_array($mn['forma'], ['bal', 'balení'], true) && !(mat_num($mn['jednotek'] ?? null) > 0)) return 'doplň počet kusů v 1 balení';
+    if (!in_array((string) ($mn['odpis'] ?? ''), MAT_ODPIS, true)) return 'chybí odpis (auto / ruční)';
+  }
+  return '';
+}
+
+/* ---------------------------------------------------------------------
+   Zápis: úprava karty v jedné transakci – řádek se zamkne, porovná se
+   verze (jen u prohlížeče), zapíší se jen opravdu změněná pole, do
+   deníku změn a do fronty propisu. Vrací [karta, změněná pole, konflikt].
+   --------------------------------------------------------------------- */
+function mat_same(string $k, $a, $b): bool {
+  if (in_array($k, ['jednotek', 'cena_nakup', 'navyseni_pct'], true)) {
+    $x = mat_num($a); $y = mat_num($b);
+    return $x === null || $y === null ? $x === $y : abs($x - $y) < 0.0005;
+  }
+  return (string) ($a ?? '') === (string) ($b ?? '');
+}
+function mat_apply(int $id, array $v, string $kdo, string $zdroj, ?int $verze = null): array {
+  $pdo = mat_pdo(); $T = mat_t('mat');
+  $pdo->beginTransaction();
+  try {
+    $m = mat_by_id($id, true);
+    if (!$m) { $pdo->rollBack(); return [null, [], null, 'karta neexistuje']; }
+    if ($verze !== null && (int) $m['verze'] !== $verze) {
+      $z = $pdo->prepare('SELECT kdo, cas, pole, nova FROM ' . mat_t('mat_zmena') . ' WHERE mat_id = ? ORDER BY id DESC LIMIT 1');
+      $z->execute([$id]); $z = $z->fetch() ?: ['kdo' => $m['upravil'] ?? '?', 'cas' => $m['upraveno'], 'pole' => '?', 'nova' => ''];
+      $pdo->rollBack();
+      return [$m, [], ['kdo' => $z['kdo'], 'kdy' => $z['cas'], 'pole' => $z['pole'], 'hodnota' => $z['nova']], ''];
+    }
+    if (($v['forma'] ?? null) === 'kus') $v['jednotek'] = 1.0;
+    if (($v['stav'] ?? null) === 'neaktivní' && $m['stav'] !== 'neaktivní' && mat_otevrena($m['ref']) > 0) {
+      $pdo->rollBack(); return [$m, [], null, 'vyřadit nejde: na kartě jsou otevřená balení (ZALOŽENO / NASAZENO)'];
+    }
+    $zm = [];
+    foreach ($v as $k => $x) if (!mat_same($k, $m[$k], $x)) $zm[$k] = $x;
+    if (isset($zm['cena_nakup'])) $zm['cena_datum'] = mat_today();
+    if (!$zm) { $pdo->commit(); return [$m, [], null, '']; }
+    $set = implode(', ', array_map(fn($k) => "`$k` = ?", array_keys($zm)));
+    $now = mat_now();
+    $pdo->prepare("UPDATE $T SET $set, upravil = ?, upraveno = ?, verze = verze + 1 WHERE id = ?")
+        ->execute([...array_values($zm), $kdo, $now, $id]);
+    $ins = $pdo->prepare('INSERT INTO ' . mat_t('mat_zmena') . ' (mat_id, cas, kdo, zdroj, pole, stara, nova) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    foreach ($zm as $k => $x) {
+      if ($k === 'cena_datum') continue;
+      $ins->execute([$id, $now, $kdo, $zdroj, $k, $m[$k] === null ? null : mb_substr((string) $m[$k], 0, 200), $x === null ? null : mb_substr((string) $x, 0, 200)]);
+    }
+    if (array_diff(array_keys($zm), ['cena_nakup', 'cena_datum', 'navyseni_pct', 'stav'])) mat_queue([$id]);  // ceny a stav list MAT nenese
+    $pdo->commit();
+    return [mat_by_id($id), array_values(array_diff(array_keys($zm), ['cena_datum'])), null, ''];
+  } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
+}
+
+function mat_create(array $mn, string $ref, string $kdo, string $zdroj): array {
+  $pdo = mat_pdo(); $T = mat_t('mat');
+  $mn = array_filter(array_intersect_key($mn, array_flip(['nazev', 'kat', 'forma', 'jednotek', 'vyrobce', 'dodavatel', 'skupina', 'odpis'])),
+                     fn($x, $k) => !in_array($k, ['jednotek', 'forma', 'odpis'], true) || ($x !== null && $x !== ''), ARRAY_FILTER_USE_BOTH);
+  [$v, $err] = mat_check($mn);
+  if ($err) return [null, $err];
+  if (!array_key_exists('jednotek', $v) || $v['jednotek'] === null) $v['jednotek'] = 1.0;
+  if (!array_key_exists('forma', $v)) { $v['forma'] = 'balení'; $v['jednotek'] = mat_num($mn['jednotek'] ?? null) ?: 1.0; }  // jako matCreate_: bez formy = balení
+  $pdo->beginTransaction();
+  try {
+    $ex = mat_by_ref($ref, true);
+    if ($ex) { $pdo->commit(); return [$ex, '']; }      // mezitím ji někdo založil → existující karta
+    $now = mat_now();
+    $pdo->prepare("INSERT INTO $T (ref, nazev, kat, forma, jednotek, vyrobce, dodavatel, skupina, odpis, druh, zalozil, zalozeno, upravil, upraveno)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'sklad', ?, ?, ?, ?)")
+        ->execute([mat_txt($ref), $v['nazev'], $v['kat'] ?? null, $v['forma'], $v['jednotek'] ?? null, $v['vyrobce'] ?? null,
+                   $v['dodavatel'] ?? null, $v['skupina'] ?? null, $v['odpis'] ?? null, $kdo, substr($now, 0, 10), $kdo, $now]);
+    $id = (int) $pdo->lastInsertId();
+    $pdo->prepare('INSERT INTO ' . mat_t('mat_zmena') . ' (mat_id, cas, kdo, zdroj, pole, stara, nova) VALUES (?, ?, ?, ?, ?, NULL, ?)')
+        ->execute([$id, $now, $kdo, $zdroj, 'karta', 'založena']);
+    mat_queue([$id]);
+    $pdo->commit();
+    return [mat_by_id($id), ''];
+  } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
+}
+
+/* otevřená balení podle stínu s1_baleni (obnova stínu je zatím ruční, viz doc 16) */
+function mat_otevrena(string $ref): int {
+  try {
+    $st = mat_pdo()->prepare("SELECT COUNT(*) FROM s1_baleni WHERE ref = ? AND status IN ('ZALOŽENO', 'NASAZENO')");
+    $st->execute([$ref]); return (int) $st->fetchColumn();
+  } catch (Throwable $e) { return 0; }
+}
+
+/* ---------------------------------------------------------------------
+   Propis do listu MAT – fronta + Apps Script matSync
+   --------------------------------------------------------------------- */
+function mat_queue(array $ids): void {
+  $P = mat_t('mat_propis');
+  $sel = mat_pdo()->prepare("SELECT 1 FROM $P WHERE mat_id = ? AND stav IN ('čeká', 'chyba') LIMIT 1");
+  $ins = mat_pdo()->prepare("INSERT INTO $P (mat_id, cas, stav) VALUES (?, ?, 'čeká')");
+  foreach (array_unique($ids) as $id) { $sel->execute([$id]); if (!$sel->fetchColumn()) $ins->execute([$id, mat_now()]); }
+}
+
+function mat_gas(array $body, int $timeout = 60): array {
+  $s = function_exists('prijem_secret') ? prijem_secret() : null;
+  if (empty($s['key'])) return ['ok' => false, 'error' => 'server: chybí klíč pro Apps Script'];
+  $body = ['action' => 'lotCreate', 'key' => $s['key']] + $body;
+  $url = getenv('MAT_GAS_URL') ?: MAT_GAS_URL;        // test: mock Apps Scriptu
+  $c = curl_init($url);
+  curl_setopt_array($c, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE),
+    CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 5, CURLOPT_POSTREDIR => 0,
+    CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => $timeout, CURLOPT_HTTPHEADER => ['Content-Type: text/plain;charset=utf-8']]);
+  $r = curl_exec($c); $code = (int) curl_getinfo($c, CURLINFO_HTTP_CODE);
+  $j = is_string($r) ? json_decode($r, true) : null;
+  if ($code !== 200 || !is_array($j)) return ['ok' => false, 'error' => 'Apps Script neodpověděl (HTTP ' . $code . ')'];
+  return $j;
+}
+
+function mat_karta_sync(array $m): array {           // řádek SQL → karta pro matSync
+  return ['ref' => $m['ref'], 'ref_list' => $m['ref_list'], 'radek' => $m['list_radek'] === null ? null : (int) $m['list_radek'],
+          'stav' => $m['stav'], 'nazev' => $m['nazev'], 'kat' => $m['kat'], 'forma' => $m['forma'],
+          'jednotek' => $m['jednotek'] === null ? null : (float) $m['jednotek'], 'vyrobce' => $m['vyrobce'],
+          'dodavatel' => $m['dodavatel'], 'zalozil' => $m['zalozil'], 'zalozeno' => $m['zalozeno'],
+          'skupina' => $m['skupina'], 'odpis' => $m['odpis'], 'druh' => $m['druh']];
+}
+
+/* Propíše karty (id) do listu. Vrací {id: 'hotovo' | 'chyba: …'}. Fronta se
+   aktualizuje pro všechny čekající záznamy daných karet. */
+function mat_sync(array $ids): array {
+  $ids = array_values(array_unique(array_map('intval', $ids)));
+  if (!$ids) return [];
+  $pdo = mat_pdo(); $T = mat_t('mat'); $P = mat_t('mat_propis');
+  $in = implode(',', array_fill(0, count($ids), '?'));
+  $st = $pdo->prepare("SELECT * FROM $T WHERE id IN ($in)"); $st->execute($ids);
+  $rows = []; foreach ($st->fetchAll() as $m) $rows[(int) $m['id']] = $m;
+  $out = [];
+  foreach (array_chunk(array_keys($rows), 200) as $chunk) {
+    $karty = array_map(fn($i) => mat_karta_sync($rows[$i]), $chunk);
+    $r = mat_gas(['op' => 'matSync', 'karty' => $karty]);
+    $vys = ($r['ok'] ?? false) ? ($r['vysledky'] ?? []) : [];
+    foreach ($chunk as $n => $id) {
+      $x = $vys[$n] ?? null;
+      if ($x && mat_ref_key($x['ref'] ?? '') !== mat_ref_key($rows[$id]['ref'])) $x = null;   // pořadí musí sedět
+      if ($x && empty($x['error'])) {
+        $out[$id] = 'hotovo';
+        if (!empty($x['row']) && (int) $x['row'] !== (int) $rows[$id]['list_radek'])
+          $pdo->prepare("UPDATE $T SET list_radek = ?, ref_list = COALESCE(ref_list, ref) WHERE id = ?")->execute([(int) $x['row'], $id]);
+        elseif (!empty($x['row']) && $rows[$id]['ref_list'] === null)
+          $pdo->prepare("UPDATE $T SET ref_list = ref WHERE id = ?")->execute([$id]);
+        $pdo->prepare("UPDATE $P SET stav = 'hotovo', pokusu = pokusu + 1, chyba = NULL WHERE mat_id = ? AND stav IN ('čeká', 'chyba')")->execute([$id]);
+      } else {
+        $e = $x['error'] ?? ($r['error'] ?? 'neznámá odpověď');
+        $out[$id] = 'chyba: ' . $e;
+        $pdo->prepare("UPDATE $P SET stav = 'chyba', pokusu = pokusu + 1, chyba = ? WHERE mat_id = ? AND stav IN ('čeká', 'chyba')")
+            ->execute([mb_substr($e, 0, 300), $id]);
+      }
+    }
+  }
+  return $out;
+}
+
+function mat_out_karta(array $m): array {             // tvar odpovědi matEdit_ z Lot.gs
+  return ['ref' => $m['ref'], 'nazev' => $m['nazev'], 'kat' => (string) $m['kat'],
+          'jednotek' => $m['jednotek'] === null ? '' : (float) $m['jednotek'], 'vyrobce' => (string) $m['vyrobce'],
+          'dodavatel' => (string) $m['dodavatel'], 'forma' => (string) $m['forma'],
+          'skupina' => (string) $m['skupina'], 'odpis' => (string) $m['odpis']];
+}
+
+/* ---------------------------------------------------------------------
+   Operace formuláře příjmu (ozubené kolo) – stejné vstupy a odpovědi
+   jako matEdit_ a matNewOnly_ v Lot.gs
+   --------------------------------------------------------------------- */
+function mat_op_edit(array $b, string $kdo): array {
+  $ref = mat_txt($b['ref'] ?? '');
+  if ($ref === '') return ['ok' => false, 'error' => 'chybí REF'];
+  $z = is_array($b['zmeny'] ?? null) ? array_intersect_key($b['zmeny'], array_flip(['nazev', 'kat', 'forma', 'jednotek', 'vyrobce', 'dodavatel', 'skupina', 'odpis'])) : [];
+  if (!$z) return ['ok' => false, 'error' => 'žádná změna'];
+  [$v, $err] = mat_check($z);
+  if ($err) return ['ok' => false, 'error' => $err];
+  $m = mat_by_ref($ref);
+  if (!$m) return ['ok' => false, 'error' => 'REF ' . mb_strtoupper($ref) . ' v MAT není'];
+  if ($m['stav'] === 'neaktivní') return ['ok' => false, 'error' => 'karta ' . $m['ref'] . ' je vyřazená – vrátit ji jde v prohlížeči tabulek'];
+  [$m, $zm, , $e2] = mat_apply((int) $m['id'], $v, $kdo, 'prijem');
+  if ($e2) return ['ok' => false, 'error' => $e2];
+  $p = $zm ? (mat_sync([(int) $m['id']])[(int) $m['id']] ?? 'hotovo') : 'hotovo';
+  mat_log($kdo, 'matEdit ' . $m['ref'], 'ok ' . implode(',', $zm) . ' propis ' . $p);
+  $m = mat_by_id((int) $m['id']);
+  return ['ok' => true, 'row' => $m['list_radek'] === null ? null : (int) $m['list_radek'], 'zmeneno' => $zm,
+          'karta' => mat_out_karta($m), 'propis' => $p === 'hotovo' ? 'hotovo' : 'čeká'];
+}
+
+function mat_op_new(array $b, string $kdo, string $zdroj = 'prijem'): array {
+  $mn = is_array($b['matNew'] ?? null) ? $b['matNew'] : [];
+  $ref = mat_txt($mn['ref'] ?? '');
+  if ($ref === '') return ['ok' => false, 'error' => 'chybí REF'];
+  $err = mat_valid_new($mn, true);
+  if ($err) return ['ok' => false, 'error' => 'nová karta MAT: ' . $err];
+  $ex = mat_by_ref($ref);
+  if ($ex) return ['ok' => false, 'error' => 'REF ' . mb_strtoupper($ref) . ' už v MAT je' . ($ex['list_radek'] ? ' (řádek ' . $ex['list_radek'] . ')' : '')
+                   . ($ex['stav'] === 'neaktivní' ? ' – karta je vyřazená, vrátit ji jde v prohlížeči' : ''), 'row' => $ex['list_radek']];
+  [$m, $e2] = mat_create($mn, $ref, $kdo, $zdroj);
+  if ($e2) return ['ok' => false, 'error' => 'nová karta MAT: ' . $e2];
+  $p = mat_sync([(int) $m['id']])[(int) $m['id']] ?? 'chyba';
+  $m = mat_by_id((int) $m['id']);
+  mat_log($kdo, 'matNew ' . $m['ref'], 'ok propis ' . $p);
+  return ['ok' => true, 'matRow' => $m['list_radek'] === null ? null : (int) $m['list_radek'], 'ref' => mb_strtoupper($m['ref']),
+          'propis' => $p === 'hotovo' ? 'hotovo' : 'čeká'];
+}
+
+/* ---------------------------------------------------------------------
+   Před lotCreate (příjem i zakázkový list): nová karta / doplnění formy
+   jde do SQL a hned do listu; Apps Script pak dostane balení už bez
+   matNew / matFill. Když se nová karta nepropíše, balení se nezaloží
+   (AutoDID a matInfo čtou list) – formulář ukáže chybu, opakování
+   kartu nezaloží znovu, jen ji dopropíše.
+   Vrací ['ok' => true, 'body' => upravené tělo, 'matRow' => …] nebo chybu.
+   --------------------------------------------------------------------- */
+function mat_pre_lot(array $b, string $kdo, string $zdroj): array {
+  $items = is_array($b['items'] ?? null) ? array_values($b['items']) : [];
+  /* stejné předběžné kontroly jako lotCreate v Lot.gs – kartu nezakládat, když balení stejně neprojde */
+  if (!$items) return ['ok' => false, 'error' => 'žádná položka'];
+  foreach ($items as $i => $it) {
+    if (mat_txt($it['ref'] ?? '') === '') return ['ok' => false, 'error' => 'položka ' . ($i + 1) . ': chybí REF'];
+    if (empty($it['md']) && mat_txt($it['lot'] ?? '') === '') return ['ok' => false, 'error' => 'položka ' . ($i + 1) . ': chybí LOT'];
+  }
+  if (array_filter($items, fn($it) => !empty($it['md'])) && mat_txt($b['tag'] ?? '') === '')
+    return ['ok' => false, 'error' => 'MD se váže k zakázce – chybí kód zakázky'];
+  foreach ($items as $it) {                            // vyřazená karta nepřijímá nová balení
+    $m = mat_by_ref((string) ($it['ref'] ?? ''));
+    if ($m && empty($it['md']) && $m['druh'] === 'MD')
+      return ['ok' => false, 'error' => 'REF ' . $m['ref'] . ' je MD (materiál dodaný k zakázce) – '
+              . ($zdroj === 'prijem' ? 'na sklad se nepřijímá, založí ho technik v zakázkovém listu úkonem MD' : 'založ ho úkonem MD')];
+    if ($m && $m['stav'] === 'neaktivní') return ['ok' => false, 'error' => 'REF ' . $m['ref'] . ' je vyřazená karta MAT – nová balení nejdou založit (vrátit ji jde v prohlížeči tabulek)'];
+  }
+  $mn = is_array($b['matNew'] ?? null) ? $b['matNew'] : null;
+  $mf = is_array($b['matFill'] ?? null) ? $b['matFill'] : null;
+  unset($b['matNew'], $b['matFill']);
+  if (!$items || (!$mn && !$mf)) return ['ok' => true, 'body' => $b, 'matRow' => null];
+  $ref = mat_txt($items[0]['ref'] ?? '');
+  if ($ref === '') return ['ok' => true, 'body' => $b, 'matRow' => null];   // chybu „chybí REF“ vrátí Apps Script
+  $id = 0; $m = null;
+  if ($mn) {
+    $err = mat_valid_new($mn, false);
+    if ($err) return ['ok' => false, 'error' => 'nová karta MAT: ' . $err];
+    [$m, $e2] = mat_create($mn, $ref, $kdo, $zdroj);
+    if ($e2) return ['ok' => false, 'error' => 'nová karta MAT: ' . $e2];
+    $id = (int) $m['id'];
+  } elseif ($mf) {                                     // matFill_: jen karta bez formy, vyplněnou nepřepisuje
+    $m = mat_by_ref($ref);
+    $f = ['ks' => 'kus', 'bal' => 'balení'][$mf['forma'] ?? ''] ?? null;
+    if ($m && $f && $m['forma'] === null) {
+      [$v, $err] = mat_check(['forma' => $f, 'jednotek' => $f === 'kus' ? 1 : (mat_num($mf['jednotek'] ?? null) ?: 1)]);
+      if ($err) return ['ok' => false, 'error' => $err];
+      [$m, $zm] = mat_apply((int) $m['id'], $v, $kdo, $zdroj);
+      if ($zm) $id = (int) $m['id'];
+    }
+  }
+  if (!$id) return ['ok' => true, 'body' => $b, 'matRow' => $m['list_radek'] ?? null];
+  $cek = mat_pdo()->prepare('SELECT COUNT(*) FROM ' . mat_t('mat_propis') . " WHERE mat_id = ? AND stav IN ('čeká', 'chyba')");
+  $cek->execute([$id]);
+  if ((int) $cek->fetchColumn() > 0 || !mat_by_id($id)['list_radek']) {
+    $p = mat_sync([$id])[$id] ?? 'chyba';
+    if ($p !== 'hotovo') { mat_log($kdo, 'pre-lot ' . $ref, $p); return ['ok' => false, 'error' => 'karta ' . $ref . ' je uložená, ale do listu MAT se nepropsala (' . substr($p, 7) . ') – zkus to za chvilku znovu']; }
+  }
+  $m = mat_by_id($id);
+  return ['ok' => true, 'body' => $b, 'matRow' => $m['list_radek'] === null ? null : (int) $m['list_radek']];
+}
+
+/* ---------------------------------------------------------------------
+   Kontrola shody SQL ↔ list MAT (jen čte): suchý matSync všech aktivních
+   karet + matCheck. Používá ji denní běh mat-propis.php i kontrola
+   před přepnutím. Vrací souhrn a prvních 50 nálezů.
+   --------------------------------------------------------------------- */
+function mat_kontrola(): array {
+  $pdo = mat_pdo(); $T = mat_t('mat');
+  $rows = $pdo->query("SELECT * FROM $T WHERE stav = 'aktivní' ORDER BY id")->fetchAll();
+  $sum = ['karet' => count($rows), 'rozdily' => 0, 'chybi_v_listu' => 0, 'chyby' => 0, 'navic_v_listu' => 0, 'duplicity' => 0, 'radku_listu' => 0];
+  $det = [];
+  foreach (array_chunk($rows, 200) as $ch) {
+    $r = mat_gas(['op' => 'matSync', 'dry' => true, 'karty' => array_map('mat_karta_sync', $ch)], 120);
+    if (empty($r['ok'])) { $sum['chyby'] += count($ch); $det[] = ['chyba' => $r['error'] ?? '?']; continue; }
+    foreach ($r['vysledky'] as $i => $x) {
+      $ref = $ch[$i]['ref'] ?? '?';
+      if (!empty($x['error'])) { $sum['chyby']++; $det[] = ['ref' => $ref, 'chyba' => $x['error']]; }
+      elseif (!empty($x['novy'])) { $sum['chybi_v_listu']++; $det[] = ['ref' => $ref, 'chybi_v_listu' => true]; }
+      elseif (!empty($x['zmeneno'])) { $sum['rozdily']++; $det[] = ['ref' => $ref, 'radek' => $x['row'] ?? null, 'pole' => $x['zmeneno']]; }
+    }
+  }
+  $c = mat_gas(['op' => 'matCheck'], 120);
+  if (empty($c['ok'])) { $sum['chyby']++; $det[] = ['matCheck' => $c['error'] ?? '?']; }
+  else {
+    $zname = [];
+    foreach ($pdo->query("SELECT ref, ref_list FROM $T") as $m) { $zname[mat_ref_key($m['ref'])] = 1; if ($m['ref_list'] !== null) $zname[mat_ref_key($m['ref_list'])] = 1; }
+    $vid = [];
+    foreach ($c['radky'] as $l) {
+      $sum['radku_listu']++;
+      $k = mat_ref_key($l['ref_list'] ?? '');
+      if ($k === '') continue;                         // řádky bez REF (rozpracované) se neřeší
+      if (isset($vid[$k])) { $sum['duplicity']++; $det[] = ['ref' => $l['ref_list'], 'duplicita' => [$vid[$k], $l['radek']]]; }
+      $vid[$k] = $l['radek'];
+      if (!isset($zname[$k])) { $sum['navic_v_listu']++; $det[] = ['ref' => $l['ref_list'], 'radek' => $l['radek'], 'navic_v_listu' => true]; }
+    }
+  }
+  $ok = !$sum['rozdily'] && !$sum['chybi_v_listu'] && !$sum['chyby'] && !$sum['navic_v_listu'] && !$sum['duplicity'];
+  return ['ok' => $ok, 'souhrn' => $sum, 'detail' => array_slice($det, 0, 50)];
+}

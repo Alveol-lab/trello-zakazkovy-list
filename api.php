@@ -10,6 +10,7 @@
    - Prohlížeč adresu Apps Scriptu ani klíč nevidí.
    ========================================================= */
 require __DIR__ . '/prijem-auth.php';          // prijem_secret() – klíč pro Apps Script
+require __DIR__ . '/mat-lib.php';             // krok 5: karty MAT v SQL (přepínač autolab-mat.json)
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -130,6 +131,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
      než přihlášený – tak formulář funguje i dnes. Musí to ale být technik. */
   if (isset($b['memberId']) && !in_array((string) $b['memberId'], API_ACTORS, true)) api_out(['ok' => false, 'error' => 'neznámý technik'], 400);
   unset($b['op'], $b['src'], $b['operator']);           // operace formuláře příjmu tudy nejdou
+  if ($a === 'lotCreate' && mat_on()) {                 // krok 5: karta MAT do SQL, list dostane propis
+    if (!isset(MAT_TECHNIK[(string) ($b['memberId'] ?? '')])) {   // bez technika by kartu založil Apps Script jen v listu
+      if (isset($b['matNew']) || isset($b['matFill'])) api_out(['ok' => false, 'error' => 'neznámý Trello účet']);
+    } else try {
+      $r = mat_pre_lot($b, MAT_TECHNIK[(string) $b['memberId']], 'trello');
+      if (!$r['ok']) { api_log($actor, 'POST lotCreate', 'MAT: ' . $r['error']); api_out($r); }
+      $b = $r['body'];
+    } catch (Throwable $e) {
+      api_log($actor, 'POST lotCreate', 'MAT DB ' . substr($e->getMessage(), 0, 150));
+      api_out(['ok' => false, 'error' => 'databáze karet MAT neodpověděla – nic se neuložilo, zkus to znovu'], 502);
+    }
+  }
   $b['action'] = $a;
   $b['actor']  = $actor;                                // kdo skutečně zapisoval (pro audit)
   $b['key']    = $s['key'];
