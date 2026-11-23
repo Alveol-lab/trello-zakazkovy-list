@@ -522,6 +522,11 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
         segSet('forma', ''); $('jed').value = '';
         if (!formaOf(d.forma) && parseFloat(d.jednotek) > 1) { segSet('forma', 'bal'); $('jed').disabled = false; $('jed').value = n2(d.jednotek).replace(',', '.'); }
         $('matState').textContent = 'karta nalezena';
+        if (d.druh === 'MD') {                       /* MD karta se na sklad nepřijímá (23. 11.) */
+          mark($('ref'), 'bad'); $('matState').textContent = 'karta MD';
+          refHint('bad', 'Tento materiál je MD – dodává se k zakázce. Na sklad se nepřijímá, založí ho technik v zakázkovém listu úkonem MD.');
+          formaSync(); return;
+        }
         refHint('good', 'Materiál je v číselníku' + (d.vyrobce ? ' – ' + esc(d.vyrobce) : '') + (d.dodavatel ? ' / ' + esc(d.dodavatel) : '') + '.');
         formaSync(); return;
       }
@@ -645,6 +650,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (!r.oper) { E.push('Nahoře přepínačem H / M vyber, kdo materiál zakládá.'); $('oper').classList.add('bad'); }
     if (!r.ref) { E.push('Chybí REF.'); mark($('ref'), 'bad'); }
     else if (!S.mat && !S.newMat) E.push('REF ještě nebyl ověřen v číselníku.');
+    else if (S.mat && S.mat.druh === 'MD') { E.push('Materiál je MD – na sklad se nepřijímá, zakládá ho technik v zakázkovém listu.'); mark($('ref'), 'bad'); }
     if (S.newMat && r.mn) {
       var mn = r.mn;
       if (!mn.nazev) { E.push('Nová karta: chybí název.'); mark($('nam'), 'bad'); }
