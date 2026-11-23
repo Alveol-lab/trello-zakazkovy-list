@@ -9,7 +9,7 @@
 <body>
 <script>
 window.TrelloPowerUp.initialize({
-  /* Prohlížeč tabulek AutoLAB (E1): jen čtení skladu a výrobků ze stínu v SQL.
+  /* Katalog AutoLAB (dříve „Tabulky“, soubor tabulky.html zůstává): jen čtení skladu a výrobků ze stínu v SQL.
      Tlačítko vidí všichni na nástěnce, data pustí server jen technikům,
      recepci a Brigit (ověřený Trello JWT v tabulky-api.php).            */
   'board-buttons': function (t) {
@@ -18,14 +18,14 @@ window.TrelloPowerUp.initialize({
         dark:  'https://www.denteo.space/zakazkovy-list/logo-icon-gray.svg',
         light: 'https://www.denteo.space/zakazkovy-list/logo-icon-gray.svg'
       },
-      text: 'Tabulky',
+      text: 'Katalog',
       callback: function (t) {
         var theme = 'dark';
         try { var ctx = t.getContext(); if (ctx && ctx.theme) theme = ctx.theme; } catch (e) {}
         return t.modal({
           url: t.signUrl('./tabulky.html', { theme: theme }),
           fullscreen: true,
-          title: 'Tabulky AutoLAB – sklad a výrobky (jen čtení)'
+          title: 'Katalog AutoLAB – materiál, výrobky a sklad'
         });
       }
     }];

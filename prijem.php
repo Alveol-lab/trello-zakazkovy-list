@@ -226,7 +226,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     <button type="button" class="btn ghost" id="gear" title="nastavení materiálu – hledání a úprava karet MAT" aria-pressed="false">
       <svg class="ic12" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.47.47 0 0 0-.47.41l-.36 2.54a7.4 7.4 0 0 0-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54a7 7 0 0 0 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.48.48 0 0 0-.12-.61zM12 15.6A3.6 3.6 0 1 1 15.6 12 3.6 3.6 0 0 1 12 15.6z"/></svg>
     </button>
-    <a class="btn ghost" id="tabulky" href="tabulky.html?z=prijem&amp;tab=mat" target="_blank" rel="noopener" title="tabulky skladu – materiál, balení, deník odpisů, výrobky (jen čtení, nová karta)">
+    <a class="btn ghost" id="tabulky" href="tabulky.html?z=prijem&amp;tab=mat" target="_blank" rel="noopener" title="katalog – materiál, výrobky, balení, deník odpisů">
       <svg class="ic12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v16H3zm2 2v3h5V6zm7 0v3h7V6zM5 11v3h5v-3zm7 0v3h7v-3zM5 16v2h5v-2zm7 0v2h7v-2z"/></svg>
     </a>
     <button type="button" class="btn ghost" id="theme" title="přepnout světlý / tmavý motiv">

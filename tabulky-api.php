@@ -147,7 +147,7 @@ if (PHP_SAPI === 'cli') {
   if (!$c) { tb_log('-', 'tabulky jwt', 'odmítnuto: ' . $why); tb_out(['ok' => false, 'error' => 'neověřený přístup (Trello JWT: ' . $why . ')'], 401); }
   $actor = (string) ($c['idMember'] ?? '');
   if (!hash_equals(TB_PLUGIN, (string) ($c['idPlugin'] ?? ''))) { tb_log($actor, 'tabulky plugin', 'odmítnuto'); tb_out(['ok' => false, 'error' => 'cizí Power-Up'], 403); }
-  if (!in_array($actor, TB_USERS, true)) { tb_log($actor, 'tabulky člen', 'odmítnuto'); tb_out(['ok' => false, 'error' => 'tento Trello účet nemá k tabulkám přístup'], 403); }
+  if (!in_array($actor, TB_USERS, true)) { tb_log($actor, 'tabulky člen', 'odmítnuto'); tb_out(['ok' => false, 'error' => 'tento Trello účet nemá ke katalogu přístup'], 403); }
 }
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') tb_out(['ok' => false, 'error' => 'nepovolená metoda'], 405);
 

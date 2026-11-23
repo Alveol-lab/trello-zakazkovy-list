@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tabulky AutoLAB</title>
+<title>Katalog AutoLAB</title>
 <script src="https://p.trellocdn.com/power-up.min.js"></script>
 <style>
 /* =========================================================
@@ -139,7 +139,7 @@ td.more:hover{color:var(--txt-strong)}
   if (PRIJEM) {
     var pth = null; try { pth = localStorage.getItem('prijemTheme'); } catch(e){}
     if ((P.get('theme') || pth) === 'light') document.documentElement.setAttribute('data-theme','light');
-    document.title = 'Tabulky AutoLAB – příjem';
+    document.title = 'Katalog AutoLAB – příjem';
   } else {
     try { var th = t.arg('theme') || (t.getContext() || {}).theme; if (th === 'light') document.documentElement.setAttribute('data-theme','light'); } catch(e){}
   }

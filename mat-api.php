@@ -62,7 +62,7 @@ if (PHP_SAPI === 'cli') {                            // test: php mat-api.php GE
   if (!$c) ma_out(['ok' => false, 'error' => 'neověřený přístup (Trello JWT: ' . $why . ')'], 401);
   $actor = (string) ($c['idMember'] ?? '');
   if (!hash_equals(MA_PLUGIN, (string) ($c['idPlugin'] ?? ''))) ma_out(['ok' => false, 'error' => 'cizí Power-Up'], 403);
-  if (!in_array($actor, MA_USERS, true)) ma_out(['ok' => false, 'error' => 'tento Trello účet nemá k tabulkám přístup'], 403);
+  if (!in_array($actor, MA_USERS, true)) ma_out(['ok' => false, 'error' => 'tento Trello účet nemá ke katalogu přístup'], 403);
 }
 $kdo = $actor === 'prijem' ? 'PRIJEM' : (MA_EDIT[$actor] ?? (MAT_TECHNIK[$actor] ?? '?'));
 $smi = $actor === 'prijem' || isset(MA_EDIT[$actor]);
