@@ -676,14 +676,16 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
      JWT platí 15 min; drží se v paměti a obnoví minutu před vypršením.    */
   var SCRIPT_URL = 'api.php';
 
-  /* Zálohy na analog (ZANAD, ZANAE, ZANAN) vrací ordinace, ne zprostředkovatel.
-     U zakázek s ORD XKK se proto řádek zálohy zapisuje na JMA (tak se to
-     v listech techniků dělá i dosud, 225 z 227 případů). Dočasně tady; cílově
-     příznak „záloha“ u výrobku v katalogu a plátce záloh u ordinace v SQL.  */
-  var ZALOHA_KOD = /^ZANA/;
-  var ZALOHA_ORD = { XKK: 'JMA' };
+  /* Zálohy na analog ZANA + písmeno implantologického systému (D, E, N…)
+     patří vždy ordinaci z pole 👨‍⚕️ karty – ta analog vrací (evidence ANAL).
+     ORD ve formuláři může technik změnit (např. XKK) kvůli ceně ostatních
+     řádků, záloha se ale řídí polem karty. Bez pole karty platí ORD formuláře.
+     Cílově příznak „záloha“ u výrobku v katalogu místo prefixu.          */
+  var ZALOHA_KOD = /^ZANA[A-Z]$/;
+  var cardOrd = '';
+  function cardOrdRefresh(){ return ordFromCustomField().then(function(v){ cardOrd = ordClean(v || ''); return cardOrd; }); }
   function zalohaOrd(kod, ord){
-    return (ZALOHA_KOD.test(String(kod || '').toUpperCase()) && ZALOHA_ORD[ord]) || ord;
+    return (ZALOHA_KOD.test(String(kod || '').toUpperCase()) && cardOrd.length === 3) ? cardOrd : ord;
   }
   var jwtTok = '', jwtExp = 0;
   function trelloJwt(){
@@ -2053,7 +2055,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     ['qa','anid','ceny','ord','tid'].forEach(function(f){ $(f).classList.remove('bad'); });
     $('anam').classList.remove('wait');
     recalcTotal();
-    if (!$('ord').value) ordFromCustomField().then(function(v){ if (!$('ord').value && v) { $('ord').value = ordClean(v); applyPrice(lastHit); } });
+    cardOrdRefresh().then(function(v){ if (!$('ord').value && v) { $('ord').value = v; applyPrice(lastHit); } });   /* + ordinace pro zálohy */
   }
   function loadRow(i){
     var r = state.rows[i]; if (!r) return;
@@ -2200,9 +2202,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (lastHit && !isPhase(r)) r.anam = lastHit.anam;   /* popis vždy z ceníku, ne z fulltextu */
     if (!isPhase(r) && zalohaOrd(r.anid, r.ord) !== r.ord) {
       r.ord = zalohaOrd(r.anid, r.ord);
-      if (lastHit) {                                       /* cena a odměna podle nové ordinace (už ne XKK) */
-        r.cjed = numFmt(lastHit.cjedE); r.ctot = numFmt(numParse(r.qa) * numParse(lastHit.cjedE));
-        r.odmj = numFmt(lastHit.odmI);  r.odmt = numFmt(numParse(r.qa) * numParse(lastHit.odmI));
+      if (lastHit) {                                       /* cena a odměna podle ordinace zálohy */
+        var zx = r.ord === 'XKK', zc = zx ? lastHit.cjedF : lastHit.cjedE, zo = zx ? lastHit.odmJ : lastHit.odmI;
+        r.cjed = numFmt(zc); r.ctot = numFmt(numParse(r.qa) * numParse(zc));
+        r.odmj = numFmt(zo); r.odmt = numFmt(numParse(r.qa) * numParse(zo));
       }
       wmsg('Záloha ' + r.anid + ' se zapisuje na ordinaci ' + r.ord + '.', 6);
     }
@@ -2347,7 +2350,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     lp.blok = null;
     $('lpQ').innerHTML = '<div class="lpmsg">Načítám položky výrobku…</div>';
     lpStep(2);
-    prosetQuery({ suggest: hl.kod, ord: ordClean($('ord').value), limit_sady: 50 }).then(function(sady){
+    Promise.all([prosetQuery({ suggest: hl.kod, ord: ordClean($('ord').value), limit_sady: 50 }), cardOrdRefresh().catch(function(){ return ''; })]).then(function(res){
+      var sady = res[0];
       if (seq !== lp.seq) return;
       var pol = lpUnion(hl.kod, hl.nazev, sady);
       lp.blok = { polozky: pol };
