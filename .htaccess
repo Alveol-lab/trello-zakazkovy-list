@@ -11,3 +11,12 @@
 # Formulář příjmu je za přihlášením (prijem.php). Stará adresa prijem.html
 # přesměruje na novou; soubory přihlášení se nekešují (hlavičky posílá PHP).
 RedirectMatch 301 ^/zakazkovy-list/prijem\.html$ /zakazkovy-list/prijem.php
+
+# Neveřejné soubory: složka .git (klon pro nasazení přes git pull), zálohy
+# *.bak*, poznámky *.md a staré verze formuláře, které už volaly Apps Script
+# napřímo. Navenek vrací 404, soubory na serveru zůstávají.
+RedirectMatch 404 ^/zakazkovy-list/\.git(/|$)
+RedirectMatch 404 ^/zakazkovy-list/[^/]*\.bak[^/]*$
+RedirectMatch 404 ^/zakazkovy-list/[^/]*\.md$
+RedirectMatch 404 ^/zakazkovy-list/(section|section-rozvrzeni-v1)\.html$
+Header always set X-Content-Type-Options "nosniff"

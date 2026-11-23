@@ -670,14 +670,38 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   }
   function isPhase(r){ return !!(r && r.outs); }
 
-  /* ---- Apps Script (EXPfce) ------------------------------------------ */
-  var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyoF5oQtNIh8YktGX9lNcwj1OwSKbthQovlYIr-vbi2fJ6CN1heJYJxnB96zTVZDQpz/exec';
+  /* ---- Apps Script (EXPfce) přes proxy api.php na denteo.space --------
+     Proxy ověří podpis Trella (JWT) a teprve pak přidá klíč pro Apps Script.
+     JWT platí 15 min; drží se v paměti a obnoví minutu před vypršením.    */
+  var SCRIPT_URL = 'api.php';
+  var jwtTok = '', jwtExp = 0;
+  function trelloJwt(){
+    var now = Date.now() / 1000;
+    if (jwtTok && now < jwtExp - 60) return Promise.resolve(jwtTok);
+    if (!t || !t.jwt) return Promise.resolve('');
+    return t.jwt().then(function(j){
+      jwtTok = j || '';
+      try { jwtExp = JSON.parse(atob(jwtTok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).exp || 0; } catch (e) { jwtExp = now + 600; }
+      return jwtTok;
+    }).catch(function(){ return ''; });
+  }
+  function apiFetch(url, opts){
+    opts = opts || {};
+    return trelloJwt().then(function(j){
+      var h = {}; var src = opts.headers || {};
+      for (var k in src) h[k] = src[k];
+      h['X-Trello-JWT'] = j;
+      var o = {}; for (var k2 in opts) o[k2] = opts[k2];
+      o.headers = h; o.credentials = 'same-origin';
+      return fetch(url, o);
+    });
+  }
 
   var pbCache = {};
   function pricebookLookup(code, ver){
     var key = code + '|' + ver;
     if (Object.prototype.hasOwnProperty.call(pbCache, key)) return Promise.resolve(pbCache[key]);
-    return fetch(SCRIPT_URL + '?code=' + encodeURIComponent(code) + '&ver=' + encodeURIComponent(ver), { cache:'no-store' })
+    return apiFetch(SCRIPT_URL + '?code=' + encodeURIComponent(code) + '&ver=' + encodeURIComponent(ver), { cache:'no-store' })
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
         var hit = (d && d.anam != null) ? { anam:d.anam, cjedE:d.cjedE, cjedF:d.cjedF, odmI:d.odmI, odmJ:d.odmJ } : null;
@@ -687,7 +711,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   var mtCache = {};
   function materialLookup(lot){
     if (Object.prototype.hasOwnProperty.call(mtCache, lot)) return Promise.resolve(mtCache[lot]);
-    return fetch(SCRIPT_URL + '?lot=' + encodeURIComponent(lot), { cache:'no-store' })
+    return apiFetch(SCRIPT_URL + '?lot=' + encodeURIComponent(lot), { cache:'no-store' })
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){ var hit = (d && d.mnam != null) ? { mnam:d.mnam } : null; mtCache[lot] = hit; return hit; })
       .catch(function(){ return undefined; });
@@ -721,8 +745,13 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   function werr(msg, op){ wmsg((op || 'Zápis') + ' do EVIDENCE se nepovedl – ' + msg, 15); }
 
   function postToScript(payload, okLabel, opLabel){
-    return fetch(SCRIPT_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(payload) })
-      .then(function(r){ if (!r.ok) { werr('server odmítl požadavek (HTTP ' + r.status + ').', opLabel); return null; } return r.json(); })
+    return apiFetch(SCRIPT_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(payload) })
+      .then(function(r){
+        if (r.ok) return r.json();
+        return r.json().catch(function(){ return null; }).then(function(e){
+          werr((e && e.error) || ('server odmítl požadavek (HTTP ' + r.status + ').'), opLabel); return null;
+        });
+      })
       .then(function(d){
         if (d && d.ok && d.lotError && d.needs && d.needs.length) wmsg(okLabel + d.ref + ' – materiál čeká na rozhodnutí.', 8);
         else if (d && d.ok && d.lotError) wmsg(okLabel + d.ref + ' – řádek zapsán, odpis materiálu selhal – edituj výkon a vlož znovu.' + (d.lotMsg ? ' (' + d.lotMsg + ')' : ''), 15);
@@ -734,7 +763,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       .catch(function(err){ werr('nedostupné spojení (' + (err && err.message ? err.message : err) + ').', opLabel); return null; });
   }
   function postSilent(payload){
-    return fetch(SCRIPT_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(payload) })
+    return apiFetch(SCRIPT_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(payload) })
       .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
   }
 
@@ -1027,14 +1056,14 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 
   /* ---- dotazy do LOT / MAT ---- */
   function lotQuery(text){
-    return fetch(SCRIPT_URL + '?lotq=' + encodeURIComponent(text), { cache:'no-store' })
+    return apiFetch(SCRIPT_URL + '?lotq=' + encodeURIComponent(text), { cache:'no-store' })
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){ return (d && Array.isArray(d.items)) ? d.items : null; })
       .then(function(items){ (items || []).forEach(function(it){ didKnow(it.did); }); return items; })
       .catch(function(){ return null; });
   }
   function matQuery(ref){
-    return fetch(SCRIPT_URL + '?matref=' + encodeURIComponent(ref), { cache:'no-store' })
+    return apiFetch(SCRIPT_URL + '?matref=' + encodeURIComponent(ref), { cache:'no-store' })
       .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
   }
   /* DID = 'D' + base36 – číslici obsahovat nemusí (DYIG). DID bez číslice se od slova nedá poznat,
@@ -1246,7 +1275,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     $('nref').classList.remove('bad'); $('nref').classList.add('newm');
     $('nInfo').textContent = 'nová karta MAT'; $('nInfo').classList.add('newm');
     mdSync();
-    if (!matLists) fetch(SCRIPT_URL + '?matlists=1', { cache:'no-store' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+    if (!matLists) apiFetch(SCRIPT_URL + '?matlists=1', { cache:'no-store' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
       matLists = d || {};
     }).catch(function(){});
     resize();
@@ -2187,7 +2216,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
      ================================================================= */
   function prosetQuery(params){
     var q = Object.keys(params).map(function(k){ return k + '=' + encodeURIComponent(params[k]); }).join('&');
-    return fetch(SCRIPT_URL + '?' + q, { cache:'no-store' })
+    return apiFetch(SCRIPT_URL + '?' + q, { cache:'no-store' })
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){ return (d && d.ok !== false && Array.isArray(d.bloky)) ? d.bloky : (Array.isArray(d) ? d : null); })
       .catch(function(){ return null; });
