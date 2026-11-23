@@ -86,6 +86,8 @@ td.more:hover{color:var(--txt-strong)}
 .side .body{flex:1;overflow:auto;padding:10px 14px}
 .side dl{display:grid;grid-template-columns:110px 1fr;gap:4px 8px;margin:0 0 14px}
 .side dt{color:var(--txt-dim)} .side dd{margin:0;color:var(--txt)}
+.side input.pin{width:110px;font:inherit;color:var(--txt);background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:3px 6px;text-align:right}
+.side input.pin:focus{outline:2px solid var(--act);outline-offset:0}
 .side h4{margin:10px 0 6px;font-size:12px;color:var(--txt-dim);text-transform:uppercase;letter-spacing:.04em}
 .hist{list-style:none;margin:0;padding:0}
 .hist li{padding:6px 0;border-bottom:1px solid var(--bd-soft)}
@@ -254,11 +256,11 @@ td.more:hover{color:var(--txt-strong)}
   var M = (function(){
     var KAT = ['FM','FS','RM','RS','OM','OS','UM','US'];
     var COLS = [
-      { k:'ref', l:'REF', ro:1 }, { k:'nazev', l:'Název', req:1 }, { k:'kat', l:'Kat.', sel:KAT, req:1 },
+      { k:'ref', l:'REF', ro:1 }, { k:'nazev', l:'Název', req:1 }, { k:'kat', l:'Kat.', sel:KAT, req:1 }, { k:'druh', l:'Druh', ro:1 },
       { k:'forma', l:'Forma', sel:['kus','balení'], req:1 }, { k:'jednotek', l:'Jedn. v bal.', n:1, req:1 },
       { k:'vyrobce', l:'Výrobce', dl:1, req:1 }, { k:'dodavatel', l:'Dodavatel', dl:1 },
       { k:'skupina', l:'Skupina', sk:1 }, { k:'odpis', l:'Odpis', sel:['auto','ruční'], req:1 },
-      { k:'cena_nakup', l:'Nákup Kč/jedn.', n:1, cena:1 }, { k:'navyseni_pct', l:'Navýšení %', n:1, cena:1 },
+      { k:'cena_nakup', l:'Nákup Kč/jedn.', n:1, cena:1, det:1 }, { k:'navyseni_pct', l:'Navýšení %', n:1, cena:1, det:1 },
       { k:'otev', l:'Zásoba', ro:1, n:1 }, { k:'sarzi', l:'Balení celkem', ro:1, n:1 },
       { k:'zalozil', l:'Založil', ro:1 }, { k:'zalozeno', l:'Založeno', ro:1, d:1 }
     ];
@@ -277,7 +279,7 @@ td.more:hover{color:var(--txt-strong)}
       var x = document.getElementById('mdl'); if (!x) { x = document.createElement('div'); x.id = 'mdl'; document.body.appendChild(x); }
       x.innerHTML = h;
     }
-    function cols(){ return COLS.filter(function(c){ return !c.cena || D.vidi_ceny; }); }
+    function cols(){ return COLS.filter(function(c){ return !c.det && (!c.cena || D.vidi_ceny); }); }   /* ceny jen v detailu karty (23. 11.) */
     function uplna(o){ return !!(o.kat && o.vyrobce && o.forma && o.jednotek && o.odpis); }
     function shown(){
       var q = $('q').value.trim().toLowerCase(), fN = $('fNeupl').checked, fZ = $('fZas').checked, fO = $('fOff').checked;
@@ -299,6 +301,7 @@ td.more:hover{color:var(--txt-strong)}
     function show(c, v){
       if (v === null || v === undefined || v === '') return '';
       if (c.d) return fmtD(v);
+      if (c.k === 'druh') return v === 'MD' ? 'MD' : '';
       if (c.k === 'otev') return v ? v + ' bal.' : '–';
       if (c.n) return fmtN(v);
       return v;
@@ -331,7 +334,8 @@ td.more:hover{color:var(--txt-strong)}
       $('matbar').hidden = false;
       var rows = shown(), max = 1500, cs = cols();
       var h = '<table><thead><tr><th class="chk"><input type="checkbox" id="mAll"></th><th class="rs"></th>' + cs.map(function(c){
-        return '<th data-k="' + c.k + '">' + esc(c.l) + (sortK === c.k ? '<span class="ar">' + (sortDir > 0 ? '▲' : '▼') + '</span>' : '') + '</th>';
+        var dk = !sortK && $('fNeupl').checked && c.k === 'sarzi';
+        return '<th data-k="' + c.k + '">' + esc(c.l) + (sortK === c.k ? '<span class="ar">' + (sortDir > 0 ? '▲' : '▼') + '</span>' : (dk ? '<span class="ar" title="výchozí řazení neúplných">▼</span>' : '')) + '</th>';
       }).join('') + '<th></th></tr></thead><tbody>' + rows.slice(0, max).map(rowHtml).join('') + '</tbody></table>';
       $('wrap').innerHTML = h;
       var n = Object.keys(sel).length, nu = R.filter(function(o){ return o.stav === 'aktivní' && !uplna(o); }).length;
@@ -420,6 +424,11 @@ td.more:hover{color:var(--txt-strong)}
         if (cur === 'mat') render(D);
       });
     }
+    function priceIn(o, k){
+      var ed = D.smi_upravovat && o.stav !== 'neaktivní';
+      var v = o[k] === null || o[k] === undefined ? '' : fmtN(o[k]);
+      return ed ? '<input class="pin" data-k="' + k + '" inputmode="decimal" value="' + esc(v) + '" title="Enter uloží">' : esc(v || '–');
+    }
     function openSide(id){
       side = id; var o = byId[id], x = document.getElementById('side');
       if (!x) { x = document.createElement('aside'); x.id = 'side'; x.className = 'side'; document.body.appendChild(x); }
@@ -433,7 +442,10 @@ td.more:hover{color:var(--txt-strong)}
         '<dt>Zásoba</dt><dd>' + (o.otev ? o.otev + (o.otev === 1 ? ' otevřené balení' : (o.otev < 5 ? ' otevřená balení' : ' otevřených balení')) : 'žádná') + '</dd>' +
         '<dt>Balení celkem</dt><dd>' + o.sarzi + '</dd>' +
         '<dt>Založil</dt><dd>' + esc(o.zalozil || '–') + (o.zalozeno ? ', ' + esc(fmtD(o.zalozeno)) : '') + '</dd>' +
-        (D.vidi_ceny ? '<dt>Okamžitý náklad</dt><dd>' + (o.cena_nakup !== null ? fmtN(o.cena_nakup * (1 + (o.navyseni_pct || 0) / 100)) + ' Kč / jedn.' : 'bez ceny') + '</dd>' : '') +
+        '<dt>Druh</dt><dd>' + (o.druh === 'MD' ? 'MD – dodává se k zakázce, na sklad se nepřijímá' : 'sklad') + '</dd>' +
+        (D.vidi_ceny ? '<dt>Nákup Kč / jedn.</dt><dd>' + priceIn(o, 'cena_nakup') + (o.cena_datum ? ' <span class="t">od ' + esc(fmtD(o.cena_datum)) + '</span>' : '') + '</dd>' +
+          '<dt>Navýšení %</dt><dd>' + priceIn(o, 'navyseni_pct') + '</dd>' +
+          '<dt>Okamžitý náklad</dt><dd>' + (o.cena_nakup !== null ? fmtN(o.cena_nakup * (1 + (o.navyseni_pct || 0) / 100)) + ' Kč / jedn.' : 'bez ceny') + '</dd>' : '') +
         '<dt>Verze</dt><dd>' + o.verze + '</dd></dl>' +
         '<h4>Historie</h4>' + (hz.length ? '<ul class="hist">' + hz.map(function(z){
           return '<li><div class="t">' + esc(fmtT(z[1])) + ' · ' + esc(z[2]) + ' · ' + esc(ZDR[z[3]] || z[3]) + '</div>' + esc(POPIS[z[4]] || z[4]) + ': ' +
@@ -445,6 +457,15 @@ td.more:hover{color:var(--txt-strong)}
         '<button class="btn" type="button" data-a="x" style="margin-left:auto">Zavřít</button>' +
         (blok && o.stav !== 'neaktivní' ? '<div class="why">Vyřadit nejde: na kartě jsou otevřená balení (ZALOŽENO / NASAZENO).</div>' : '') +
         (!lastOk && hz.length ? '<div class="why">Úpravy z importu se nevracejí.</div>' : '') + '</div>';
+      x.onkeydown = function(e){
+        var f = e.target; if (!f.classList || !f.classList.contains('pin')) return;
+        if (e.key === 'Escape') { e.preventDefault(); return openSide(id); }
+        if (e.key !== 'Enter') return; e.preventDefault();
+        var k = f.dataset.k, v = f.value.trim().replace(',', '.'); v = v === '' ? null : v;
+        var cur_ = o[k] === null || o[k] === undefined ? null : Number(o[k]);
+        if ((v === null && cur_ === null) || (v !== null && cur_ !== null && Number(v) === cur_)) return;
+        save(o, k, v);
+      };
       x.onclick = function(e){
         var a = e.target.dataset.a; if (!a) return;
         if (a === 'x') return close();
