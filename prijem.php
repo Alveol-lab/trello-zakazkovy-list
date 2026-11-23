@@ -675,7 +675,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       else W.push('Do karty materiálu se doplní forma: ' + (r.forma === 'ks' ? 'kus' : 'balení po ' + n2(r.jed) + ' ks') + '.');
     }
     if (S.mat && formaOf(S.mat.forma) === 'bal' && !(parseFloat(S.mat.jednotek) > 0)) E.push('Karta materiálu nemá počet kusů v balení – dej vědět vedoucímu.');
-    if (S.mat && !S.mat.odpis) W.push('Karta materiálu nemá nastavený odpis (auto / ruční) – dej vědět vedoucímu, materiál se ale založí.');
+    var isMd = !!(S.mat && S.mat.druh === 'MD');   /* MD karta je zablokovaná – varování o odpisu a expiraci jsou zbytečná */
+    if (S.mat && !S.mat.odpis && !isMd) W.push('Karta materiálu nemá nastavený odpis (auto / ruční) – dej vědět vedoucímu, materiál se ale založí.');
     if (!r.lot) { E.push('Chybí LOT (šarže z obalu).'); mark($('lot'), 'bad'); }
     else {
       if (refKey(r.lot) === refKey(r.ref)) { W.push('LOT je stejný jako REF – nepřepsal se omylem REF?'); mark($('lot'), 'warn'); }
@@ -683,11 +684,11 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       if (/\s/.test(r.lot)) W.push('LOT obsahuje mezeru – opiš ho přesně jako na obalu.');
     }
     var ex = dParse(r.exp), t = today();
-    if (!r.exp) { W.push('Není vyplněná expirace – materiál bez expirace?'); mark($('exp'), 'warn'); }
+    if (!r.exp) { if (!isMd) { W.push('Není vyplněná expirace – materiál bez expirace?'); mark($('exp'), 'warn'); } }
     else if (!ex) { E.push('Expirace má neplatné datum.'); mark($('exp'), 'bad'); }
     else if (ex < t) { E.push('Expirace ' + dFmt(ex) + ' už uplynula – prošlý materiál se nezakládá.'); mark($('exp'), 'bad'); }
-    else if ((ex - t) / 864e5 < 90) { W.push('Expirace ' + dFmt(ex) + ' je za méně než 3 měsíce.'); mark($('exp'), 'warn'); }
-    else if (ex.getFullYear() > t.getFullYear() + 15) { W.push('Expirace ' + dFmt(ex) + ' je víc než 15 let dopředu – je rok zadaný správně?'); mark($('exp'), 'warn'); }
+    else if (!isMd && (ex - t) / 864e5 < 90) { W.push('Expirace ' + dFmt(ex) + ' je za méně než 3 měsíce.'); mark($('exp'), 'warn'); }
+    else if (!isMd && ex.getFullYear() > t.getFullYear() + 15) { W.push('Expirace ' + dFmt(ex) + ' je víc než 15 let dopředu – je rok zadaný správně?'); mark($('exp'), 'warn'); }
     if (r.q < 1 || r.q > 20) { E.push('Počet musí být 1–20 (víc najednou rozděl do dvou příjmů).'); mark($('q'), 'bad'); }
     else if (r.q > 10) W.push('Zakládá se ' + r.q + ' DID najednou – sedí počet?');
   }
