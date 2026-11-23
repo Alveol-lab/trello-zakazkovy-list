@@ -1035,10 +1035,28 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   }
   /* úkon v panelu založení / nasazení */
   var OP_TITLE = { sklad:'založení na sklad', vyroba:'nasazení do výroby', md:'MD k zakázce', end:'likvidace balení' };
-  function setOp(op){ M.op = op; setMode('new'); }
+  function setOp(op){ M.op = op; M.opAuto = ''; setMode('new'); }
+  /* karta MAT druhu MD (materiál dodaný k zakázce) se zakládá jen úkonem MD:
+     sklad a nasazení se u ní zablokují, END zůstává (23. 11.) */
+  function isMdCard(){ return !!(nMat && String(nMat.druh || '').toUpperCase() === 'MD'); }
   function opSync(){
+    var lock = isMdCard();
+    if (lock && (M.op === 'sklad' || M.op === 'vyroba')) {
+      M.opAuto = M.op; M.op = 'md';                 /* zapamatovat úkon, který MD karta přepnula */
+      $('mTitle').innerHTML = ICONS.new + '<span>' + OP_TITLE.md + '</span>';
+    } else if (!lock && M.opAuto) {
+      if (M.op === 'md') {                          /* karta už není MD → vrátit původní úkon */
+        M.op = M.opAuto;
+        if (M.mode === 'new') $('mTitle').innerHTML = ICONS.new + '<span>' + OP_TITLE[M.op] + '</span>';
+      }
+      M.opAuto = '';
+    }
     Array.prototype.forEach.call(document.querySelectorAll('.ops .btn'), function(b){
-      b.setAttribute('aria-pressed', b.getAttribute('data-op') === M.op ? 'true' : 'false');
+      var op = b.getAttribute('data-op');
+      b.setAttribute('aria-pressed', op === M.op ? 'true' : 'false');
+      b.disabled = lock && (op === 'sklad' || op === 'vyroba');
+      if (b.dataset.t0 == null) b.dataset.t0 = b.title;
+      b.title = b.disabled ? 'karta je MD – jen jako MD k zakázce' : b.dataset.t0;
     });
     if (M.op !== 'end') mdSync();
   }
@@ -1275,6 +1293,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     $('nGo').title = on ? 'založit jako MD k zakázce' : (vyr ? 'založit a rovnou nasadit do výroby' : 'založit na sklad');
     $('nHint').className = 'hint' + ((on || newMat) ? ' warn' : '');
     $('nHint').textContent = (newMat ? 'REF není v číselníku MAT – vyplň název, kategorii a výrobce; karta MAT se založí spolu s balením. ' : '')
+      + (isMdCard() ? 'Karta je MD – zakládá se jen k zakázce. ' : '')
       + (on ? 'MD: balení se založí rovnou jako spotřebované k této zakázce a připojí se k výkonu.' : '');
   }
 
@@ -1405,6 +1424,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   $('nref').addEventListener('change', function(){
     var ref = this.value.trim(), seq = ++nSeq;
     nMat = null; PD = []; if (SG.pd) sgClose(); $('nnam').value = ''; $('nnam').classList.remove('got'); $('nInfo').textContent = 'výrobce / dodavatel';
+    opSync();                                       /* jiný REF → zámek MD pryč, dokud se karta nenačte */
     if (!ref) { newMatOff(); return; }
     $('nnam').classList.add('wait');
     matQuery(ref).then(function(d){
@@ -1418,7 +1438,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       var f = String(d.forma || '').toLowerCase();
       if (/^k|ks|kus/.test(f)) segSet('nforma', 'ks'); else if (/bal/.test(f)) segSet('nforma', 'bal');
       if (segVal('nforma') === 'bal' && numParse(d.jednotek) > 0) $('nks').value = n2(d.jednotek);
-      formaSync();
+      formaSync(); opSync();
     });
   });
   $('nref').addEventListener('input', function(){ this.classList.remove('bad'); });
@@ -1442,6 +1462,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       if (!segVal('nkat2')) { $('nkat2').classList.add('bad'); ok = false; }
       if (!mn.vyrobce) { mark($('nvyr'), false); ok = false; }
     } else if (!ref || !nMat) { mark($('nref'), false); ok = false; }
+    if (isMdCard() && !md) { $('nHint').className = 'hint bad'; $('nHint').textContent = 'Karta je MD – založ ji úkonem MD k zakázce.'; return; }
     if (!lot) { mark($('nlot'), false); ok = false; }
     if (!qaValid(q)) { mark($('nks'), false); ok = false; }
     if (poc < 1 || poc > 20) { mark($('nq'), false); ok = false; }
