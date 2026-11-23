@@ -164,6 +164,7 @@ input[type=date].f::-webkit-calendar-picker-indicator{opacity:.6;cursor:pointer;
 .lpblk .k{flex:none;width:56rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lpblk .n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lpmsg{font-size:7.1rem;color:var(--txt-dim);padding:3rem 2rem}
+.lpq{max-height:300rem;overflow-y:auto}
 .lpq .qrow{display:flex;align-items:center;font-size:7.1rem;color:var(--lp-txt)}
 .lpq .qrow+.qrow{margin-top:4.5rem}
 .lpq .k{flex:none;width:52rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -579,7 +580,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   <div class="lp" id="lp" hidden>
     <div id="lpS1">
       <div class="lrow">
-        <input class="f" id="lpq" placeholder="hledat výrobek nebo sadu – Enter" autocomplete="off">
+        <input class="f" id="lpq" placeholder="hledat výrobek – Enter" autocomplete="off">
         <button class="btn" id="lpx" title="zavřít">✕</button>
       </div>
       <div class="lpres" id="lpRes"></div>
@@ -2294,7 +2295,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (text.length < 3) { lpMsg('Napiš alespoň 3 znaky a stiskni Enter.'); return; }
     var seq = ++lp.seq;
     lpMsg('Hledám…');
-    prosetQuery({ search:text, ord: ordClean($('ord').value) }).then(function(bloky){
+    prosetQuery({ search:text, typ:'kod', limit_kody:15 }).then(function(bloky){
       if (seq !== lp.seq) return;
       if (!bloky) { lpMsg('Hledání se nepovedlo – zkus to znovu.'); return; }
       lp.bloky = bloky.filter(function(b){ return b.polozky && b.polozky.length; });
@@ -2307,24 +2308,47 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       resize();
     });
   }
+  /* Výrobek → seznam ceníkových položek, které se s ním zapisují (sjednocení
+     všech sad PROSET, které ho obsahují; pořadí podle četnosti). Výrobek je
+     první s Q z formuláře (jinak 1), ostatní položky mají 0 = nezapisovat. */
+  function lpUnion(kod, nazev, bloky){
+    var map = {}, list = [];
+    function add(p, w){
+      var k = String(p.kod || '').toUpperCase(); if (!k) return;
+      if (!map[k]) { map[k] = { kod: p.kod, nazev: p.nazev || '', w: 0 }; list.push(map[k]); }
+      if (!map[k].nazev && p.nazev) map[k].nazev = p.nazev;
+      map[k].w += w;
+    }
+    add({ kod: kod, nazev: nazev }, 1e9);
+    (bloky || []).forEach(function(b){ var w = Number(b.pocet) || 1; (b.polozky || []).forEach(function(p){ add(p, w); }); });
+    return list.sort(function(a, b){ return b.w - a.w; });
+  }
   function lpPick(i){
-    var b = lp.bloky[i]; if (!b) return;
-    lp.blok = b;
-    var def = qaNorm($('qa').value);           /* výchozí = Q z formuláře, jinak prázdné */
-    $('lpQ').innerHTML = b.polozky.map(function(p, k){
-      return '<div class="qrow"><span class="k">' + esc(p.kod) + '</span>'
-           + '<input class="f" data-k="' + k + '" inputmode="decimal" autocomplete="off" value="' + esc(qaValid(def) ? def : '') + '">'
-           + '<span class="n">' + esc(p.nazev) + '</span></div>';
-    }).join('');
+    var b = lp.bloky[i]; if (!b || !b.polozky[0]) return;
+    var hl = b.polozky[0], seq = ++lp.seq;
+    lp.blok = null;
+    $('lpQ').innerHTML = '<div class="lpmsg">Načítám položky výrobku…</div>';
     lpStep(2);
-    var first = $('lpQ').querySelector('input');
-    if (first) { first.focus(); first.select(); }
+    prosetQuery({ suggest: hl.kod, ord: ordClean($('ord').value), limit_sady: 50 }).then(function(sady){
+      if (seq !== lp.seq) return;
+      var pol = lpUnion(hl.kod, hl.nazev, sady);
+      lp.blok = { polozky: pol };
+      var def = qaNorm($('qa').value); if (!qaValid(def)) def = '1';
+      $('lpQ').innerHTML = pol.map(function(p, k){
+        return '<div class="qrow"><span class="k">' + esc(p.kod) + '</span>'
+             + '<input class="f" data-k="' + k + '" inputmode="decimal" autocomplete="off" value="' + (k === 0 ? esc(def) : '0') + '">'
+             + '<span class="n">' + esc(p.nazev) + '</span></div>';
+      }).join('');
+      resize();
+      var first = $('lpQ').querySelector('input');
+      if (first) { first.focus(); first.select(); }
+    });
   }
   function lpQInputs(){ return Array.prototype.slice.call($('lpQ').querySelectorAll('input')); }
   $('lpQ').addEventListener('input', function(e){
     var el = e.target; if (!el.matches('input')) return;
     var c = qaClean(el.value); if (c !== el.value) el.value = c;
-    if (qaValid(el.value)) el.classList.remove('bad');
+    el.classList.remove('bad');
   });
   $('lpQ').addEventListener('focusout', function(e){
     var el = e.target; if (el.matches && el.matches('input') && el.value) el.value = qaNorm(el.value);
@@ -2337,9 +2361,9 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   });
   function lpConfirm(){
     var b = lp.blok; if (!b) return;
-    var inputs = lpQInputs(), ok = true;
-    inputs.forEach(function(el){ el.value = qaNorm(el.value); var v = qaValid(el.value); el.classList.toggle('bad', !v); if (!v) ok = false; });
-    if (!ok) { wmsg('Doplň množství u všech položek.', 6); var bad = $('lpQ').querySelector('.bad'); if (bad) bad.focus(); return; }
+    var inputs = lpQInputs();
+    inputs.forEach(function(el){ el.value = qaNorm(el.value) || '0'; });   /* prázdné = 0 = položka se nezapíše */
+    if (!inputs.some(function(el){ return qaValid(el.value); })) { wmsg('Zadej množství aspoň u jedné položky.', 6); if (inputs[0]) inputs[0].focus(); return; }
     if ($('outs').value) { wmsg('Sadu nelze vložit jako fázi – nejdřív zruš OUT.', 10); return; }
     var ord = ordClean($('ord').value), tid = $('tid').value, ceny = $('ceny').value;
     mark($('ord'), ordValid(ord)); mark($('tid'), tidValid(tid)); mark($('ceny'), cenyValid(ceny));
@@ -2348,7 +2372,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (!sheetAllowed(tid, 'Zápis')) return;
 
     var xkk = ord === 'XKK';
-    var items = b.polozky.map(function(p, k){ return { kod: anidClean(p.kod), nazev: p.nazev, qa: inputs[k].value }; });
+    var items = b.polozky.map(function(p, k){ return { kod: anidClean(p.kod), nazev: p.nazev, qa: inputs[k].value }; })
+                 .filter(function(it){ return qaValid(it.qa); });               /* 0 ks = položka není obsažena */
     $('lpok').disabled = true;
     Promise.all(items.map(function(it){ return pricebookLookup(it.kod, ceny); })).then(function(hits){
       var commits = [];
