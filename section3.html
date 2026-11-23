@@ -35,6 +35,7 @@
   --ok:#3614C4;    --ok-txt:#E6E9FF;
   --doc:#3111BC;   --doc-txt:#D6EEF1;
   --inv:#CC9E13;   --inv-txt:#FFFAE6;
+  --act:var(--inv); --act-txt:var(--inv-txt);  /* aktivní funkční tlačítka (žlutá jako fakturace) */
   --del:#6B2C31;   --del-txt:#F2D3D5;     /* zrušit                      */
   --edit:#6B4A1F;  --edit-txt:#F5E0C2;    /* editovat                    */
   --bad:#E2686B;
@@ -67,6 +68,7 @@ html[data-theme="light"]{
   --ok:#3614C4;    --ok-txt:#FFFFFF;
   --doc:#3111BC;   --doc-txt:#FFFFFF;
   --inv:#CC9E13;   --inv-txt:#FFFFFF;
+  --act:var(--inv); --act-txt:var(--inv-txt);
   --del:#F4D6D8;   --del-txt:#AE2E24;
   --edit:#FBE3C7;  --edit-txt:#9A4A00;
   --warn:#B65C02;
@@ -181,7 +183,7 @@ input[type=date].f::-webkit-calendar-picker-indicator{opacity:.6;cursor:pointer;
 .btn:focus-visible{outline:.8rem solid var(--lp-focus);outline-offset:1rem}
 .btn:disabled{opacity:.5;cursor:default;filter:none}
 .btn.glyph{font-size:15rem;font-weight:300}
-.btn.pri{background:var(--ok);color:var(--ok-txt)}
+.btn.pri{background:var(--act);color:var(--act-txt)}
 #skipMat{flex:0 0 auto;padding:0 7rem;font-size:7.4rem;color:var(--txt-hi)}
 .btn.ghost{background:transparent;box-shadow:inset 0 0 0 .6rem var(--bd-soft)}
 .ic12{width:11rem;height:11rem;display:block}
@@ -194,7 +196,7 @@ input[type=date].f::-webkit-calendar-picker-indicator{opacity:.6;cursor:pointer;
 .btitle .ic12{flex:none}
 .modes{display:flex;gap:3rem}
 .modes .btn{width:22rem;height:22rem;background:var(--chip);color:var(--txt)}
-.modes .btn[aria-pressed="true"]{background:var(--ok);color:var(--ok-txt)}
+.modes .btn[aria-pressed="true"]{background:var(--act);color:var(--act-txt)}
 /* úkony panelu založení / nasazení (ikony z grafiky: krabice, kola, MD, END) */
 .ops{display:flex;gap:3rem;margin-right:6rem}
 .ops[hidden]{display:none}
@@ -304,7 +306,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 
 /* seznam materiálu u rozpracovaného výkonu */
 .mlist{margin:7rem 5rem 0}
-.mrow{display:grid;grid-template-columns:34rem 26rem 1fr 18rem 20rem;gap:0;align-items:center;height:20rem;
+.mrow{display:grid;grid-template-columns:34rem 26rem 1fr 18rem 20rem;gap:0;align-items:center;height:22rem;
+      background:var(--chip);border-radius:3.2rem;padding:0 1rem 0 4rem;
       font-size:7.083rem;color:var(--txt-hi)}
 .mrow+.mrow{margin-top:3rem}
 .mrow>div{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4rem;line-height:12rem}
@@ -314,7 +317,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 .mrow .k3{font-size:7.4rem;color:var(--txt-dim)}
 .mrow .k3 em{font-style:normal;color:var(--warn)}
 .mrow .k4{font-size:6.7rem;color:var(--txt-dim);text-align:center;padding:0}
-.mrow .btn{width:20rem;height:18rem;font-size:13rem;background:var(--bg)}
+.mrow .btn{width:20rem;height:18rem;font-size:13rem;background:var(--btn)}
 .mempty{font-size:7.4rem;color:var(--txt-dim);padding:2rem 1rem}
 .mrow.auto .k3 em{color:var(--txt-dim)}
 .need .nchk{display:flex;align-items:center;gap:4rem;margin-top:4rem;font-size:6.8rem;color:var(--txt);cursor:pointer;padding:1rem 4rem}
