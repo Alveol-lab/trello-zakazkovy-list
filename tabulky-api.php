@@ -2,7 +2,8 @@
 /* =========================================================
    Prohlížeč tabulek AutoLAB (E1) – jen čtení ze stínu s1_*
    - Kdo volá, dokazuje podepsaný JWT od Trella (t.jwt()) v hlavičce
-     X-Trello-JWT – stejně jako api.php.
+     X-Trello-JWT – stejně jako api.php. Z formuláře příjmu
+     (tabulky.html?z=prijem) stačí platná cookie přihlášení k příjmu.
    - Pevný seznam tabulek a dotazů, prohlížeč neposílá žádné SQL.
    - V E1 jen sklad a výrobky. Výkony, ceny a odměny se tudy nečtou.
    - Přístup k databázi: autolab-db.cnf mimo web (práva 600).
@@ -135,6 +136,11 @@ if (PHP_SAPI === 'cli') {
   $actor = 'cli-test';
   parse_str(implode('&', array_slice($argv, 1)), $_GET);
   $_SERVER['REQUEST_METHOD'] = 'GET';
+} elseif (empty($_SERVER['HTTP_X_TRELLO_JWT']) && !empty($_COOKIE['prijem_auth'])) {
+  /* druhá cesta: formulář příjmu materiálu (přihlášení podepsanou cookie z prijem-auth.php) */
+  require __DIR__ . '/prijem-auth.php';
+  if (!prijem_logged()) { tb_log('-', 'tabulky prijem', 'odmítnuto'); tb_out(['ok' => false, 'error' => 'přihlášení k příjmu vypršelo, přihlas se znovu'], 401); }
+  $actor = 'prijem';
 } else {
   $why = '';
   $c = tb_jwt((string) ($_SERVER['HTTP_X_TRELLO_JWT'] ?? ''), $why);

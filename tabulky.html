@@ -73,8 +73,17 @@ footer{padding:6px 12px;border-top:1px solid var(--bd);color:var(--txt-dim);font
 <footer><span id="count"></span><span>Jen ke čtení. Data jsou kopie sešitu EVIDENCE k uvedenému času, ne živý stav.</span></footer>
 <script>
 (function(){
-  var t = window.TrelloPowerUp.iframe();
-  try { var th = t.arg('theme') || (t.getContext() || {}).theme; if (th === 'light') document.documentElement.setAttribute('data-theme','light'); } catch(e){}
+  /* z=prijem: otevřeno z formuláře příjmu materiálu, mimo Trello – ověřuje cookie přihlášení k příjmu */
+  var P = new URLSearchParams(location.search), PRIJEM = P.get('z') === 'prijem';
+  var t = PRIJEM ? null : window.TrelloPowerUp.iframe();
+  if (PRIJEM) {
+    var pth = null; try { pth = localStorage.getItem('prijemTheme'); } catch(e){}
+    if ((P.get('theme') || pth) === 'light') document.documentElement.setAttribute('data-theme','light');
+    document.title = 'Tabulky AutoLAB – příjem';
+  } else {
+    try { var th = t.arg('theme') || (t.getContext() || {}).theme; if (th === 'light') document.documentElement.setAttribute('data-theme','light'); } catch(e){}
+  }
+  function arg(k){ return PRIJEM ? P.get(k) : t.arg(k); }
 
   var API = 'tabulky-api.php';
   var jwtTok = '', jwtExp = 0, cache = {}, cur = null, sortK = null, sortDir = 1;
@@ -90,9 +99,11 @@ footer{padding:6px 12px;border-top:1px solid var(--bd);color:var(--txt-dim);font
     });
   }
   function get(q){
-    return token().then(function(j){
-      return fetch(API + (q ? '?' + q : ''), { headers: { 'X-Trello-JWT': j }, cache: 'no-store' });
-    }).then(function(r){ return r.json(); }).then(function(d){
+    var url = API + (q ? '?' + q : '');
+    return (PRIJEM
+      ? fetch(url, { credentials: 'same-origin', cache: 'no-store' })
+      : token().then(function(j){ return fetch(url, { headers: { 'X-Trello-JWT': j }, cache: 'no-store' }); })
+    ).then(function(r){ return r.json(); }).then(function(d){
       if (!d || !d.ok) throw new Error((d && d.error) || 'chyba serveru');
       return d;
     });
@@ -185,7 +196,7 @@ footer{padding:6px 12px;border-top:1px solid var(--bd);color:var(--txt-dim);font
       return '<button class="tab" role="tab" type="button" data-id="' + esc(x.id) + '">' + esc(x.title) + '</button>';
     }).join('');
     Array.prototype.forEach.call($('tabs').children, function(b){ b.addEventListener('click', function(){ load(b.dataset.id); }); });
-    load(t.arg('tab') || 'baleni');
+    load(arg('tab') || 'baleni');
   }).catch(function(e){ showMsg('Prohlížeč se nepodařilo otevřít: ' + e.message, true); });
 })();
 </script>
