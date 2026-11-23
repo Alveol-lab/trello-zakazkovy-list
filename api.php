@@ -23,7 +23,7 @@ const API_KEYS_TTL  = 4 * 3600;
 
 /* ID Power-Upu v Trellu. Prázdné = zatím se nekontroluje, jen zapisuje do
    logu; po prvním ostrém volání se sem doplní hodnota z logu. */
-const API_PLUGIN = '';
+const API_PLUGIN = '6a7f5eb6817f162662936fff';   // Zakázkový list (zjištěno z logu 23. 11. 2026)
 
 /* technici: Trello účet = list v EVIDENCE (stejné jako MEMBERS v section3.html) */
 const API_ACTORS = [
