@@ -675,6 +675,16 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
      Proxy ověří podpis Trella (JWT) a teprve pak přidá klíč pro Apps Script.
      JWT platí 15 min; drží se v paměti a obnoví minutu před vypršením.    */
   var SCRIPT_URL = 'api.php';
+
+  /* Zálohy na analog (ZANAD, ZANAE, ZANAN) vrací ordinace, ne zprostředkovatel.
+     U zakázek s ORD XKK se proto řádek zálohy zapisuje na JMA (tak se to
+     v listech techniků dělá i dosud, 225 z 227 případů). Dočasně tady; cílově
+     příznak „záloha“ u výrobku v katalogu a plátce záloh u ordinace v SQL.  */
+  var ZALOHA_KOD = /^ZANA/;
+  var ZALOHA_ORD = { XKK: 'JMA' };
+  function zalohaOrd(kod, ord){
+    return (ZALOHA_KOD.test(String(kod || '').toUpperCase()) && ZALOHA_ORD[ord]) || ord;
+  }
   var jwtTok = '', jwtExp = 0;
   function trelloJwt(){
     var now = Date.now() / 1000;
@@ -2188,6 +2198,14 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (didOf($('did').value) && qaValid($('mq').value)) addMaterial();   /* rozepsaný materiál se nezahodí */
     var r = collect();
     if (lastHit && !isPhase(r)) r.anam = lastHit.anam;   /* popis vždy z ceníku, ne z fulltextu */
+    if (!isPhase(r) && zalohaOrd(r.anid, r.ord) !== r.ord) {
+      r.ord = zalohaOrd(r.anid, r.ord);
+      if (lastHit) {                                       /* cena a odměna podle nové ordinace (už ne XKK) */
+        r.cjed = numFmt(lastHit.cjedE); r.ctot = numFmt(numParse(r.qa) * numParse(lastHit.cjedE));
+        r.odmj = numFmt(lastHit.odmI);  r.odmt = numFmt(numParse(r.qa) * numParse(lastHit.odmI));
+      }
+      wmsg('Záloha ' + r.anid + ' se zapisuje na ordinaci ' + r.ord + '.', 6);
+    }
     if (!sheetAllowed(r.tid, 'Zápis')) return;
     var edit = state.editIndex, ref = (edit != null && state.rows[edit]) ? state.rows[edit]._href : null;
     var auto = isPhase(r) ? null : autoPayload();
@@ -2334,10 +2352,11 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       var pol = lpUnion(hl.kod, hl.nazev, sady);
       lp.blok = { polozky: pol };
       var def = qaNorm($('qa').value); if (!qaValid(def)) def = '1';
+      var ordNow = ordClean($('ord').value);
       $('lpQ').innerHTML = pol.map(function(p, k){
         return '<div class="qrow"><span class="k">' + esc(p.kod) + '</span>'
              + '<input class="f" data-k="' + k + '" inputmode="decimal" autocomplete="off" value="' + (k === 0 ? esc(def) : '0') + '">'
-             + '<span class="n">' + esc(p.nazev) + '</span></div>';
+             + '<span class="n">' + esc(p.nazev) + (zalohaOrd(p.kod, ordNow) !== ordNow ? ' → ' + esc(zalohaOrd(p.kod, ordNow)) : '') + '</span></div>';
       }).join('');
       resize();
       var first = $('lpQ').querySelector('input');
@@ -2371,15 +2390,15 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (state.editIndex != null) { wmsg('Dokonči nebo zruš rozpracovanou úpravu řádku.', 10); return; }
     if (!sheetAllowed(tid, 'Zápis')) return;
 
-    var xkk = ord === 'XKK';
     var items = b.polozky.map(function(p, k){ return { kod: anidClean(p.kod), nazev: p.nazev, qa: inputs[k].value }; })
                  .filter(function(it){ return qaValid(it.qa); });               /* 0 ks = položka není obsažena */
     $('lpok').disabled = true;
     Promise.all(items.map(function(it){ return pricebookLookup(it.kod, ceny); })).then(function(hits){
       var commits = [];
       items.forEach(function(it, k){
-        var h = hits[k] || null, cj = h ? (xkk ? h.cjedF : h.cjedE) : null, od = h ? (xkk ? h.odmJ : h.odmI) : null;
-        var r = { qa: it.qa, anid: it.kod, anam: h ? h.anam : it.nazev, ord: ord, outs: '', tid: tid, ceny: ceny,
+        var x = zalohaOrd(it.kod, ord) === 'XKK';
+        var h = hits[k] || null, cj = h ? (x ? h.cjedF : h.cjedE) : null, od = h ? (x ? h.odmJ : h.odmI) : null;
+        var r = { qa: it.qa, anid: it.kod, anam: h ? h.anam : it.nazev, ord: zalohaOrd(it.kod, ord), outs: '', tid: tid, ceny: ceny,
                   cjed: numFmt(cj), ctot: numFmt(numParse(it.qa) * numParse(cj)),
                   odmj: numFmt(od), odmt: numFmt(numParse(it.qa) * numParse(od)), mats: [] };
         var c = commitRow(r, null); if (c) commits.push(c);
