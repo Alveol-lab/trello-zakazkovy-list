@@ -98,6 +98,7 @@ try {
     $cek = $pdo->query('SELECT DISTINCT mat_id FROM ' . mat_t('mat_propis') . " WHERE stav IN ('čeká', 'chyba')")->fetchAll(PDO::FETCH_COLUMN);
     ma_out(['ok' => true, 'zdroj' => 'sql', 'tabulka' => 'SQL ' . $T, 'cols' => $cols, 'rows' => $rows,
             'skupiny' => $pdo->query('SELECT kod FROM ' . mat_t('mat_skupina') . ' ORDER BY kod')->fetchAll(PDO::FETCH_COLUMN),
+            'skup_typ' => mat_sk_typy(),
             'zmeny' => array_map(fn($z) => [(int) $z[0], $z[1], $z[2], $z[3], $z[4], $z[5], $z[6], $z[7] === null ? null : (int) $z[7]], array_reverse($zm)),
             'davky' => $smi ? mat_davky() : [],
             'cekaji' => array_map('intval', $cek), 'smi_upravovat' => $smi, 'vidi_ceny' => $smi, 'kdo' => $kdo]
@@ -137,7 +138,7 @@ try {
   $p = 'hotovo';
   if ($zm && array_diff($zm, ['cena_nakup', 'navyseni_pct', 'stav', 'trvanlivost_mes'])) $p = empty($b['odlozit']) ? (mat_sync([$id])[$id] ?? 'chyba') : 'čeká';
   mat_log($kdo, 'set ' . $m['ref'] . ' ' . $pole, 'ok propis ' . $p);
-  ma_out(['ok' => true, 'verze' => (int) $m['verze'], 'propis' => $p === 'hotovo' ? 'hotovo' : 'čeká']);
+  ma_out(['ok' => true, 'verze' => (int) $m['verze'], 'odpis' => $m['odpis'], 'propis' => $p === 'hotovo' ? 'hotovo' : 'čeká']);
 } catch (Throwable $e) {
   mat_log($kdo ?? '-', 'chyba', substr($e->getMessage(), 0, 200));
   ma_out(['ok' => false, 'error' => 'databáze neodpověděla'], 502);
