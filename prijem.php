@@ -266,10 +266,11 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
         <div class="seg grow" id="odpis" title="jak se materiál odepisuje do zakázek">
           <button type="button" data-v="auto" aria-pressed="false" title="odepisuje se automaticky podle výrobku (MAT-SET / PRODB)">odpis auto</button>
           <button type="button" data-v="ruční" aria-pressed="false" title="technik zapisuje DID ručně k zakázce (šrouby, implantáty, kusové komponenty)">odpis ruční</button>
+          <button type="button" data-v="?" aria-pressed="false" title="nevím – doplní Brigit při kontrole příjmu">nevím</button>
         </div>
       </div>
       <div class="row">
-        <input class="f grow" id="skup" placeholder="skupina SK-… (nepovinné – jen když materiál patří do skupiny)" autocomplete="off" spellcheck="false">
+        <input class="f grow" id="skup" placeholder="skupina SK-… (nevíš? nech prázdné – doplní Brigit)" autocomplete="off" spellcheck="false">
       </div>
       <div class="hint warn" id="newHint">REF není v číselníku – vyplň kartu nového materiálu.</div>
     </div>
@@ -469,7 +470,26 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   });
 
   /* ---- stav formuláře ---- */
-  var S = { mat:null, newMat:false, seq:0, busy:false };
+  var S = { mat:null, newMat:false, seq:0, busy:false, kod:'', alias:null, aliasNote:'', viaPick:false };
+  /* čárový kód z krabice (EAN/GTIN 8–14 číslic) – není to katalogové REF */
+  function isEan(v){ return /^\d{8,14}$/.test(String(v || '').trim()); }
+  /* podobné karty podle slov v názvu (stačí 2 shodná slova, překlep v jednom slově nevadí) */
+  var NT_STOP = ['the','and','pro','for','with','kg','1kg','500g','1000g','ml','resin','ks','bal'];
+  function nameTokens(v){
+    return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^a-z0-9]+/)
+      .filter(function(t){ return t.length >= 3 && NT_STOP.indexOf(t) < 0; });
+  }
+  function similarNames(name, max){
+    var tk = nameTokens(name); if (tk.length < 2) return [];
+    var out = [];
+    DATA.karty.forEach(function(x){
+      var ct = nameTokens(x[1]), hit = 0;
+      tk.forEach(function(t){ if (ct.indexOf(t) >= 0) hit++; });
+      if (hit >= 2) out.push({ x:x, n:hit });
+    });
+    out.sort(function(a, b){ return b.n - a.n; });
+    return out.slice(0, max || 5).map(function(o){ return o.x; });
+  }
   function matFormaKnown(){ return S.mat && formaOf(S.mat.forma); }
   function formaSync(){
     var ask = S.newMat || (S.mat && !formaOf(S.mat.forma));
@@ -512,11 +532,17 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     var raw = $('ref').value, ref = refClean(raw), seq = ++S.seq;
     if (ref !== raw) $('ref').value = ref;
     S.mat = null; $('nam').value = ''; newMatOff(); mark($('ref'), ''); invalidate();
+    if (!S.viaPick) { S.kod = ref; S.alias = null; S.aliasNote = ''; }
+    S.viaPick = false;
     if (!ref) { refHint('', 'Opiš REF z obalu. Formulář najde kartu materiálu, nebo nabídne založení nové.'); formaSync(); return; }
     $('nam').classList.add('wait'); $('nam').value = 'hledám v číselníku…';
     getJSON('?matref=' + encodeURIComponent(ref)).then(function(d){
       if (seq !== S.seq) return;
       $('nam').classList.remove('wait'); $('nam').value = '';
+      if (d && d.alias && d.alias.ref) {              /* kód z krabice je navázaný na kartu (alias) → přejdi na ni */
+        S.aliasNote = 'Kód ' + esc(d.alias.kod) + ' z krabice patří ke kartě ' + esc(d.alias.ref) + '. ';
+        S.viaPick = true; $('ref').value = d.alias.ref; refResolve(); return;
+      }
       if (d && d.nazev != null) {
         S.mat = d; $('nam').value = d.nazev; $('nam').classList.add('got'); mark($('ref'), '');
         segSet('forma', ''); $('jed').value = '';
@@ -527,11 +553,19 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
           refHint('bad', 'Tento materiál je MD – dodává se k zakázce. Na sklad se nepřijímá, založí ho technik v zakázkovém listu úkonem MD.');
           formaSync(); return;
         }
-        refHint('good', 'Materiál je v číselníku' + (d.vyrobce ? ' – ' + esc(d.vyrobce) : '') + (d.dodavatel ? ' / ' + esc(d.dodavatel) : '') + '.');
+        refHint('good', S.aliasNote + 'Materiál je v číselníku' + (d.vyrobce ? ' – ' + esc(d.vyrobce) : '') + (d.dodavatel ? ' / ' + esc(d.dodavatel) : '') + '.'
+          + (S.alias ? ' Kód ' + esc(S.alias.kod) + ' se po založení ke kartě uloží – příště ji formulář najde sám.' : ''));
         formaSync(); return;
       }
       var sim = similarRefs(ref), list = sim.same.concat(sim.near);
       newMatOn(); mark($('ref'), 'warn');
+      var sib = list.filter(function(x){ return x[2]; })[0];   /* podobný REF má skupinu → předvyplň ji (kontrola příjmu ji případně opraví) */
+      if (sib && !$('skup').value) $('skup').value = sib[2];
+      if (isEan(ref)) {
+        refHint('warn', 'Tohle je čárový kód z krabice, ne katalogové číslo (REF). Napiš do pole název pár slov z obalu (výrobce, typ, barva) – nabídnu existující kartu. Novou zakládej, jen když žádná nesedí.');
+        $('newHint').className = 'hint warn'; $('newHint').textContent = 'Piš název – podobné karty se ukážou tady.';
+        $('nam').focus(); return;
+      }
       if (list.length) {
         refHint('warn', (sim.same.length ? 'Tento REF je v číselníku zapsaný jinak – nejspíš jde o stejný materiál:' : 'REF v číselníku není. Podobné REF (možný překlep):') + '<br>'
           + list.map(function(x){ return '<button type="button" data-ref="' + esc(x[0]) + '">' + esc(x[0]) + ' – ' + esc(String(x[1]).slice(0, 40)) + '</button>'; }).join('')
@@ -541,9 +575,13 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   }
   $('ref').addEventListener('change', refResolve);
   $('ref').addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); this.blur(); } });
+  function pickCard(ref){                       /* obsluha vybrala existující kartu → zadaný kód se uloží jako alias */
+    if (S.kod && refClean(S.kod) !== refClean(ref)) S.alias = { kod:S.kod, ref:ref };
+    S.viaPick = true; $('ref').value = ref; refResolve();
+  }
   $('refHint').addEventListener('click', function(e){
     var b = e.target.closest('[data-ref]'); if (!b) return;
-    $('ref').value = b.getAttribute('data-ref'); refResolve();
+    pickCard(b.getAttribute('data-ref'));
   });
 
   /* ---- název nové karty: upozornění na podobnou existující kartu ---- */
@@ -551,15 +589,17 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   function nameCheck(){
     var k = nameKey($('nam').value), h = $('newHint');
     if (k.length < 5) { h.className = 'hint warn'; h.textContent = 'REF není v číselníku – vyplň kartu nového materiálu.'; return; }
-    var hit = DATA.karty.filter(function(x){ return nameKey(x[1]).indexOf(k) >= 0; }).slice(0, 3);
+    var hit = DATA.karty.filter(function(x){ return nameKey(x[1]).indexOf(k) >= 0; });
+    similarNames($('nam').value, 5).forEach(function(x){ if (hit.indexOf(x) < 0) hit.push(x); });
+    hit = hit.slice(0, 5);
     if (!hit.length) { h.className = 'hint warn'; h.textContent = 'REF není v číselníku – vyplň kartu nového materiálu.'; return; }
     h.className = 'hint warn';
-    h.innerHTML = 'Podobný název už v číselníku je – není to stejný materiál?<br>'
+    h.innerHTML = 'Tyhle karty už v číselníku jsou – není to jedna z nich? Klikni na ni:<br>'
       + hit.map(function(x){ return '<button type="button" data-ref="' + esc(x[0]) + '">' + esc(x[0]) + ' – ' + esc(String(x[1]).slice(0, 40)) + '</button>'; }).join('');
   }
   $('newHint').addEventListener('click', function(e){
     var b = e.target.closest('[data-ref]'); if (!b) return;
-    $('ref').value = b.getAttribute('data-ref'); refResolve();
+    pickCard(b.getAttribute('data-ref'));
   });
 
   /* ---- našeptávač výrobce / dodavatele / skupiny ---- */
@@ -636,7 +676,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       sgCanon($('vyr')); sgCanon($('dod')); sgCanon($('skup'));
       r.mn = { ref:r.ref, nazev:$('nam').value.trim(), kat:segVal('kat1') + segVal('kat2'), vyrobce:$('vyr').value.trim(),
                dodavatel:$('dod').value.trim(), forma:segVal('forma'), jednotek:segVal('forma') === 'ks' ? '1' : $('jed').value,
-               skupina:$('skup').value.trim(), odpis:segVal('odpis') };
+               skupina:$('skup').value.trim(), odpis:segVal('odpis') === '?' ? '' : segVal('odpis') };
       r.forma = r.mn.forma; r.jed = r.mn.jednotek; r.nazev = r.mn.nazev;
     } else if (S.mat) {
       r.nazev = S.mat.nazev;
@@ -659,7 +699,12 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       if (!mn.vyrobce) { E.push('Nová karta: chybí výrobce.'); mark($('vyr'), 'bad'); }
       if (!mn.forma) { E.push('Nová karta: vyber formu kus / balení.'); $('forma').classList.add('bad'); }
       if (mn.forma === 'bal' && !(parseFloat(mn.jednotek) > 0)) { E.push('Nová karta: doplň počet kusů v 1 balení.'); mark($('jed'), 'bad'); }
-      if (!mn.odpis) { E.push('Nová karta: vyber odpis auto / ruční.'); $('odpis').classList.add('bad'); }
+      if (!segVal('odpis')) { E.push('Nová karta: vyber odpis auto / ruční, nebo „nevím“.'); $('odpis').classList.add('bad'); }
+      if (isEan(mn.ref)) W.push('REF ' + mn.ref + ' je čárový kód z krabice, ne katalogové číslo. Zkontroluj, jestli materiál už nemá kartu (napiš do názvu pár slov z obalu).');
+      if (mn.forma === 'bal' && parseFloat(mn.jednotek) > 100) W.push('Opravdu ' + mn.jednotek + ' kusů v jednom balení? U tekutin, prášků a resinů (kg, l, g) zadej formu kus – 1 lahev = 1 ks.');
+      var simN = similarNames(mn.nazev, 3).filter(function(x){ return refClean(x[0]) !== refClean(mn.ref); });
+      if (simN.length) W.push('Podobná karta už existuje: ' + simN.map(function(x){ return x[0] + ' (' + String(x[1]).slice(0, 40) + ')'; }).join(', ') + ' – opravdu zakládáš novou?');
+      if (!mn.skupina || !mn.odpis) W.push('Skupinu / odpis doplní Brigit při kontrole příjmu.');
       if (mn.skupina && !/^SK-[A-Z0-9-]+$/.test(mn.skupina)) { E.push('Skupina musí začínat SK- (např. SK-ORTO-POLYMER).'); mark($('skup'), 'bad'); }
       if (!mn.dodavatel) W.push('Nová karta nemá dodavatele.');
       if (mn.vyrobce && DATA.vyrobci.length && !DATA.vyrobci.some(function(v){ return nameKey(v) === nameKey(mn.vyrobce); })) W.push('Výrobce „' + mn.vyrobce + '“ zatím v číselníku není – je zapsaný správně?');
@@ -684,11 +729,11 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       if (/\s/.test(r.lot)) W.push('LOT obsahuje mezeru – opiš ho přesně jako na obalu.');
     }
     var ex = dParse(r.exp), t = today();
-    if (!r.exp) { if (!isMd) { W.push('Není vyplněná expirace – materiál bez expirace?'); mark($('exp'), 'warn'); } }
+    if (!r.exp) { /* bez varování: server doplní dnes + trvanlivost karty, souhrn ukáže datum */ }
     else if (!ex) { E.push('Expirace má neplatné datum.'); mark($('exp'), 'bad'); }
     else if (ex < t) { E.push('Expirace ' + dFmt(ex) + ' už uplynula – prošlý materiál se nezakládá.'); mark($('exp'), 'bad'); }
     else if (!isMd && (ex - t) / 864e5 < 90) { W.push('Expirace ' + dFmt(ex) + ' je za méně než 3 měsíce.'); mark($('exp'), 'warn'); }
-    else if (!isMd && ex.getFullYear() > t.getFullYear() + 15) { W.push('Expirace ' + dFmt(ex) + ' je víc než 15 let dopředu – je rok zadaný správně?'); mark($('exp'), 'warn'); }
+    else if (!isMd && ex.getFullYear() > t.getFullYear() + 6) { W.push('Expirace ' + dFmt(ex) + ' je víc než 6 let dopředu – je rok zadaný správně?'); mark($('exp'), 'warn'); }
     if (r.q < 1 || r.q > 20) { E.push('Počet musí být 1–20 (víc najednou rozděl do dvou příjmů).'); mark($('q'), 'bad'); }
     else if (r.q > 10) W.push('Zakládá se ' + r.q + ' DID najednou – sedí počet?');
   }
@@ -698,6 +743,13 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       var hit = ((d && d.items) || []).filter(function(x){ return refClean(x.ref) === r.ref && String(x.lot).trim().toUpperCase() === r.lot.toUpperCase(); });
       if (hit.length) r.warn.push('Šarže ' + r.lot + ' tohoto materiálu už je založená (' + hit.map(function(x){ return x.did + ' ' + String(x.status).toLowerCase(); }).join(', ') + '). Jde o novou dodávku, ne o opakované založení?');
     });
+  }
+  /* trvanlivost karty MAT (SQL) – prázdná = 24 měsíců; stejný výpočet jako mat_exp_auto v mat-lib.php */
+  function trvMes(){ var t = S.mat ? parseInt(S.mat.trvanlivost_mes, 10) : 0; return t > 0 ? t : 24; }
+  function expAuto(){
+    var d = new Date(), m = trvMes(), t = new Date(d.getFullYear(), d.getMonth() + m, d.getDate());
+    if (t.getDate() !== d.getDate()) t = new Date(d.getFullYear(), d.getMonth() + m + 1, 0);
+    return t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2) + '-' + ('0' + t.getDate()).slice(-2);
   }
   function review(r){
     var rows = [
@@ -711,7 +763,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       rows.push(['skupina / odpis', (r.mn.skupina || 'samostatný') + ' / ' + (r.mn.odpis || '—')]);
     }
     rows.push(['LOT', r.lot || '—']);
-    rows.push(['expirace', r.exp ? dFmt(dParse(r.exp)) : 'bez expirace']);
+    rows.push(['expirace', r.exp ? dFmt(dParse(r.exp)) : dFmt(dParse(expAuto())) + ' – dopočteno, obal ji neuvádí (trvanlivost ' + trvMes() + ' měs.)']);
     rows.push(['založí se', r.q + ' × ' + (r.forma === 'ks' ? 'kus' : 'balení po ' + n2(r.jed) + ' ks') + ' = ' + r.q + ' DID']);
     $('sumt').innerHTML = rows.map(function(x){ return '<tr><td>' + esc(x[0]) + '</td><td>' + esc(x[1]) + '</td></tr>'; }).join('');
     $('msgs').innerHTML = r.err.map(function(m){ return '<div class="msg bad"><span class="x">!</span><span>' + esc(m) + '</span></div>'; }).join('')
@@ -740,14 +792,16 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     S.busy = true; goSync(); $('go').textContent = 'zakládám…';
     var items = [];
     for (var i = 0; i < r.q; i++) items.push({ ref:r.ref, q:r.forma === 'ks' ? '1' : r.jed, lot:r.lot, exp:r.exp, forma:r.forma, tuse:'', stav:'ZALOŽENO', md:false });
-    post({ action:'lotCreate', operator:r.oper, src:'prijem', items:items, matNew:S.newMat ? r.mn : null, matFill:r.matFill || null }).then(function(d){
+    post({ action:'lotCreate', operator:r.oper, src:'prijem', items:items, matNew:S.newMat ? r.mn : null, matFill:r.matFill || null,
+           aliasNew:(!S.newMat && S.alias && S.mat && refClean(S.alias.ref) === refClean(r.ref)) ? S.alias : null }).then(function(d){
       S.busy = false;
       if (!d || !d.ok) { $('msgs').insertAdjacentHTML('afterbegin', '<div class="msg bad"><span class="x">!</span><span>Založení se nepovedlo – ' + esc((d && d.error) || 'server neodpověděl') + '. Nic se nezapsalo, zkus to znovu.</span></div>'); goSync(); return; }
       if (S.newMat && r.mn) DATA.karty.push([r.ref, r.mn.nazev, r.mn.skupina, r.mn.odpis]);
       if (r.matFill && S.mat) { S.mat.forma = r.forma === 'ks' ? 'kus' : 'balení'; S.mat.jednotek = r.jed; }
       var ds = (d.items || []).map(function(x){ return x.did; });
+      var ea = d.expAuto || {}, rexp = r.exp || ea[r.ref] || ea[Object.keys(ea)[0]] || '';   /* bez expirace: server doplnil dnes + trvanlivost karty */
       $('done').innerHTML = '<div class="t">Založeno na sklad – ' + ds.length + ' DID</div>'
-        + '<div class="s">' + esc(r.nazev) + ' · REF ' + esc(r.ref) + ' · LOT ' + esc(r.lot) + (r.exp ? ' · exp. ' + esc(dFmt(dParse(r.exp))) : '') + (d.matRow && S.newMat ? ' · karta MAT řádek ' + d.matRow : '') + '</div>'
+        + '<div class="s">' + esc(r.nazev) + ' · REF ' + esc(r.ref) + ' · LOT ' + esc(r.lot) + (rexp ? ' · exp. ' + esc(dFmt(dParse(rexp))) + (r.exp ? '' : ' (dopočteno)') : '') + (d.matRow && S.newMat ? ' · karta MAT řádek ' + d.matRow : '') + '</div>'
         + '<div class="dids">' + ds.map(function(x){ return '<b>' + esc(x) + '</b>'; }).join('') + '</div>'
         + '<div class="lblbar"><span class="lab">páska</span><div class="seg" id="tape">'
         + [9, 12, 24].map(function(w){ return '<button type="button" data-v="' + w + '" aria-pressed="' + (w === LBL.tape ? 'true' : 'false') + '">' + w + ' mm</button>'; }).join('')
@@ -755,10 +809,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
         + '<div class="lblprev" id="lblPrev"></div>'
         + '<div class="s">Štítek nalep na každé balení (kus). Čárový kód obsahuje DID.</div>'
         + '<div class="nacts"><button type="button" class="btn ghost" id="again">další šarže stejného materiálu</button><button type="button" class="btn pri" id="fresh">nový materiál</button></div>';
-      LBL.items = ds.map(function(x){ return { did:x, nazev:r.nazev, ref:r.ref, lot:r.lot, exp:r.exp ? dFmt(dParse(r.exp)) : '' }; });
+      LBL.items = ds.map(function(x){ return { did:x, nazev:r.nazev, ref:r.ref, lot:r.lot, exp:rexp ? dFmt(dParse(rexp)) : '' }; });
       var nowS = new Date(), zs = nowS.getDate() + '.' + (nowS.getMonth() + 1) + '.' + nowS.getFullYear() + ' ' + nowS.getHours() + ':' + ('0' + nowS.getMinutes()).slice(-2);
       (d.items || []).slice().reverse().forEach(function(x){
-        DATA.zapsane.unshift({ did:x.did, ref:r.ref, nazev:r.nazev, lot:r.lot, exp:r.exp || '', q:x.q, jed:r.forma === 'ks' ? 'ks' : 'bal', zal:zs, kdo:r.oper, lze:true, _new:true });
+        DATA.zapsane.unshift({ did:x.did, ref:r.ref, nazev:r.nazev, lot:r.lot, exp:rexp, q:x.q, jed:r.forma === 'ks' ? 'ks' : 'bal', zal:zs, kdo:r.oper, lze:true, _new:true });
       });
       zRender();
       lblPreview();

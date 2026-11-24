@@ -5,7 +5,8 @@
      X-Trello-JWT – stejně jako api.php. Z formuláře příjmu
      (tabulky.html?z=prijem) stačí platná cookie přihlášení k příjmu.
    - Pevný seznam tabulek a dotazů, prohlížeč neposílá žádné SQL.
-   - V E1 jen sklad a výrobky. Výkony, ceny a odměny se tudy nečtou.
+   - V E1 jen sklad a výrobky. Ceny a odměny se tudy nečtou. Výjimka: trasování
+     (?trace=) čte živě z EVIDENCE výkony zakázky (kód, datum, ordinace, pacient).
    - Přístup k databázi: autolab-db.cnf mimo web (práva 600).
    ========================================================= */
 header('Content-Type: application/json; charset=utf-8');
@@ -19,6 +20,7 @@ const TB_KEYS_FILE = __DIR__ . '/../../autolab-trello-keys.json';   // sdílená
 const TB_LOG       = __DIR__ . '/../../autolab-api.log';
 const TB_KEYS_TTL  = 4 * 3600;
 const TB_PLUGIN    = '6a7f5eb6817f162662936fff';                    // Zakázkový list
+const TB_GAS_URL   = 'https://script.google.com/macros/s/AKfycbyoF5oQtNIh8YktGX9lNcwj1OwSKbthQovlYIr-vbi2fJ6CN1heJYJxnB96zTVZDQpz/exec';
 
 /* technici H J Z P U I + recepce (Marie Vosiková) + Brigit Denteo – stejné jako API_USERS v api.php */
 const TB_USERS = [
@@ -150,6 +152,34 @@ if (PHP_SAPI === 'cli') {
   if (!in_array($actor, TB_USERS, true)) { tb_log($actor, 'tabulky člen', 'odmítnuto'); tb_out(['ok' => false, 'error' => 'tento Trello účet nemá ke katalogu přístup'], 403); }
 }
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') tb_out(['ok' => false, 'error' => 'nepovolená metoda'], 405);
+
+/* ---- trasování UID ↔ šarže (krok 29): živě z EVIDENCE přes Apps Script, karty MAT ze SQL ---- */
+if (isset($_GET['trace'])) {
+  require_once __DIR__ . '/prijem-auth.php';               // prijem_secret() – klíč pro Apps Script
+  $q = trim((string) $_GET['trace']);
+  if (!preg_match('/^[\p{L}\p{N} ._\/-]{3,60}$/u', $q)) tb_out(['ok' => false, 'error' => 'zadej UID, DID nebo šarži'], 400);
+  $sec = prijem_secret();
+  if (!$sec) tb_out(['ok' => false, 'error' => 'server: chybí klíč Apps Scriptu'], 500);
+  $c = curl_init(TB_GAS_URL . '?' . http_build_query(['trace' => $q, 'key' => $sec['key']]));
+  curl_setopt_array($c, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 5,
+                         CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 90]);
+  $r = curl_exec($c); $code = (int) curl_getinfo($c, CURLINFO_HTTP_CODE);
+  $d = is_string($r) ? json_decode($r, true) : null;
+  if ($code !== 200 || !is_array($d)) { tb_log($actor, 'trace', 'GAS ' . $code); tb_out(['ok' => false, 'error' => 'evidence neodpověděla (HTTP ' . $code . ')'], 502); }
+  if (!empty($d['ok']) && !empty($d['baleni'])) {
+    try {                                                  // výrobce, název a druh karty ze SQL (zdroj pravdy MAT)
+      $refs = array_values(array_unique(array_filter(array_map(fn($b) => (string) ($b['ref'] ?? ''), $d['baleni']))));
+      if ($refs) {
+        $st = tb_pdo()->prepare('SELECT ref, nazev, vyrobce, druh FROM mat WHERE ref IN (' . implode(',', array_fill(0, count($refs), '?')) . ')');
+        $st->execute($refs); $m = [];
+        foreach ($st->fetchAll() as $x) $m[mb_strtoupper($x[0])] = ['nazev' => $x[1], 'vyrobce' => $x[2], 'druh' => $x[3]];
+        foreach ($d['baleni'] as $k => $b) { $x = $m[mb_strtoupper((string) ($b['ref'] ?? ''))] ?? null; if ($x) $d['baleni'][$k] += $x; }
+      }
+    } catch (Throwable $e) {}
+  }
+  tb_log($actor, 'trace ' . $q, empty($d['ok']) ? 'chyba' : 'ok');
+  tb_out($d);
+}
 
 $t = (string) ($_GET['t'] ?? '');
 try {

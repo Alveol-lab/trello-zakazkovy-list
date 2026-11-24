@@ -22,7 +22,8 @@ const MAT_LOG      = __DIR__ . '/../../autolab-api.log';
 const MAT_GAS_URL  = 'https://script.google.com/macros/s/AKfycbyoF5oQtNIh8YktGX9lNcwj1OwSKbthQovlYIr-vbi2fJ6CN1heJYJxnB96zTVZDQpz/exec';
 const MAT_ODPIS    = ['auto', 'ruční'];
 const MAT_POLE_UI  = ['nazev', 'kat', 'forma', 'jednotek', 'vyrobce', 'dodavatel', 'skupina', 'odpis',
-                      'cena_nakup', 'navyseni_pct', 'stav'];
+                      'cena_nakup', 'navyseni_pct', 'stav', 'trvanlivost_mes'];
+const MAT_TRV_DEF  = 24;     // trvanlivost balení bez expirace na obalu (měsíce), karta ji může přepsat (24. 11.)
 /* Trello účet → technik (list v EVIDENCE). Kopie MEMBER_SHEET_MAP z Apps Scriptu
    a MEMBERS ze section3.html – při změně technika upravit všechna tři místa. */
 const MAT_TECHNIK = [
@@ -98,7 +99,7 @@ function mat_check(array $z, bool $ui = false): array {
   $v = [];
   foreach ($z as $k => $x) {
     if (!in_array($k, MAT_POLE_UI, true)) continue;
-    if (!$ui && in_array($k, ['cena_nakup', 'navyseni_pct', 'stav'], true)) continue;   // ceny a stav jen z prohlížeče
+    if (!$ui && in_array($k, ['cena_nakup', 'navyseni_pct', 'stav', 'trvanlivost_mes'], true)) continue;   // ceny a stav jen z prohlížeče
     $v[$k] = is_string($x) || is_numeric($x) ? mat_txt($x) : ($x === null ? '' : '');
   }
   if (array_key_exists('nazev', $v) && $v['nazev'] === '') return [null, 'název nesmí být prázdný'];
@@ -131,6 +132,12 @@ function mat_check(array $z, bool $ui = false): array {
     $n = mat_num($v['navyseni_pct']);
     if ($n === null || $n < 0 || $n > 100) return [null, 'navýšení musí být 0 až 100 %'];
     $v['navyseni_pct'] = round($n, 2);
+  }
+  if (array_key_exists('trvanlivost_mes', $v)) {     // prázdné = výchozích MAT_TRV_DEF měsíců
+    if ($v['trvanlivost_mes'] === '') $v['trvanlivost_mes'] = null;
+    else { $t = mat_num($v['trvanlivost_mes']);
+      if ($t === null || $t != floor($t) || $t < 1 || $t > 120) return [null, 'trvanlivost musí být celý počet měsíců 1 až 120 (prázdné = ' . MAT_TRV_DEF . ')'];
+      $v['trvanlivost_mes'] = (int) $t; }
   }
   if (array_key_exists('stav', $v) && !in_array($v['stav'], ['aktivní', 'neaktivní'], true)) return [null, 'stav musí být aktivní / neaktivní'];
   return [$v, ''];
@@ -198,7 +205,8 @@ function mat_apply(int $id, array $v, string $kdo, string $zdroj, ?int $verze = 
   } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
 }
 
-function mat_create(array $mn, string $ref, string $kdo, string $zdroj): array {
+function mat_create(array $mn, string $ref, string $kdo, string $zdroj, string $druh = 'sklad'): array {
+  $druh = $druh === 'MD' ? 'MD' : 'sklad';
   $pdo = mat_pdo(); $T = mat_t('mat');
   $mn = array_filter(array_intersect_key($mn, array_flip(['nazev', 'kat', 'forma', 'jednotek', 'vyrobce', 'dodavatel', 'skupina', 'odpis'])),
                      fn($x, $k) => !in_array($k, ['jednotek', 'forma', 'odpis'], true) || ($x !== null && $x !== ''), ARRAY_FILTER_USE_BOTH);
@@ -212,9 +220,9 @@ function mat_create(array $mn, string $ref, string $kdo, string $zdroj): array {
     if ($ex) { $pdo->commit(); return [$ex, '']; }      // mezitím ji někdo založil → existující karta
     $now = mat_now();
     $pdo->prepare("INSERT INTO $T (ref, nazev, kat, forma, jednotek, vyrobce, dodavatel, skupina, odpis, druh, zalozil, zalozeno, upravil, upraveno)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'sklad', ?, ?, ?, ?)")
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         ->execute([mat_txt($ref), $v['nazev'], $v['kat'] ?? null, $v['forma'], $v['jednotek'] ?? null, $v['vyrobce'] ?? null,
-                   $v['dodavatel'] ?? null, $v['skupina'] ?? null, $v['odpis'] ?? null, $kdo, substr($now, 0, 10), $kdo, $now]);
+                   $v['dodavatel'] ?? null, $v['skupina'] ?? null, $v['odpis'] ?? null, $druh, $kdo, substr($now, 0, 10), $kdo, $now]);
     $id = (int) $pdo->lastInsertId();
     $pdo->prepare('INSERT INTO ' . mat_t('mat_zmena') . ' (mat_id, cas, kdo, zdroj, pole, stara, nova) VALUES (?, ?, ?, ?, ?, NULL, ?)')
         ->execute([$id, $now, $kdo, $zdroj, 'karta', 'založena']);
@@ -356,7 +364,30 @@ function mat_op_new(array $b, string $kdo, string $zdroj = 'prijem'): array {
    kartu nezaloží znovu, jen ji dopropíše.
    Vrací ['ok' => true, 'body' => upravené tělo, 'matRow' => …] nebo chybu.
    --------------------------------------------------------------------- */
+/* Expirace balení, když ji obal neuvádí: dnes + trvanlivost karty (výchozí
+   MAT_TRV_DEF měsíců). 29.–31. den bez protějšku → poslední den měsíce,
+   stejně jako mdExpDefault v section3.html. MD položky se nechávají být. */
+function mat_exp_auto(?int $mes): string {
+  $mes = $mes ?: MAT_TRV_DEF;
+  $d = new DateTimeImmutable('today', new DateTimeZone('Europe/Prague'));
+  $t = $d->modify('first day of this month')->modify('+' . $mes . ' months');
+  $den = min((int) $d->format('j'), (int) $t->format('t'));
+  return $t->format('Y-m-') . str_pad((string) $den, 2, '0', STR_PAD_LEFT);
+}
 function mat_pre_lot(array $b, string $kdo, string $zdroj): array {
+  $r = mat_pre_lot_($b, $kdo, $zdroj);
+  if (!$r['ok'] || !is_array($r['body']['items'] ?? null)) return $r;
+  $auto = []; $mes = [];
+  foreach ($r['body']['items'] as $i => $it) {
+    if (!is_array($it) || !empty($it['md']) || mat_txt($it['exp'] ?? '') !== '') continue;
+    $ref = mat_txt($it['ref'] ?? '');
+    if (!array_key_exists($ref, $mes)) { $m = mat_by_ref($ref); $mes[$ref] = $m && $m['trvanlivost_mes'] !== null ? (int) $m['trvanlivost_mes'] : null; }
+    $r['body']['items'][$i]['exp'] = $auto[$ref] = mat_exp_auto($mes[$ref]);
+  }
+  if ($auto) $r['expAuto'] = $auto;
+  return $r;
+}
+function mat_pre_lot_(array $b, string $kdo, string $zdroj): array {
   $items = is_array($b['items'] ?? null) ? array_values($b['items']) : [];
   /* stejné předběžné kontroly jako lotCreate v Lot.gs – kartu nezakládat, když balení stejně neprojde */
   if (!$items) return ['ok' => false, 'error' => 'žádná položka'];
@@ -383,7 +414,9 @@ function mat_pre_lot(array $b, string $kdo, string $zdroj): array {
   if ($mn) {
     $err = mat_valid_new($mn, false);
     if ($err) return ['ok' => false, 'error' => 'nová karta MAT: ' . $err];
-    [$m, $e2] = mat_create($mn, $ref, $kdo, $zdroj);
+    /* karta založená úkonem MD k zakázce je MD (24. 11. 2026) – příjem ji pak na sklad nepustí */
+    $vseMd = !array_filter($items, fn($it) => empty($it['md']));
+    [$m, $e2] = mat_create($mn, $ref, $kdo, $zdroj, $vseMd ? 'MD' : 'sklad');
     if ($e2) return ['ok' => false, 'error' => 'nová karta MAT: ' . $e2];
     $id = (int) $m['id'];
   } elseif ($mf) {                                     // matFill_: jen karta bez formy, vyplněnou nepřepisuje

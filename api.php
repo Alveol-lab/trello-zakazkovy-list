@@ -34,7 +34,7 @@ const API_ACTORS = [
 const API_USERS = [...API_ACTORS, '655329144f809c15a1896437', '6b00d5c2c5be2a396f89949e'];
 
 const API_POST_OK = ['writeEvidence', 'clearEvidence', 'rewardSum', 'compliancePdf',
-                     'autoDidPreview', 'lotCreate', 'lotCheck', 'lotEnd'];
+                     'autoDidPreview', 'lotCreate', 'lotCheck', 'lotEnd', 'lotNasad'];
 const API_GET_OK  = ['code', 'ver', 'lot', 'lotq', 'matref', 'matlists',
                      'suggest', 'search', 'typ', 'ord', 'limit_sady', 'limit_kody'];
 
@@ -92,7 +92,7 @@ $plug  = (string) ($c['idPlugin'] ?? '');
 if (API_PLUGIN !== '' && !hash_equals(API_PLUGIN, $plug)) { api_log($actor, 'plugin ' . $plug, 'odmítnuto'); api_out(['ok' => false, 'error' => 'cizí Power-Up'], 403); }
 if (!in_array($actor, API_USERS, true)) { api_log($actor, 'člen', 'odmítnuto'); api_out(['ok' => false, 'error' => 'tento Trello účet nemá do EVIDENCE přístup'], 403); }
 
-function api_gas(string $url, ?string $post, string $actor, string $what): void {
+function api_gas(string $url, ?string $post, string $actor, string $what, ?array $pridej = null): void {
   $ch = curl_init($url);
   curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 5,
@@ -108,6 +108,7 @@ function api_gas(string $url, ?string $post, string $actor, string $what): void 
   if ($r === false || $code !== 200) { api_log($actor, $what, 'GAS HTTP ' . $code); api_out(['ok' => false, 'error' => 'Apps Script neodpověděl (HTTP ' . $code . ')'], 502); }
   if (json_decode($r) === null) { api_log($actor, $what, 'GAS neplatná odpověď'); api_out(['ok' => false, 'error' => 'Apps Script vrátil neplatnou odpověď'], 502); }
   api_log($actor, $what, 'ok');
+  if ($pridej) { $j = json_decode($r, true); if (is_array($j)) { foreach ($pridej as $k => $v) if (!isset($j[$k])) $j[$k] = $v; echo json_encode($j, JSON_UNESCAPED_UNICODE); exit; } }
   echo $r; exit;
 }
 
@@ -118,8 +119,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
   foreach (API_GET_OK as $k) if (isset($_GET[$k]) && is_string($_GET[$k])) $q[$k] = $_GET[$k];
   if (!$q) api_out(['ok' => false, 'error' => 'nepovolený dotaz'], 400);
   if (isset($q['matlists'])) $q['matlists'] = '1';      // úplný seznam karet MAT je jen pro formulář příjmu
+  $pridej = null;
+  if (isset($q['matref']) && mat_on()) { try {        // kód z krabice (EAN) navázaný v mat_alias → dotaz na skutečnou kartu
+    $m = mat_by_ref($q['matref']);
+    if (!$m || $m['stav'] === 'neaktivní') {
+      $al = mat_pdo()->prepare('SELECT m.ref FROM ' . mat_t('mat_alias') . ' a JOIN ' . mat_t('mat') . " m ON m.id = a.mat_id WHERE a.ref_alias = ? AND m.stav = 'aktivní' LIMIT 1");
+      $al->execute([mat_txt($q['matref'])]);
+      if ($x = $al->fetch()) { $pridej = ['alias' => ['kod' => mat_txt($q['matref']), 'ref' => $x['ref']]]; $q['matref'] = $x['ref']; }
+    }
+  } catch (Throwable $e) {} }
   $q['key'] = $s['key'];
-  api_gas(API_GAS_URL . '?' . http_build_query($q), null, $actor, 'GET ' . implode(',', array_diff(array_keys($q), ['key'])) . $what0);
+  api_gas(API_GAS_URL . '?' . http_build_query($q), null, $actor, 'GET ' . implode(',', array_diff(array_keys($q), ['key'])) . $what0, $pridej);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -135,9 +145,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset(MAT_TECHNIK[(string) ($b['memberId'] ?? '')])) {   // bez technika by kartu založil Apps Script jen v listu
       if (isset($b['matNew']) || isset($b['matFill'])) api_out(['ok' => false, 'error' => 'neznámý Trello účet']);
     } else try {
+      /* varianta B (24. 11. 2026): novou kartu MAT ze zakázkového listu jen pro MD k zakázce, sklad zakládá příjem */
+      if (isset($b['matNew']) && array_filter((array) ($b['items'] ?? []), fn($it) => is_array($it) && empty($it['md'])))
+        api_out(['ok' => false, 'error' => 'novou kartu materiálu zakládá jen příjem materiálu – vyber existující kartu, nebo balení předej na příjem']);
       $r = mat_pre_lot($b, MAT_TECHNIK[(string) $b['memberId']], 'trello');
       if (!$r['ok']) { api_log($actor, 'POST lotCreate', 'MAT: ' . $r['error']); api_out($r); }
       $b = $r['body'];
+      if (!empty($r['expAuto'])) $pridej = ['expAuto' => $r['expAuto']];
     } catch (Throwable $e) {
       api_log($actor, 'POST lotCreate', 'MAT DB ' . substr($e->getMessage(), 0, 150));
       api_out(['ok' => false, 'error' => 'databáze karet MAT neodpověděla – nic se neuložilo, zkus to znovu'], 502);
@@ -146,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $b['action'] = $a;
   $b['actor']  = $actor;                                // kdo skutečně zapisoval (pro audit)
   $b['key']    = $s['key'];
-  api_gas(API_GAS_URL, json_encode($b, JSON_UNESCAPED_UNICODE), $actor, 'POST ' . $a . (isset($b['memberId']) ? ' →' . $b['memberId'] : '') . $what0);
+  api_gas(API_GAS_URL, json_encode($b, JSON_UNESCAPED_UNICODE), $actor, 'POST ' . $a . (isset($b['memberId']) ? ' →' . $b['memberId'] : '') . $what0, $pridej ?? null);
 }
 
 api_out(['ok' => false, 'error' => 'nepovolená metoda'], 405);
