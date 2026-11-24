@@ -26,6 +26,7 @@ const MA_USERS = [                                   // čtení: stejné jako TB
   '655329144f809c15a1896437', '6b00d5c2c5be2a396f89949e',
 ];
 const MA_EDIT = ['588fa9e7e5db691bfe653bce' => 'H', '655329144f809c15a1896437' => 'M', '6b00d5c2c5be2a396f89949e' => 'BRIGIT'];
+const MA_SKUP = ['588fa9e7e5db691bfe653bce' => 'H', '6b00d5c2c5be2a396f89949e' => 'BRIGIT'];   // krok 36: číselník skupin („nové skupiny zakládá jen Honza“)
 
 function ma_out(array $o, int $code = 200): void { http_response_code($code); echo json_encode($o, JSON_UNESCAPED_UNICODE); exit; }
 function ma_b64(string $s): string|false { return base64_decode(strtr($s, '-_', '+/') . str_repeat('=', (4 - strlen($s) % 4) % 4), true); }
@@ -55,6 +56,7 @@ function ma_jwt(string $tok, ?string &$why): ?array {
 if (PHP_SAPI === 'cli') {                            // test: php mat-api.php GET|POST [actor] < tělo
   $_SERVER['REQUEST_METHOD'] = $argv[1] ?? 'GET';
   $actor = $argv[2] ?? '588fa9e7e5db691bfe653bce';
+  if (!empty($argv[3])) parse_str($argv[3], $_GET);          // např. skupiny=1
 } elseif (empty($_SERVER['HTTP_X_TRELLO_JWT']) && !empty($_COOKIE['prijem_auth'])) {
   if (!prijem_logged()) ma_out(['ok' => false, 'error' => 'přihlášení k příjmu vypršelo, přihlas se znovu'], 401);
   $actor = 'prijem';
@@ -98,12 +100,19 @@ try {
             'skupiny' => $pdo->query('SELECT kod FROM ' . mat_t('mat_skupina') . ' ORDER BY kod')->fetchAll(PDO::FETCH_COLUMN),
             'zmeny' => array_map(fn($z) => [(int) $z[0], $z[1], $z[2], $z[3], $z[4], $z[5], $z[6], $z[7] === null ? null : (int) $z[7]], array_reverse($zm)),
             'davky' => $smi ? mat_davky() : [],
-            'cekaji' => array_map('intval', $cek), 'smi_upravovat' => $smi, 'vidi_ceny' => $smi, 'kdo' => $kdo]);
+            'cekaji' => array_map('intval', $cek), 'smi_upravovat' => $smi, 'vidi_ceny' => $smi, 'kdo' => $kdo]
+            + (!empty($_GET['skupiny']) ? ['skup_info' => mat_skupiny_info(), 'smi_skupiny' => isset(MA_SKUP[$actor])] : []));
   }
   if ($_SERVER['REQUEST_METHOD'] !== 'POST') ma_out(['ok' => false, 'error' => 'nepovolená metoda'], 405);
   if (!$smi) ma_out(['ok' => false, 'error' => 'kartu MAT může upravit jen Honza, Majda nebo Brigit'], 403);
   $b = json_decode((string) file_get_contents(PHP_SAPI === 'cli' ? 'php://stdin' : 'php://input'), true);
   if (!is_array($b)) ma_out(['ok' => false, 'error' => 'neplatný požadavek'], 400);
+
+  foreach (['skupina_nova' => 'mat_skupina_nova', 'skupina_uprav' => 'mat_skupina_uprav', 'skupina_smaz' => 'mat_skupina_smaz'] as $a => $fn) {
+    if (!isset($b[$a])) continue;                    // krok 36: číselník skupin
+    if (!isset(MA_SKUP[$actor])) ma_out(['ok' => false, 'error' => 'číselník skupin upravuje jen Honza nebo Brigit'], 403);
+    ma_out($fn(is_array($b[$a]) ? $b[$a] : ['kod' => $b[$a]], $kdo));
+  }
 
   if (isset($b['hromadne'])) {                       // krok 35: víc polí, jedna dávka
     $h = is_array($b['hromadne']) ? $b['hromadne'] : [];
