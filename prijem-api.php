@@ -42,7 +42,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
   foreach (GET_OK as $k) if (isset($_GET[$k])) $q[$k] = (string) $_GET[$k];
   if (count($q) !== 1) out(['ok' => false, 'error' => 'nepovolený dotaz'], 400);
   $q['key'] = $s['key'];
-  gas(GAS_URL . '?' . http_build_query($q));
+  $pridej = null;                             // trvanlivost je jen v SQL (list MAT ji nemá) – formulář z ní ukáže dopočtenou expiraci
+  if (isset($q['matref']) && mat_on()) { try { $m = mat_by_ref($q['matref']); if ($m && $m['trvanlivost_mes'] !== null) $pridej = ['trvanlivost_mes' => (int) $m['trvanlivost_mes']]; } catch (Throwable $e) {} }
+  gas(GAS_URL . '?' . http_build_query($q), null, $pridej);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -64,6 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$r['ok']) out($r);
         $b = $r['body'];
         if ($r['matRow']) $pridej = ['matRow' => $r['matRow']];
+        if (!empty($r['expAuto'])) $pridej = ($pridej ?? []) + ['expAuto' => $r['expAuto']];
       }
     } catch (Throwable $e) {
       mat_log('PRIJEM', 'chyba', substr($e->getMessage(), 0, 200));

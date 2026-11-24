@@ -92,7 +92,7 @@ $plug  = (string) ($c['idPlugin'] ?? '');
 if (API_PLUGIN !== '' && !hash_equals(API_PLUGIN, $plug)) { api_log($actor, 'plugin ' . $plug, 'odmítnuto'); api_out(['ok' => false, 'error' => 'cizí Power-Up'], 403); }
 if (!in_array($actor, API_USERS, true)) { api_log($actor, 'člen', 'odmítnuto'); api_out(['ok' => false, 'error' => 'tento Trello účet nemá do EVIDENCE přístup'], 403); }
 
-function api_gas(string $url, ?string $post, string $actor, string $what): void {
+function api_gas(string $url, ?string $post, string $actor, string $what, ?array $pridej = null): void {
   $ch = curl_init($url);
   curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 5,
@@ -108,6 +108,7 @@ function api_gas(string $url, ?string $post, string $actor, string $what): void 
   if ($r === false || $code !== 200) { api_log($actor, $what, 'GAS HTTP ' . $code); api_out(['ok' => false, 'error' => 'Apps Script neodpověděl (HTTP ' . $code . ')'], 502); }
   if (json_decode($r) === null) { api_log($actor, $what, 'GAS neplatná odpověď'); api_out(['ok' => false, 'error' => 'Apps Script vrátil neplatnou odpověď'], 502); }
   api_log($actor, $what, 'ok');
+  if ($pridej) { $j = json_decode($r, true); if (is_array($j)) { foreach ($pridej as $k => $v) if (!isset($j[$k])) $j[$k] = $v; echo json_encode($j, JSON_UNESCAPED_UNICODE); exit; } }
   echo $r; exit;
 }
 
@@ -138,6 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $r = mat_pre_lot($b, MAT_TECHNIK[(string) $b['memberId']], 'trello');
       if (!$r['ok']) { api_log($actor, 'POST lotCreate', 'MAT: ' . $r['error']); api_out($r); }
       $b = $r['body'];
+      if (!empty($r['expAuto'])) $pridej = ['expAuto' => $r['expAuto']];
     } catch (Throwable $e) {
       api_log($actor, 'POST lotCreate', 'MAT DB ' . substr($e->getMessage(), 0, 150));
       api_out(['ok' => false, 'error' => 'databáze karet MAT neodpověděla – nic se neuložilo, zkus to znovu'], 502);
@@ -146,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $b['action'] = $a;
   $b['actor']  = $actor;                                // kdo skutečně zapisoval (pro audit)
   $b['key']    = $s['key'];
-  api_gas(API_GAS_URL, json_encode($b, JSON_UNESCAPED_UNICODE), $actor, 'POST ' . $a . (isset($b['memberId']) ? ' →' . $b['memberId'] : '') . $what0);
+  api_gas(API_GAS_URL, json_encode($b, JSON_UNESCAPED_UNICODE), $actor, 'POST ' . $a . (isset($b['memberId']) ? ' →' . $b['memberId'] : '') . $what0, $pridej ?? null);
 }
 
 api_out(['ok' => false, 'error' => 'nepovolená metoda'], 405);

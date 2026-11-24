@@ -1476,6 +1476,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       return postSilent({ action:'lotCreate', memberId: res[0], tag: res[1], items: items, matNew: mn });
     }).then(function(d){
       if (!d || !d.ok) throw new Error((d && d.error) || 'server neodpověděl');
+      if (!$('nexp').value && d.expAuto) { var ea = d.expAuto[ref] || d.expAuto[Object.keys(d.expAuto)[0]]; if (ea) $('nexp').value = ea; }   /* bez expirace: server doplnil dnes + trvanlivost karty */
       createdShow(d.items || [], md);
       if (mn) {                                      /* karta MAT je založená – dál se chová jako nalezený REF */
         newMatOff(); nMat = { nazev:mn.nazev, jednotek:mn.jednotek, vyrobce:mn.vyrobce, dodavatel:mn.dodavatel, forma:mn.forma };

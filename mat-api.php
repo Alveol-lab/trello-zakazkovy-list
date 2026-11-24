@@ -72,7 +72,7 @@ try {
   $pdo = mat_pdo(); $T = mat_t('mat');
   if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $cols = ['id', 'ref', 'nazev', 'kat', 'druh', 'forma', 'jednotek', 'vyrobce', 'dodavatel', 'skupina', 'odpis',
-             'cena_nakup', 'navyseni_pct', 'otev', 'sarzi', 'stav', 'cena_datum', 'zalozil', 'zalozeno', 'verze'];
+             'cena_nakup', 'navyseni_pct', 'otev', 'sarzi', 'stav', 'cena_datum', 'zalozil', 'zalozeno', 'verze', 'trvanlivost_mes'];
     /* balení ze stínu s1_baleni, šarže se zkratkou REF přes alias */
     $bal = [];
     try {
@@ -87,7 +87,7 @@ try {
       $m['otev'] = (int) ($bal[$i]['otev'] ?? 0); $m['sarzi'] = (int) ($bal[$i]['sarzi'] ?? 0);
       if (!$smi) { $m['cena_nakup'] = null; $m['navyseni_pct'] = null; }
       $rows[] = array_map(fn($k) => in_array($k, ['jednotek', 'cena_nakup', 'navyseni_pct'], true) && $m[$k] !== null ? (float) $m[$k]
-                                    : (in_array($k, ['id', 'verze'], true) ? (int) $m[$k] : $m[$k]), $cols);
+                                    : (in_array($k, ['id', 'verze', 'trvanlivost_mes'], true) && $m[$k] !== null ? (int) $m[$k] : $m[$k]), $cols);
     }
     $zm = $pdo->query('SELECT mat_id, DATE_FORMAT(cas, "%Y-%m-%d %H:%i:%s") AS cas, kdo, zdroj, pole, stara, nova FROM ' . mat_t('mat_zmena')
                       . ($smi ? '' : " WHERE pole NOT IN ('cena_nakup', 'navyseni_pct')") . ' ORDER BY id DESC LIMIT 5000')->fetchAll(PDO::FETCH_NUM);
@@ -117,7 +117,7 @@ try {
   if ($konf) { mat_log($kdo, 'set ' . $id . ' ' . $pole, 'konflikt'); ma_out(['ok' => false, 'konflikt' => $konf]); }
   if ($e2) ma_out(['ok' => false, 'error' => $e2]);
   $p = 'hotovo';
-  if ($zm && array_diff($zm, ['cena_nakup', 'navyseni_pct', 'stav'])) $p = empty($b['odlozit']) ? (mat_sync([$id])[$id] ?? 'chyba') : 'čeká';
+  if ($zm && array_diff($zm, ['cena_nakup', 'navyseni_pct', 'stav', 'trvanlivost_mes'])) $p = empty($b['odlozit']) ? (mat_sync([$id])[$id] ?? 'chyba') : 'čeká';
   mat_log($kdo, 'set ' . $m['ref'] . ' ' . $pole, 'ok propis ' . $p);
   ma_out(['ok' => true, 'verze' => (int) $m['verze'], 'propis' => $p === 'hotovo' ? 'hotovo' : 'čeká']);
 } catch (Throwable $e) {
