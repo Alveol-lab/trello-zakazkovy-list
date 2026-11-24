@@ -68,11 +68,11 @@ const TB_TABLES = [
   ],
   'produkt' => [
     'title' => 'Výrobky (PRODB)',
-    'cols'  => [['kod','Kód','t'],['nazev','Název','t'],['pt','PT','t'],['kat','Kat.','t'],['kzp','KZP','t'],
+    'cols'  => [['kod','Kód','t'],['nazev','Název','t'],['ku','KU','t'],['kat','Kat.','t'],['kzp','KZP','t'],
                 ['hs','HS','t'],['vzp','VZP','t'],['mat_hlavni','Hlavní materiál','t'],
                 ['mat_pomoc','Pomocný materiál','t'],['gmdn','GMDN','t'],['udi_pi','UDI-PI','t'],
                 ['trvanlivost','Trvanlivost','t'],['poznamka','Poznámka','t'],['radek','Řádek','n']],
-    'sql'   => "SELECT kod, nazev, pt, kat, kzp, hs, vzp, mat_hlavni, mat_pomoc, gmdn, udi_pi, trvanlivost, poznamka, radek
+    'sql'   => "SELECT kod, nazev, ku, kat, kzp, hs, vzp, mat_hlavni, mat_pomoc, gmdn, udi_pi, trvanlivost, poznamka, radek
                   FROM s1_produkt ORDER BY radek",
   ],
 ];
