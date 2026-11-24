@@ -2,7 +2,7 @@
 /* =========================================================
    Záložka Výrobky v Katalogu – živá data ze SQL (etapa 2b, krok P3)
    GET                              → výrobky, skladba, karty MAT, historie, práva
-   POST {id, verze, pole, hodnota}  → úprava jednoho pole / skladby / stavu
+   POST {id, verze, pole, hodnota}  → úprava jednoho pole / skladby / stavu / pravidel (P6)
    POST {novy: {kod, nazev, ku, kat, kzp, hs}} → nový výrobek (editor) nebo návrh (technik)
    Kdo volá: Trello JWT (zakázkový list) nebo cookie formuláře příjmu (jen čtení).
    Editoři: PR_EDIT v produkt-lib.php. Technici: jen vlastní návrhy.
@@ -71,6 +71,7 @@ $role = isset(PR_EDIT[$actor]) ? 'editor' : (isset(MAT_TECHNIK[$actor]) ? 'techn
 $kdo = $actor === 'prijem' ? 'PRIJEM' : (PR_EDIT[$actor] ?? (MAT_TECHNIK[$actor] ?? (PA_JMENA[$actor] ?? '?')));
 $smiU = $cfg['zapis'] && $role === 'editor';
 $smiN = $cfg['zapis'] && $role !== 'cteni';
+$smiP = ($cfg['zapis'] || $cfg['pravidla']) && $role === 'editor';   // pravidla P6 se do listu nepropisují
 
 try {
   $pdo = mat_pdo();
@@ -86,8 +87,10 @@ try {
       $rows[] = array_map(fn($k) => in_array($k, ['id', 'verze', 'trvanlivost'], true) && $p[$k] !== null ? (int) $p[$k] : $p[$k], $cols);
     }
     $skl = [];
-    foreach ($pdo->query('SELECT produkt_id, role, ref, mat_id FROM t2p_produkt_mat ORDER BY produkt_id, role, poradi') as $s)
-      $skl[(string) $s['produkt_id']][] = [$s['role'], $s['ref'], $s['mat_id'] === null ? null : (int) $s['mat_id']];
+    /* [role, cíl (REF nebo SK-…), mat_id, zpusob, povinnost, varianta] – první tři pozice beze změny */
+    foreach ($pdo->query('SELECT produkt_id, role, ref, skupina, mat_id, zpusob, povinnost, varianta FROM t2p_produkt_mat ORDER BY produkt_id, role, poradi') as $s)
+      $skl[(string) $s['produkt_id']][] = [$s['role'], $s['ref'] ?? $s['skupina'], $s['mat_id'] === null ? null : (int) $s['mat_id'], $s['zpusob'], $s['povinnost'], $s['varianta']];
+    $skup = $pdo->query('SELECT kod, popis FROM mat_skupina ORDER BY kod')->fetchAll(PDO::FETCH_NUM);
     $mat = array_map(fn($m) => [(int) $m[0], $m[1], $m[2], $m[3], $m[4], $m[5], $m[6]],
                      $pdo->query('SELECT id, ref, nazev, skupina, odpis, stav, druh FROM mat ORDER BY id')->fetchAll(PDO::FETCH_NUM));
     $alias = [];
@@ -95,16 +98,17 @@ try {
     $zm = $pdo->query("SELECT produkt_id, DATE_FORMAT(cas, '%Y-%m-%d %H:%i') AS cas, kdo, zdroj, pole, stara, nova FROM t2p_produkt_zmena ORDER BY id DESC LIMIT 5000")->fetchAll(PDO::FETCH_NUM);
     $cek = $pdo->query("SELECT DISTINCT produkt_id FROM t2p_produkt_propis WHERE stav IN ('čeká', 'chyba')")->fetchAll(PDO::FETCH_COLUMN);
     pa_out(['ok' => true, 'zdroj' => 'sql', 'tabulka' => 'SQL t2p_produkt' . ($cfg['zapis'] ? '' : ' (jen čtení)'), 'kdo' => $kdo,
-            'smi_upravovat' => $smiU, 'smi_navrhovat' => $smiN, 'cols' => $cols, 'rows' => $rows, 'skladba' => (object) $skl,
+            'smi_upravovat' => $smiU, 'smi_navrhovat' => $smiN, 'smi_pravidla' => $smiP, 'skupiny' => $skup, 'cols' => $cols, 'rows' => $rows, 'skladba' => (object) $skl,
             'mat' => $mat, 'alias' => (object) $alias,
             'zmeny' => array_map(fn($z) => [(int) $z[0], $z[1], $z[2], $z[3], $z[4], $z[5], $z[6]], array_reverse($zm)),
             'cekaji' => array_map('intval', $cek)]);
   }
   if ($_SERVER['REQUEST_METHOD'] !== 'POST') pa_out(['ok' => false, 'error' => 'nepovolená metoda'], 405);
-  if (!$cfg['zapis']) pa_out(['ok' => false, 'error' => 'úpravy výrobků zatím nejsou zapnuté']);
   if ($role === 'cteni') pa_out(['ok' => false, 'error' => 'výrobky upravuje jen editor, technik navrhuje nové'], 403);
   $b = json_decode((string) file_get_contents(PHP_SAPI === 'cli' ? 'php://stdin' : 'php://input'), true);
   if (!is_array($b)) pa_out(['ok' => false, 'error' => 'neplatný požadavek'], 400);
+  $jenPrav = ($b['pole'] ?? '') === 'pravidla' && !isset($b['novy']);
+  if (!$cfg['zapis'] && !($jenPrav && $cfg['pravidla'])) pa_out(['ok' => false, 'error' => 'úpravy výrobků zatím nejsou zapnuté']);
 
   if (isset($b['novy'])) {
     [$p, $err] = pr_create(is_array($b['novy']) ? $b['novy'] : [], $kdo, $role);
@@ -114,11 +118,12 @@ try {
     pa_out(['ok' => true, 'id' => (int) $p['id'], 'verze' => (int) $p['verze'], 'propis' => $ps]);
   }
   $id = (int) ($b['id'] ?? 0); $pole = (string) ($b['pole'] ?? '');
-  if (!$id || !in_array($pole, [...PR_POLE, 'skladba', 'stav'], true)) pa_out(['ok' => false, 'error' => 'neplatné pole']);
+  if (!$id || !in_array($pole, [...PR_POLE, 'skladba', 'stav', 'pravidla'], true)) pa_out(['ok' => false, 'error' => 'neplatné pole']);
   [$p, $zm, $konf, $err] = pr_apply($id, $pole, $b['hodnota'] ?? null, $kdo, $role, isset($b['verze']) ? (int) $b['verze'] : null);
   if ($konf) { pr_log($kdo, 'set ' . $id . ' ' . $pole, 'konflikt'); pa_out(['ok' => false, 'konflikt' => $konf]); }
   if ($err) pa_out(['ok' => false, 'error' => $err]);
   $cek = (int) $pdo->query('SELECT COUNT(*) FROM t2p_produkt_propis WHERE produkt_id = ' . $id . " AND stav IN ('čeká', 'chyba')")->fetchColumn();
+  if ($jenPrav) { if ($zm) pr_log($kdo, 'pravidla ' . $p['kod'], 'ok'); pa_out(['ok' => true, 'verze' => (int) $p['verze'], 'propis' => 'ne']); }
   $ps = $p['stav'] === 'návrh' || ($p['stav'] === 'neaktivní' && !$cek) ? 'ne' : ($cek ? (pr_sync([$id])[$id] === 'hotovo' ? 'hotovo' : 'čeká') : 'hotovo');
   if ($zm) pr_log($kdo, 'set ' . $p['kod'] . ' ' . $pole, 'ok propis ' . $ps);
   pa_out(['ok' => true, 'verze' => (int) $p['verze'], 'propis' => $ps]);

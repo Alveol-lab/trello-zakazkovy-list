@@ -5,7 +5,9 @@
    (Katalog, záložka Výrobky); později i propis a denní kontrola.
    Tabulky t2p_produkt, t2p_produkt_mat, t2p_produkt_zmena, t2p_produkt_propis.
    Přepínač: soubor autolab-prodb.json mimo web,
-     {"cteni": true, "zapis": false, "propis": false}
+     {"cteni": true, "zapis": false, "propis": false, "pravidla": false}
+   pravidla = úprava pravidel sledovatelnosti u položek skladby (krok P6).
+   Do listu PRODB se nepropisují, proto smějí běžet i bez zapis/propis.
    Bez souboru je všechno vypnuté a Katalog ukazuje kopii sešitu jako dosud.
    zapis bez propis: změny zůstanou ve frontě, list PRODB se nemění –
    proto se zapis zapíná až spolu s propisem (prodbSync v Apps Scriptu).
@@ -26,8 +28,8 @@ function pr_cfg(): array {
   if ($c === null) {
     $j = is_file(PR_CFG_FILE) ? json_decode((string) file_get_contents(PR_CFG_FILE), true) : null;
     $c = [];
-    foreach (['cteni', 'zapis', 'propis'] as $k) $c[$k] = is_array($j) && ($j[$k] ?? false) === true;
-    if (!$c['cteni']) $c['zapis'] = $c['propis'] = false;
+    foreach (['cteni', 'zapis', 'propis', 'pravidla'] as $k) $c[$k] = is_array($j) && ($j[$k] ?? false) === true;
+    if (!$c['cteni']) $c['zapis'] = $c['propis'] = $c['pravidla'] = false;
   }
   return $c;
 }
@@ -44,14 +46,49 @@ function pr_by_kod(string $kod): ?array {
   $st->execute([mat_txt($kod)]);
   return $st->fetch() ?: null;
 }
+/* Položka skladby = cíl (ref NEBO skupina SK-…) + pravidla sledovatelnosti (krok P6):
+   zpusob auto | ruční | MD (NULL = podle karty MAT), povinnost povinné | doporučené | volitelné
+   (NULL = nenastaveno, kontrola zakázky položku nehodnotí), varianta = štítek „stačí jedna z“. */
+const PR_ZPUSOB = ['auto', 'ruční', 'MD'];
+const PR_POVIN  = ['povinné', 'doporučené', 'volitelné'];
+const PR_PRAV   = ['zpusob', 'povinnost', 'varianta'];
 function pr_skl(int $id): array {
-  $st = mat_pdo()->prepare('SELECT role, ref, mat_id FROM t2p_produkt_mat WHERE produkt_id = ? ORDER BY role, poradi');
+  $st = mat_pdo()->prepare('SELECT role, ref, skupina, mat_id, zpusob, povinnost, varianta FROM t2p_produkt_mat WHERE produkt_id = ? ORDER BY role, poradi');
   $st->execute([$id]);
   return $st->fetchAll();
 }
-/* řetězec jako sloupec H / I listu PRODB */
+function pr_cil(array $s): string { return (string) ($s['ref'] ?? $s['skupina']); }
+/* aktivní členové skupiny (pro sloupec H / I a AutoDID) */
+function pr_clenove(string $sk): array {
+  static $c = [];
+  if (!isset($c[$sk])) {
+    $st = mat_pdo()->prepare("SELECT ref FROM mat WHERE skupina = ? AND stav = 'aktivní' ORDER BY ref");
+    $st->execute([$sk]); $c[$sk] = $st->fetchAll(PDO::FETCH_COLUMN);
+  }
+  return $c[$sk];
+}
+/* řetězec jako sloupec H / I listu PRODB; skupina se rozvine na aktivní členy (bez duplicit) */
 function pr_retezec(array $skl, string $role): string {
-  return implode(' | ', array_map(fn($s) => $s['ref'], array_values(array_filter($skl, fn($s) => $s['role'] === $role))));
+  $out = []; $vid = [];
+  foreach ($skl as $s) {
+    if ($s['role'] !== $role) continue;
+    foreach ($s['ref'] !== null ? [$s['ref']] : pr_clenove((string) $s['skupina']) as $r) {
+      $k = mb_strtoupper($r); if (isset($vid[$k])) continue; $vid[$k] = 1; $out[] = $r;
+    }
+  }
+  return implode(' | ', $out);
+}
+/* pravidla jedné položky jako krátký text do historie: „povinné · ruční · var. barvy“ */
+function pr_prav_txt(array $s): string {
+  $p = array_filter([$s['povinnost'] ?? null, $s['zpusob'] ?? null, ($s['varianta'] ?? null) !== null ? 'var. ' . $s['varianta'] : null]);
+  return $p ? implode(' · ', $p) : 'nenastaveno';
+}
+/* snímek celé skladby s pravidly – platné znění v čase (kontrola zakázky podle data výkonu) */
+function pr_snimek(int $id, int $verze, string $kdo, string $now): void {
+  $skl = array_map(fn($s) => ['role' => $s['role'], 'ref' => $s['ref'], 'skupina' => $s['skupina'], 'zpusob' => $s['zpusob'],
+                              'povinnost' => $s['povinnost'], 'varianta' => $s['varianta']], pr_skl($id));
+  mat_pdo()->prepare('INSERT INTO t2p_produkt_pravidla (produkt_id, verze, platne_od, kdo, pravidla) VALUES (?, ?, ?, ?, ?)')
+    ->execute([$id, $verze, $now, $kdo, json_encode($skl, JSON_UNESCAPED_UNICODE)]);
 }
 /* karta MAT podle REF, jinak přes alias; null = karta chybí */
 function pr_karta(string $ref): ?array {
@@ -85,10 +122,15 @@ function pr_check(string $k, $x): array {
 }
 
 /* Skladba z prohlížeče: [[role, ref], …] → [položky, chyba]. Nový REF musí mít aktivní kartu MAT;
-   položka, která už ve skladbě je (i bez karty), smí zůstat – úprava jinde nenutí opravit staré vady. */
+   položka, která už ve skladbě je (i bez karty), smí zůstat – úprava jinde nenutí opravit staré vady.
+   Cíl „SK-…“ = skupina z mat_skupina (stačí jedna z karet skupiny). Pravidla položky (P6) se
+   při úpravě skladby zachovají podle cíle; nová položka je má nenastavená. */
 function pr_check_skladba($h, array $stara): array {
   if (!is_array($h) || count($h) > 150) return [null, 'neplatná skladba'];
-  $mam = []; foreach ($stara as $s) $mam[mb_strtoupper($s['ref'])] = $s;
+  $mam = []; foreach ($stara as $s) $mam[mb_strtoupper(pr_cil($s))] = $s;
+  $prav = function (string $key) use ($mam): array {
+    $s = $mam[$key] ?? []; return ['zpusob' => $s['zpusob'] ?? null, 'povinnost' => $s['povinnost'] ?? null, 'varianta' => $s['varianta'] ?? null];
+  };
   $out = []; $vid = []; $por = ['hlavní' => 0, 'pomocný' => 0];
   foreach ($h as $x) {
     $role = is_array($x) ? (string) ($x[0] ?? '') : ''; $ref = is_array($x) ? mat_txt($x[1] ?? '') : '';
@@ -97,6 +139,13 @@ function pr_check_skladba($h, array $stara): array {
     $key = mb_strtoupper($ref);
     if (isset($vid[$key])) return [null, 'REF ' . $ref . ' je ve skladbě dvakrát'];
     $vid[$key] = 1;
+    if (preg_match('/^SK-[A-Z0-9-]+$/i', $ref)) {
+      $st = mat_pdo()->prepare('SELECT kod FROM mat_skupina WHERE kod = ?'); $st->execute([$ref]); $sk = $st->fetchColumn();
+      if (!$sk) return [null, 'skupina ' . $ref . ' neexistuje'];
+      if (!pr_clenove($sk)) return [null, 'skupina ' . $sk . ' nemá žádnou aktivní kartu'];
+      $out[] = ['role' => $role, 'poradi' => ++$por[$role], 'ref' => null, 'skupina' => $sk, 'mat_id' => null] + $prav(mb_strtoupper($sk));
+      continue;
+    }
     if (isset($mam[$key])) { $ref = $mam[$key]['ref']; $mid = $mam[$key]['mat_id']; }
     else {
       $m = pr_karta($ref);
@@ -106,7 +155,7 @@ function pr_check_skladba($h, array $stara): array {
       if (isset($vid[mb_strtoupper($ref)]) && mb_strtoupper($ref) !== $key) return [null, 'karta ' . $ref . ' je ve skladbě dvakrát (přes alias)'];
       $vid[mb_strtoupper($ref)] = 1;
     }
-    $out[] = ['role' => $role, 'poradi' => ++$por[$role], 'ref' => $ref, 'mat_id' => $mid === null ? null : (int) $mid];
+    $out[] = ['role' => $role, 'poradi' => ++$por[$role], 'ref' => $ref, 'skupina' => null, 'mat_id' => $mid === null ? null : (int) $mid] + $prav(mb_strtoupper($ref));
   }
   return [$out, ''];
 }
@@ -134,7 +183,7 @@ function pr_apply(int $id, string $pole, $hodnota, string $kdo, string $role, ?i
     elseif ($pole !== 'stav' && $p['stav'] === 'neaktivní') $err = 'výrobek je vyřazený – nejdřív ho vrať do aktivních';
     if ($err) { $pdo->rollBack(); return [$p, [], null, $err]; }
 
-    $now = mat_now(); $zm = []; $log = []; $propis = false;
+    $now = mat_now(); $zm = []; $log = []; $propis = false; $snimek = false;
     if ($pole === 'skladba') {
       $stara = pr_skl($id);
       [$nova, $err] = pr_check_skladba($hodnota, $stara);
@@ -145,10 +194,33 @@ function pr_apply(int $id, string $pole, $hodnota, string $kdo, string $role, ?i
       }
       if ($log) {
         $pdo->prepare('DELETE FROM t2p_produkt_mat WHERE produkt_id = ?')->execute([$id]);
-        $ins = $pdo->prepare('INSERT INTO t2p_produkt_mat (produkt_id, role, poradi, ref, mat_id) VALUES (?, ?, ?, ?, ?)');
-        foreach ($nova as $s) $ins->execute([$id, $s['role'], $s['poradi'], $s['ref'], $s['mat_id']]);
-        $propis = true;
+        $ins = $pdo->prepare('INSERT INTO t2p_produkt_mat (produkt_id, role, poradi, ref, skupina, mat_id, zpusob, povinnost, varianta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        foreach ($nova as $s) $ins->execute([$id, $s['role'], $s['poradi'], $s['ref'], $s['skupina'], $s['mat_id'], $s['zpusob'], $s['povinnost'], $s['varianta']]);
+        $propis = true; $snimek = true;
       }
+    } elseif ($pole === 'pravidla') {
+      /* [[cíl, zpusob, povinnost, varianta], …] – jen položky, které se mění; skladba ani list PRODB se nemění */
+      if ($role !== 'editor') { $pdo->rollBack(); return [$p, [], null, 'pravidla nastavuje jen editor']; }
+      if (!is_array($hodnota) || !$hodnota || count($hodnota) > 150) { $pdo->rollBack(); return [$p, [], null, 'neplatná pravidla']; }
+      $skl = []; foreach (pr_skl($id) as $s) $skl[mb_strtoupper(pr_cil($s))] = $s;
+      $upd = $pdo->prepare('UPDATE t2p_produkt_mat SET zpusob = ?, povinnost = ?, varianta = ? WHERE produkt_id = ? AND (ref = ? OR skupina = ?)');
+      $a = []; $b = [];
+      foreach ($hodnota as $x) {
+        if (!is_array($x)) { $pdo->rollBack(); return [$p, [], null, 'neplatná pravidla']; }
+        $cil = mat_txt($x[0] ?? ''); $s = $skl[mb_strtoupper($cil)] ?? null;
+        if (!$s) { $pdo->rollBack(); return [$p, [], null, $cil . ' ve skladbě není – nejdřív ulož skladbu']; }
+        $zp = ($x[1] ?? null) === null || $x[1] === '' ? null : (string) $x[1];
+        $po = ($x[2] ?? null) === null || $x[2] === '' ? null : (string) $x[2];
+        $va = ($x[3] ?? null) === null || trim((string) $x[3]) === '' ? null : mb_strtolower(trim((string) $x[3]));
+        if ($zp !== null && !in_array($zp, PR_ZPUSOB, true)) { $pdo->rollBack(); return [$p, [], null, 'způsob musí být auto / ruční / MD']; }
+        if ($po !== null && !in_array($po, PR_POVIN, true)) { $pdo->rollBack(); return [$p, [], null, 'povinnost musí být povinné / doporučené / volitelné']; }
+        if ($va !== null && !preg_match('/^[a-z0-9-]{1,20}$/', $va)) { $pdo->rollBack(); return [$p, [], null, 'varianta = krátký štítek (a–z, 0–9, pomlčka, max. 20)']; }
+        $n = ['zpusob' => $zp, 'povinnost' => $po, 'varianta' => $va];
+        if ($n === ['zpusob' => $s['zpusob'], 'povinnost' => $s['povinnost'], 'varianta' => $s['varianta']]) continue;
+        $upd->execute([$zp, $po, $va, $id, $s['ref'], $s['skupina']]);
+        $a[] = pr_cil($s) . ': ' . pr_prav_txt($s); $b[] = pr_cil($s) . ': ' . pr_prav_txt($n);
+      }
+      if ($a) { $log[] = ['pravidla', implode('; ', $a), implode('; ', $b)]; $snimek = true; }
     } elseif ($pole === 'stav') {
       $v = (string) $hodnota; $s = $p['stav'];
       $ok = $role === 'editor'
@@ -176,6 +248,7 @@ function pr_apply(int $id, string $pole, $hodnota, string $kdo, string $role, ?i
     $ins = $pdo->prepare("INSERT INTO t2p_produkt_zmena (produkt_id, cas, kdo, zdroj, pole, stara, nova) VALUES (?, ?, ?, 'prohlizec', ?, ?, ?)");
     foreach ($log as [$k, $a, $b]) $ins->execute([$id, $now, $kdo, $k, $a === null ? null : mb_substr((string) $a, 0, 1000), $b === null ? null : mb_substr((string) $b, 0, 1000)]);
     if ($propis) pr_queue([$id]);
+    if ($snimek) pr_snimek($id, (int) $p['verze'] + 1, $kdo, $now);
     $pdo->commit();
     return [pr_by_id($id), array_column($log, 0), null, ''];
   } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
