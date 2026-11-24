@@ -34,7 +34,7 @@ const API_ACTORS = [
 const API_USERS = [...API_ACTORS, '655329144f809c15a1896437', '6b00d5c2c5be2a396f89949e'];
 
 const API_POST_OK = ['writeEvidence', 'clearEvidence', 'rewardSum', 'compliancePdf',
-                     'autoDidPreview', 'lotCreate', 'lotCheck', 'lotEnd'];
+                     'autoDidPreview', 'lotCreate', 'lotCheck', 'lotEnd', 'lotNasad'];
 const API_GET_OK  = ['code', 'ver', 'lot', 'lotq', 'matref', 'matlists',
                      'suggest', 'search', 'typ', 'ord', 'limit_sady', 'limit_kody'];
 

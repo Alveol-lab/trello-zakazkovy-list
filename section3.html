@@ -321,6 +321,12 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 .mrow .btn{width:20rem;height:18rem;font-size:13rem;background:var(--btn)}
 .mempty{font-size:7.4rem;color:var(--txt-dim);padding:2rem 1rem}
 .mrow.auto .k3 em{color:var(--txt-dim)}
+/* pilot 24. 11.: materiál skupiny bez nasazeného balení (hrubá podoba, grafika uživatel) */
+.mrow.miss{opacity:.5}
+.mrow.miss.open{opacity:1}
+.mlist .ncard.anas{margin:2rem 0 4rem;padding:4rem;box-shadow:inset 0 0 0 .6rem var(--bd-soft);border-radius:2.4rem}
+.anas .f{width:100%;margin-top:3rem}
+.anas .ne:empty{display:none}
 .need .nchk{display:flex;align-items:center;gap:4rem;margin-top:4rem;font-size:6.8rem;color:var(--txt);cursor:pointer;padding:1rem 4rem}
 .need .nchk input{flex:none;width:9rem;height:9rem;margin:0;accent-color:var(--warn)}
 
@@ -1579,7 +1585,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   function renderMats(){
     var el = $('mlist');
     autoSchedule();
-    var aRows = autoRowsHtml();
+    var aRows = autoRowsHtml() + autoMissHtml();
     renderAutoNeed();
     if (!state.mats.length && !aRows) {
       el.innerHTML = '<div class="mempty">' + (A.busy ? 'Hledám automatický materiál…' : 'K výkonu zatím není připojený materiál.') + '</div>'; resize(); return;
@@ -1597,6 +1603,12 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   $('mlist').addEventListener('click', function(e){
     var a = e.target.closest('[data-adel]');
     if (a) { A.off[a.getAttribute('data-adel')] = true; renderMats(); return; }
+    var n = e.target.closest('[data-anas]');
+    if (n) { var r = n.getAttribute('data-anas'); A.nas = (A.nas === r) ? null : r; A.nasVal = ''; A.nasErr = ''; renderMats();
+             if (A.nas) { var inp = $('mlist').querySelector('[data-nval]'); if (inp) inp.focus(); } return; }
+    if (e.target.closest('[data-amiss]')) { A.missOpen = !A.missOpen; if (!A.missOpen) A.nas = null; renderMats(); return; }
+    if (e.target.closest('[data-ano]')) { A.nas = null; A.nasVal = ''; A.nasErr = ''; renderMats(); return; }
+    if (e.target.closest('[data-aok2]')) { autoNasad(); return; }
     var b = e.target.closest('[data-del]'); if (!b) return;
     state.mats.splice(parseInt(b.getAttribute('data-del'), 10), 1); renderMats();
   });
@@ -1608,8 +1620,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
        • tlačítko − u řádku = materiál na výrobku použit není (celý REF)
        • při zápisu jde výsledný seznam v autoDids, k ukončení v autoEnd
      ================================================================= */
-  var A = { key:'', seq:0, t:null, busy:false, ok:false, keep:false, items:[], off:{}, pick:{}, conf:{}, end:{} };
-  function autoReset(){ A.key = ''; A.seq++; clearTimeout(A.t); A.busy = false; A.ok = false; A.keep = false; A.items = []; A.off = {}; A.pick = {}; A.conf = {}; A.end = {}; }
+  var A = { key:'', seq:0, t:null, busy:false, ok:false, keep:false, items:[], chybi:[], nas:null, missOpen:false, nasVal:'', nasErr:'', nasBusy:false, off:{}, pick:{}, conf:{}, end:{} };
+  function autoReset(){ A.key = ''; A.seq++; clearTimeout(A.t); A.busy = false; A.ok = false; A.keep = false; A.items = []; A.chybi = []; A.nas = null; A.off = {}; A.pick = {}; A.conf = {}; A.end = {}; }
   function autoCtx(){
     var anid = anidClean($('anid').value), tid = $('tid').value, outs = $('outs').value;
     if (!anidValid(anid) || !MEMBERS[tid]) return null;
@@ -1624,7 +1636,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (codeKey(key) !== codeKey(A.key)) { A.off = {}; A.pick = {}; A.conf = {}; A.end = {}; }
     A.key = key; A.seq++;
     clearTimeout(A.t);
-    if (!c) { A.busy = false; A.ok = false; A.items = []; return; }
+    if (!c) { A.busy = false; A.ok = false; A.items = []; A.chybi = []; A.nas = null; return; }
     A.busy = true; A.ok = false;
     var seq = A.seq;
     A.t = setTimeout(function(){
@@ -1634,6 +1646,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
         A.ok = !!(d && d.ok);
         A.keep = !!(d && d.keep);
         A.items = (d && d.ok && d.items) ? d.items : [];
+        A.chybi = (d && d.ok && d.chybi) ? d.chybi : [];
+        if (A.nas && !A.chybi.some(function(x){ return x.ref === A.nas; })) A.nas = null;
         A.items.forEach(function(it){
           var still = (it.alts || []).some(function(x){ return x.did === A.pick[it.ref]; });
           if (!still) { A.pick[it.ref] = it.did; delete A.conf[it.ref]; }
@@ -1658,6 +1672,58 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
            + '<button class="btn" data-adel="' + esc(it.ref) + '" title="materiál na výrobku použit není">−</button></div>';
     }).join('');
   }
+  /* pilot 24. 11.: karty skupiny bez nasazeného balení – šedě, + = nasadit ze skladu.
+     Technik balení ověří podle DID na štítku (opsat / naskenovat), server
+     kontroluje, že DID patří ke stejnému REF a je ZALOŽENO (lotNasad). */
+  function autoMissHtml(){
+    /* nasadit jde jen to, co je na skladě; zbytek skupiny jen jako počet.
+       Seznam je sbalený do jednoho řádku, ať formulář nezahltí. */
+    var all = A.chybi.filter(function(x){ return !A.off[x.ref]; });
+    if (!all.length) return '';
+    var nas = all.filter(function(x){ return (x.sklad || []).length; }), bez = all.length - nas.length;
+    var head = '<div class="mrow auto miss"><div class="k1">—</div><div class="k2"></div>'
+             + '<div class="k3"><em>bez nasazeného balení</em> ' + all.length + ' karet · na skladě ' + nas.length + (bez ? ' · bez zásoby ' + bez : '') + '</div>'
+             + '<div class="k4"></div>'
+             + '<button class="btn" data-amiss="1" title="' + (A.missOpen ? 'sbalit' : 'zobrazit, co jde nasadit') + '">' + (A.missOpen ? '▴' : '▾') + '</button></div>';
+    if (!A.missOpen) return head;
+    return head + nas.map(function(x){
+      var open = A.nas === x.ref;
+      var h = '<div class="mrow auto miss' + (open ? ' open' : '') + '"><div class="k1">—</div><div class="k2"></div>'
+            + '<div class="k3" title="' + esc((x.nazev || '') + ' · REF ' + x.ref) + '"><em>bez balení</em> ' + esc(x.nazev || x.ref) + '</div>'
+            + '<div class="k4"></div>'
+            + '<button class="btn" data-anas="' + esc(x.ref) + '" title="nasadit balení ze skladu">' + (open ? '×' : '+') + '</button></div>';
+      if (!open) return h;
+      var sk = x.sklad || [];
+      return h + '<div class="ncard anas" data-nref="' + esc(x.ref) + '">'
+        + '<div class="nt"><b>Nasadit</b> · ' + esc(x.nazev || x.ref) + ' · REF ' + esc(x.ref) + '</div>'
+        + '<div class="ns">' + (sk.length
+            ? 'Na skladě: ' + sk.map(function(a){ return esc(a.did) + (a.lot ? ' (LOT ' + esc(a.lot) + (a.exp ? ', exp. ' + esc(a.exp) : '') + ')' : ''); }).join(', ')
+            : 'Na skladě není založené balení – nejdřív příjem.') + '</div>'
+        + '<input class="f" data-nval="1" placeholder="DID ze štítku balení" autocomplete="off" value="' + esc(A.nasVal) + '">'
+        + '<div class="ne">' + esc(A.nasErr) + '</div>'
+        + '<div class="nacts"><button type="button" class="btn ghost" data-ano="1">zrušit</button>'
+        + '<button type="button" class="btn pri" data-aok2="1"' + (A.nasBusy ? ' disabled' : '') + '>' + (A.nasBusy ? 'nasazuji…' : 'nasadit') + '</button></div>'
+        + '</div>';
+    }).join('');
+  }
+  function autoNasad(){
+    var c = autoCtx(), ref = A.nas, did = String(A.nasVal || '').trim().toUpperCase();
+    if (!c || !ref || A.nasBusy) return;
+    if (!did) { A.nasErr = 'Opiš nebo naskenuj DID ze štítku balení.'; renderMats(); return; }
+    A.nasBusy = true; A.nasErr = ''; renderMats();
+    postSilent({ action:'lotNasad', memberId: MEMBERS[c.tid], did: did, ref: ref }).then(function(d){
+      A.nasBusy = false;
+      if (!d || !d.ok) { A.nasErr = (d && d.error) || 'Nasazení se nepodařilo.'; renderMats(); return; }
+      A.nas = null; A.nasVal = ''; A.nasErr = '';
+      wmsg('Balení ' + d.did + ' nasazeno.', 4);
+      A.key = '';                       // nový náhled – balení už je nasazené
+      renderMats();
+    });
+  }
+  $('mlist').addEventListener('input', function(e){ if (e.target.hasAttribute('data-nval')) A.nasVal = e.target.value; });
+  $('mlist').addEventListener('keydown', function(e){
+    if (e.target.hasAttribute('data-nval') && e.key === 'Enter') { e.preventDefault(); autoNasad(); }
+  });
   function renderAutoNeed(){
     var el = $('aNeed'), open = autoOpen();
     if (!open.length) { if (!el.hidden) { el.hidden = true; el.innerHTML = ''; } return; }
