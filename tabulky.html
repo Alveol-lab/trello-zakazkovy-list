@@ -203,7 +203,7 @@ td.vy{color:var(--txt-strong)}
   </div>
   <div class="matbar" id="sbar" hidden>
     <label><input type="checkbox" id="sfPraz"> jen prázdné</label>
-    <label><input type="checkbox" id="sfSmis"> jen smíšený odpis</label>
+    <label><input type="checkbox" id="sfSmis"> jen nesoulad odpisu</label>
     <button class="btn" id="sNew" type="button">+ skupina</button>
   </div>
   <button class="btn" id="csv" type="button">Export CSV</button>
@@ -591,7 +591,7 @@ td.vy{color:var(--txt-strong)}
         var x = V_[i], o = byId[i]; if (!o) return; c[x.v] = (c[x.v] || 0) + 1;
         if (x.v === 'uloženo' || x.v === 'vráceno') {
           (plan && plan[i] || []).forEach(function(z){ o[z[0]] = z[2]; D.zmeny.push([o.id, nw, kdo, 'prohlizec', z[0], z[1] === null ? null : String(z[1]), z[2] === null ? null : String(z[2]), r.davka]); });
-          o.verze = x.verze || o.verze;
+          o.verze = x.verze || o.verze; if (x.odpis !== undefined) o.odpis = x.odpis;
           rs[i] = x.propis === 'čeká' ? { c:'wait', t:'uloženo v SQL, propis do listu MAT doběhne do 15 minut' } : { c:'ok', t:'uloženo' + (x.propis ? ' a propsáno' : '') };
         } else if (x.v === 'beze změny') { delete rs[i]; }
         else { neul.push(+i); rs[i] = { c:'bad', t:x.v + ': ' + (x.proc || '') }; }
@@ -651,6 +651,9 @@ td.vy{color:var(--txt-strong)}
     function check(o, k, v){
       if (k === 'nazev' && !v) return 'Název nesmí být prázdný.';
       if (k === 'odpis' && !v) return 'Odpis nejde vyprázdnit.';
+      var st = (D && D.skup_typ) || {};
+      if (k === 'odpis' && o.druh !== 'MD' && st[o.skupina] && v !== (st[o.skupina] === 'ADID' ? 'auto' : 'ruční')) return 'Odpis určuje skupina ' + o.skupina + ' (' + st[o.skupina] + '). Změň typ skupiny v záložce Skupiny, nebo kartu přeřaď.';
+      if (k === 'skupina' && o.druh === 'MD' && v) return 'MD karta (zakázkový materiál) nemá skupinu – MDID se na skupinu neváže.';
       if (k === 'trvanlivost_mes' && v !== null && v !== '' && !/^([1-9]\d?|1[01]\d|120)$/.test(String(v).trim())) return 'Trvanlivost: celý počet měsíců 1–120 (prázdné = 24).';
       if ((k === 'jednotek' || k === 'cena_nakup' || k === 'navyseni_pct') && v !== null) {
         var n = Number(String(v).replace(',', '.'));
@@ -696,7 +699,7 @@ td.vy{color:var(--txt-strong)}
           toast('<b>' + esc(o.ref) + '</b>: kartu mezitím upravil(a) ' + esc(r.konflikt.kdo) + ' (' + esc(r.konflikt.kdy) + ', ' + esc(r.konflikt.pole) + ' = ' + esc(r.konflikt.hodnota) + '). Tvoje změna se neuložila, řádek je načtený znovu.', 1);
         } else if (!r.ok) { o[k] = old; rs[o.id] = { c:'bad', t:'chyba: ' + (r.error || '') }; toast(esc(r.error || 'chyba'), 1); }
         else {
-          o.verze = r.verze;
+          o.verze = r.verze; if (r.odpis !== undefined && r.odpis !== o.odpis && k === 'skupina') { o.odpis = r.odpis; toast('Odpis karty ' + esc(o.ref) + ' je teď ' + esc(r.odpis || '–') + ' podle typu skupiny.', 0); }
           var nw = new Date(), p2 = function(x){ return (x < 10 ? '0' : '') + x; };
           D.zmeny.push([o.id, nw.getFullYear() + '-' + p2(nw.getMonth() + 1) + '-' + p2(nw.getDate()) + ' ' + p2(nw.getHours()) + ':' + p2(nw.getMinutes()), kdo, 'prohlizec', k, old === null ? null : String(old), v === null ? null : String(v)]);
           rs[o.id] = r.propis === 'čeká' ? { c:'wait', t:'uloženo v SQL, čeká na propis do listu MAT' } : { c:'ok', t:'uloženo a propsáno' };
@@ -824,7 +827,7 @@ td.vy{color:var(--txt-strong)}
       D = d; byK = {};
       var ci = {}; d.cols.forEach(function(c, i){ ci[c] = i; });
       var info = d.skup_info || { skupiny:(d.skupiny || []).map(function(k){ return { kod:k, popis:null, gas:false, vyrobky:[] }; }), historie:[] };
-      G = info.skupiny.map(function(x){ var g = { kod:x.kod, popis:x.popis, gas:x.gas, vyrobky:x.vyrobky || [], karty:[], off:[], auto:0, rucni:0, bez:0, md:0 }; byK[x.kod] = g; return g; });
+      G = info.skupiny.map(function(x){ var g = { kod:x.kod, popis:x.popis, typ:x.typ || null, gas:x.gas, vyrobky:x.vyrobky || [], karty:[], off:[], auto:0, rucni:0, bez:0, md:0 }; byK[x.kod] = g; return g; });
       d.rows.forEach(function(r){
         var g = byK[r[ci.skupina]]; if (!g) return;
         var o = { id:r[ci.id], ref:r[ci.ref], nazev:r[ci.nazev], odpis:r[ci.odpis], druh:r[ci.druh], otev:r[ci.otev], stav:r[ci.stav] };
@@ -832,13 +835,15 @@ td.vy{color:var(--txt-strong)}
         g.karty.push(o);
         if (o.druh === 'MD') g.md++;
         if (o.odpis === 'auto') g.auto++; else if (o.odpis === 'ruční') g.rucni++; else g.bez++;
+        var od = g.typ ? (g.typ === 'ADID' ? 'auto' : 'ruční') : null;
+        if (od && (o.druh === 'MD' || o.odpis !== od)) (g.nes = g.nes || []).push(o);
       });
-      G.forEach(function(g){ g.n = g.karty.length; g.smis = [g.auto, g.rucni].filter(Boolean).length > 1 || (g.bez > 0 && g.n > g.bez); g.vyr = g.vyrobky.length; });
+      G.forEach(function(g){ g.n = g.karty.length; g.nes = g.nes || []; g.smis = g.typ ? g.nes.length > 0 : ([g.auto, g.rucni].filter(Boolean).length > 1 || (g.bez > 0 && g.n > g.bez)); g.vyr = g.vyrobky.length; g.typS = g.typ || ''; });
       D.hist = info.historie || [];
     }
-    function typ(g){                        /* odhad typu z odpisu karet (ADID = auto, IDID = ruční, MDID = druh MD) */
+    function typ(g){                        /* souhrn odpisu karet (auto = ADID, ruční = IDID, MD karta skupinu mít nemá) */
       if (!g.n) return '';
-      var t = []; if (g.auto) t.push('ADID ' + g.auto); if (g.rucni) t.push('IDID ' + g.rucni); if (g.md) t.push('MDID ' + g.md); if (g.bez) t.push('bez odpisu ' + g.bez);
+      var t = []; if (g.auto) t.push('auto ' + g.auto); if (g.rucni) t.push('ruční ' + g.rucni); if (g.md) t.push('MD ' + g.md); if (g.bez - g.md > 0) t.push('bez odpisu ' + (g.bez - g.md));
       return t.join(' · ');
     }
     function shown(){
@@ -851,7 +856,8 @@ td.vy{color:var(--txt-strong)}
       });
       return rows.sort(function(a, b){ var x = a[sortK], y = b[sortK]; if (typeof x === 'string' || x === null) return sortDir * String(x || '').localeCompare(String(y || ''), 'cs'); return sortDir * (x - y); });
     }
-    var COLS = [['kod', 'Skupina'], ['popis', 'Popis'], ['n', 'Karet'], ['typ', 'Odpis karet (typ)'], ['vyr', 'Ve výrobcích'], ['pozn', '']];
+    var COLS = [['kod', 'Skupina'], ['typS', 'Typ šarže'], ['popis', 'Popis'], ['n', 'Karet'], ['typ', 'Odpis karet'], ['vyr', 'Ve výrobcích'], ['pozn', '']];
+    function typTag(g){ return g.typ ? '<span class="tag" title="' + (g.typ === 'ADID' ? 'AutoDID přiřadí celou množinu, technik v Trellu nehodící se vyřadí' : 'technik zadá DID ručně, nabídka ze skupiny') + '">' + g.typ + '</span>' : '<span class="tag warn">bez typu</span>'; }
     function render(d){
       if (d) prep(d);
       $('sbar').hidden = false;
@@ -863,8 +869,8 @@ td.vy{color:var(--txt-strong)}
           var pz = [];
           if (g.gas) pz.push('<span class="tag" title="AutoDID nabízí celou skupinu; kód je jmenovitě v Apps Scriptu">AutoDID celá</span>');
           if (!g.n && !g.off.length) pz.push('<span class="tag dim">prázdná</span>');
-          if (g.smis) pz.push('<span class="tag warn" title="karty skupiny mají různý odpis">smíšený odpis</span>');
-          return '<tr data-k="' + esc(g.kod) + '"' + (side === g.kod ? ' class="cur"' : '') + '><td class="kod">' + esc(g.kod) + '</td><td class="wrapcell">' + (g.popis ? esc(g.popis) : '<span class="miss">bez popisu</span>') +
+          if (g.smis) pz.push(g.typ ? '<span class="tag warn" title="karty, jejichž odpis nesedí na typ skupiny">nesedí ' + g.nes.length + '</span>' : '<span class="tag warn" title="karty skupiny mají různý odpis">smíšený odpis</span>');
+          return '<tr data-k="' + esc(g.kod) + '"' + (side === g.kod ? ' class="cur"' : '') + '><td class="kod">' + esc(g.kod) + '</td><td>' + typTag(g) + '</td><td class="wrapcell">' + (g.popis ? esc(g.popis) : '<span class="miss">bez popisu</span>') +
             '</td><td class="n">' + g.n + (g.off.length ? '<span class="dim"> +' + g.off.length + ' vyř.</span>' : '') + '</td><td>' + esc(typ(g)) + '</td><td class="n">' + (g.vyr || '') + '</td><td>' + pz.join(' ') + '</td></tr>';
         }).join('') + '</tbody></table>';
       var prazd = G.filter(function(g){ return !g.n && !g.off.length; }).length;
@@ -891,9 +897,11 @@ td.vy{color:var(--txt-strong)}
       x.innerHTML = '<h3>' + esc(g.kod) + '</h3><div class="sub">' + (g.popis ? esc(g.popis) : 'bez popisu') + '</div><div class="body">' +
         (ed ? '<div class="bp" style="grid-template-columns:70px 1fr;margin-bottom:12px"><label>Kód</label><input id="skKod" value="' + esc(g.kod) + '"' + (g.gas ? ' disabled' : '') + ' spellcheck="false">' +
               '<label>Popis</label><input id="skPop" value="' + esc(g.popis || '') + '" placeholder="co do skupiny patří, příklady">' +
+              '<label>Typ šarže</label><select id="skTyp"' + (g.gas ? ' disabled title="AutoDID celá skupina v Apps Scriptu – jen ADID"' : '') + '>' + (g.typ ? '' : '<option value="">– bez typu –</option>') +
+                ['ADID', 'IDID'].map(function(t){ return '<option value="' + t + '"' + (g.typ === t ? ' selected' : '') + '>' + t + (t === 'ADID' ? ' – AutoDID, celá množina' : ' – ruční DID') + '</option>'; }).join('') + '</select>' +
               '<div class="hint">Změna kódu přeřadí ' + (g.n + g.off.length) + ' karet (historie karty, propis do listu MAT, sloupec O) a ' + (g.vyr ? 'přepíše skladby výrobků' : 'žádný výrobek ji nemá ve skladbě') + '.</div></div>'
             : '') +
-        '<dl><dt>Odpis karet</dt><dd>' + esc(typ(g) || '–') + (g.smis ? ' <span class="tag warn">smíšený</span>' : '') + '</dd><dt>Ve výrobcích</dt><dd>' + (g.vyr ? g.vyr + ' (přes REF ve skladbě)' : '–') + '</dd></dl>' +
+        '<dl><dt>Typ šarže</dt><dd>' + typTag(g) + (g.typ ? ' odpis karet = ' + (g.typ === 'ADID' ? 'auto' : 'ruční') : ' – odpis karet se zatím nevynucuje') + '</dd><dt>Odpis karet</dt><dd>' + esc(typ(g) || '–') + (g.smis ? ' <span class="tag warn">' + (g.typ ? 'nesedí ' + g.nes.length : 'smíšený') + '</span>' : '') + '</dd><dt>Ve výrobcích</dt><dd>' + (g.vyr ? g.vyr + ' (přes REF ve skladbě)' : '–') + '</dd></dl>' +
         '<h4>Karty ve skupině (' + g.n + ')</h4>' + (g.n ? karty(g.karty) : '<div class="bez">Žádná aktivní karta.</div>') +
         (g.off.length ? '<details style="margin-top:8px"><summary>Vyřazené karty (' + g.off.length + ')</summary>' + karty(g.off) + '</details>' : '') +
         (g.vyr ? '<h4>Výrobky s kartou ze skupiny (' + g.vyr + ')</h4><div class="chips">' + g.vyrobky.map(function(v){ return '<span class="tag">' + esc(v) + '</span>'; }).join(' ') + '</div>' : '') +
@@ -919,10 +927,11 @@ td.vy{color:var(--txt-strong)}
     }
     function nahledPost(b){                  /* náhled: změna jen v paměti stránky */
       if (b.skupina_nova) { var k = b.skupina_nova.kod.toUpperCase(); if (byK[k]) return { ok:false, error:'skupina ' + k + ' už existuje' };
-        D.skup_info.skupiny.push({ kod:k, popis:b.skupina_nova.popis || null, gas:false, vyrobky:[] }); return { ok:true, kod:k }; }
+        D.skup_info.skupiny.push({ kod:k, popis:b.skupina_nova.popis || null, typ:b.skupina_nova.typ || null, gas:false, vyrobky:[] }); return { ok:true, kod:k }; }
       if (b.skupina_smaz) { D.skup_info.skupiny = D.skup_info.skupiny.filter(function(x){ return x.kod !== b.skupina_smaz; }); return { ok:true }; }
       var u = b.skupina_uprav, x = D.skup_info.skupiny.filter(function(y){ return y.kod === u.kod; })[0], n = (u.novy_kod || u.kod).toUpperCase(), c = 0;
       x.popis = u.popis || null;
+      if (u.typ && u.typ !== x.typ) { x.typ = u.typ; var io = D.cols.indexOf('odpis'), is = D.cols.indexOf('skupina'), id_ = D.cols.indexOf('druh'), tc = 0; D.rows.forEach(function(r){ if (r[is] === u.kod) { if (r[id_] === 'MD') r[is] = null; else r[io] = u.typ === 'ADID' ? 'auto' : 'ruční'; tc++; } }); return { ok:true, kod:u.kod, karet:tc, typ_karet:tc, propis_ceka:tc }; }
       if (n !== u.kod) { x.kod = n; var i = D.cols.indexOf('skupina'); D.rows.forEach(function(r){ if (r[i] === u.kod) { r[i] = n; c++; } }); }
       return { ok:true, kod:n, karet:c, skladba:0, propis_ceka:c, stary_smazan:true };
     }
@@ -933,28 +942,36 @@ td.vy{color:var(--txt-strong)}
         .catch(function(e){ M.toast('Načtení selhalo: ' + esc(e.message), 1); });
     }
     function ulozit(g){
-      var nk = $('skKod').value.trim().toUpperCase(), np = $('skPop').value.trim();
+      var nk = $('skKod').value.trim().toUpperCase(), np = $('skPop').value.trim(), nt = $('skTyp').value || g.typ || '';
       if (!/^SK-[A-Z0-9]+(-[A-Z0-9]+)*$/.test(nk)) return M.toast('Kód musí mít tvar SK-… (velká písmena bez diakritiky, číslice, pomlčky).', 1);
-      if (nk === g.kod && np === (g.popis || '')) return M.toast('Nic se nezměnilo.', 0);
-      var go = function(){ post({ skupina_uprav:{ kod:g.kod, novy_kod:nk, popis:np } }).then(function(r){
+      if (nk === g.kod && np === (g.popis || '') && nt === (g.typ || '')) return M.toast('Nic se nezměnilo.', 0);
+      if (nk !== g.kod && nt !== (g.typ || '')) return M.toast('Kód a typ měň zvlášť – nejdřív jedno, uložit, pak druhé.', 1);
+      var od = nt === 'ADID' ? 'auto' : 'ruční', kz = g.karty.concat(g.off).filter(function(o){ return o.druh === 'MD' || o.odpis !== od; }).length;
+      var go = function(){ post({ skupina_uprav:{ kod:g.kod, novy_kod:nk, popis:np, typ:nt } }).then(function(r){
         if (!r.ok) { M.toast(esc(r.error || 'chyba'), 1); return reload(g.kod); }
+        if (nt !== (g.typ || '')) M.toast('Typ ' + nt + ' uložen · srovnáno ' + (r.typ_karet || 0) + ' karet' + (r.propis_ceka ? ' · propis do listu MAT doběhne do 15 minut' : ''), 0); else
         M.toast(nk !== g.kod ? 'Přejmenováno: ' + r.karet + ' karet' + (r.skladba ? ', ' + r.skladba + ' položek skladby' : '') + (r.propis_ceka ? ' · propis do listu MAT doběhne do 15 minut' : '') : 'Popis uložen.', 0);
         reload(r.kod);
       }).catch(function(e){ M.toast(esc(e.message), 1); }); };
+      if (nt !== (g.typ || '')) return sdlg('Typ šarže ' + g.kod + ': ' + nt, '<ul style="margin:0 0 0 18px;padding:0;columns:1"><li>' + kz + ' karet dostane odpis <b>' + od + '</b> (historie karty, propis do listu MAT)</li>' +
+        (g.md ? '<li>MD karty skupinu ztratí (MDID se na skupinu neváže)</li>' : '') +
+        '<li>' + (nt === 'ADID' ? 'AutoDID začne karty přiřazovat k výkonům, technik nehodící se vyřadí v Trellu' : 'technik bude DID těchto karet zadávat ručně a množství se odečítá') + '</li>' +
+        '<li>další přeřazení karty do skupiny nastaví odpis podle typu</li></ul>', 'Nastavit typ', go);
       if (nk === g.kod) return go();
       if (byK[nk]) return M.toast('Skupina ' + esc(nk) + ' už existuje. Sloučení dělej v Materiálu hromadnou úpravou skupiny.', 1);
-      sdlg('Přejmenovat ' + g.kod, '<div><b>' + esc(g.kod) + '</b> → <b>' + esc(nk) + '</b></div><ul style="margin:8px 0 0 18px;padding:0">' +
+      sdlg('Přejmenovat ' + g.kod, '<div><b>' + esc(g.kod) + '</b> → <b>' + esc(nk) + '</b></div><ul style="margin:8px 0 0 18px;padding:0;columns:1">' +
         '<li>' + (g.n + g.off.length) + ' karet dostane nový kód (zápis do historie každé karty)</li><li>propis do listu MAT, sloupec O</li>' +
         (g.vyr ? '<li>skladby výrobků se skupinou se přepíšou</li>' : '') + '<li>starý kód zmizí z číselníku</li></ul>' +
         '<div style="margin-top:8px;color:var(--txt-dim)">Vrátit jde jen dalším přejmenováním zpět.</div>', 'Přejmenovat', go);
     }
     function nova(){
-      sdlg('Nová skupina', '<div class="bp" style="grid-template-columns:70px 1fr"><label>Kód</label><input id="snKod" placeholder="SK-…" spellcheck="false"><label>Popis</label><input id="snPop" placeholder="co do skupiny patří">' +
+      sdlg('Nová skupina', '<div class="bp" style="grid-template-columns:70px 1fr"><label>Kód</label><input id="snKod" placeholder="SK-…" spellcheck="false"><label>Popis</label><input id="snPop" placeholder="co do skupiny patří"><label>Typ šarže</label><select id="snTyp"><option value="">– vyber –</option><option value="ADID">ADID – AutoDID, celá množina</option><option value="IDID">IDID – ruční DID</option></select>' +
         '<div class="hint">Skupina vznikne prázdná. Karty do ní zařadíš v Materiálu (sloupec Skupina, i hromadně).</div></div>', 'Založit', function(){
         var k = $('snKod').value.trim().toUpperCase();
         if (!/^SK-[A-Z0-9]+(-[A-Z0-9]+)*$/.test(k)) { M.toast('Kód musí mít tvar SK-… (velká písmena bez diakritiky, číslice, pomlčky).', 1); return false; }
         if (byK[k]) { M.toast('Skupina ' + esc(k) + ' už existuje.', 1); return false; }
-        post({ skupina_nova:{ kod:k, popis:$('snPop').value.trim() } }).then(function(r){ if (!r.ok) return M.toast(esc(r.error), 1); M.toast('Založeno: ' + esc(r.kod), 0); reload(r.kod); })
+        if (!$('snTyp').value) { M.toast('Vyber typ šarže (ADID nebo IDID).', 1); return false; }
+        post({ skupina_nova:{ kod:k, popis:$('snPop').value.trim(), typ:$('snTyp').value } }).then(function(r){ if (!r.ok) return M.toast(esc(r.error), 1); M.toast('Založeno: ' + esc(r.kod), 0); reload(r.kod); })
           .catch(function(e){ M.toast(esc(e.message), 1); });
       });
     }

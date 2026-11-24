@@ -90,6 +90,21 @@ function mat_skupina_ok(string $kod): bool {
   return (bool) $st->fetchColumn();
 }
 
+/* Krok 36b: typ šarže je vlastnost skupiny (IDID = ruční DID, ADID = AutoDID). Platí vždy:
+   odpis skladové karty ve skupině s typem se odvodí ze skupiny. MD karta skupinu nemá.
+   Bez migrace 093 (sloupec mat_skupina.typ_sarze) vrací prázdno a nic se nevynucuje. */
+const MAT_TYP_ODPIS = ['IDID' => 'ruční', 'ADID' => 'auto'];
+function mat_sk_typy(bool $znovu = false): array {
+  static $t = null;
+  if ($t === null || $znovu) {
+    $t = [];
+    try { foreach (mat_pdo()->query('SELECT kod, typ_sarze FROM ' . mat_t('mat_skupina') . ' WHERE typ_sarze IS NOT NULL') as $r) $t[$r['kod']] = $r['typ_sarze']; }
+    catch (Throwable $e) {}
+  }
+  return $t;
+}
+function mat_sk_odpis(?string $sk): ?string { $t = mat_sk_typy(); return $sk !== null && isset($t[$sk]) ? MAT_TYP_ODPIS[$t[$sk]] : null; }
+
 /* ---------------------------------------------------------------------
    Kontrola a normalizace hodnot. $z = změny {pole: hodnota}; vrací
    [hodnoty, chyba]. Pole, která v $z nejsou, se nekontrolují (úprava),
@@ -153,7 +168,7 @@ function mat_valid_new(array $mn, bool $plna): string {
   if ($plna) {                                         // matNewOnly_: ozubené kolo / prohlížeč
     if (!in_array($mn['forma'] ?? '', ['ks', 'bal', 'kus', 'balení'], true)) return 'vyber formu kus / balení';
     if (in_array($mn['forma'], ['bal', 'balení'], true) && !(mat_num($mn['jednotek'] ?? null) > 0)) return 'doplň počet kusů v 1 balení';
-    if (!in_array((string) ($mn['odpis'] ?? ''), MAT_ODPIS, true)) return 'chybí odpis (auto / ruční)';
+    if (!in_array((string) ($mn['odpis'] ?? ''), MAT_ODPIS, true) && mat_sk_odpis(empty($mn['skupina']) ? null : mb_strtoupper((string) $mn['skupina'])) === null) return 'chybí odpis (auto / ruční)';
   }
   return '';
 }
@@ -186,6 +201,16 @@ function mat_apply(int $id, array $v, string $kdo, string $zdroj, ?int $verze = 
     if (($v['stav'] ?? null) === 'neaktivní' && $m['stav'] !== 'neaktivní' && mat_otevrena($m['ref']) > 0) {
       $pdo->rollBack(); return [$m, [], null, 'vyřadit nejde: na kartě jsou otevřená balení (ZALOŽENO / NASAZENO)'];
     }
+    $sk = array_key_exists('skupina', $v) ? $v['skupina'] : $m['skupina'];
+    if ($m['druh'] === 'MD' && array_key_exists('skupina', $v) && $v['skupina'] !== null) {
+      $pdo->rollBack(); return [$m, [], null, 'MD karta (zakázkový materiál) nemá skupinu – MDID se na skupinu neváže'];
+    }
+    if ($m['druh'] !== 'MD' && ($od = mat_sk_odpis($sk)) !== null) {
+      if (array_key_exists('odpis', $v) && $v['odpis'] !== $od && !array_key_exists('skupina', $v)) {
+        $pdo->rollBack(); return [$m, [], null, 'odpis určuje skupina ' . $sk . ' (' . mat_sk_typy()[$sk] . ' = ' . $od . ') – změň typ skupiny nebo kartu přeřaď'];
+      }
+      $v['odpis'] = $od;                              // přeřazení do skupiny = odpis podle jejího typu
+    }
     $zm = [];
     foreach ($v as $k => $x) if (!mat_same($k, $m[$k], $x)) $zm[$k] = $x;
     if (isset($zm['cena_nakup'])) $zm['cena_datum'] = mat_today();
@@ -215,6 +240,8 @@ function mat_create(array $mn, string $ref, string $kdo, string $zdroj, string $
                      fn($x, $k) => !in_array($k, ['jednotek', 'forma', 'odpis'], true) || ($x !== null && $x !== ''), ARRAY_FILTER_USE_BOTH);
   [$v, $err] = mat_check($mn);
   if ($err) return [null, $err];
+  if ($druh === 'MD') $v['skupina'] = null;
+  elseif (($od = mat_sk_odpis($v['skupina'] ?? null)) !== null) $v['odpis'] = $od;
   if (!array_key_exists('jednotek', $v) || $v['jednotek'] === null) $v['jednotek'] = 1.0;
   if (!array_key_exists('forma', $v)) { $v['forma'] = 'balení'; $v['jednotek'] = mat_num($mn['jednotek'] ?? null) ?: 1.0; }  // jako matCreate_: bez formy = balení
   $pdo->beginTransaction();
@@ -552,7 +579,7 @@ function mat_hromadne(array $b, string $kdo): array {
     if ($e2) { $out[$id] = ['v' => 'odmítnuto', 'proc' => $e2]; continue; }
     if (!$zm) { $out[$id] = ['v' => 'beze změny', 'proc' => 'stejná hodnota']; continue; }
     $zmen++;
-    $out[$id] = ['v' => 'uloženo', 'pole' => $zm, 'verze' => (int) $m2['verze']];
+    $out[$id] = ['v' => 'uloženo', 'pole' => $zm, 'verze' => (int) $m2['verze'], 'odpis' => $m2['odpis']];
     if (array_diff($zm, MAT_PROPIS_NE)) $sync[] = $id;
   }
   if ($zmen) $pdo->prepare('UPDATE ' . mat_t('mat_davka') . ' SET karet = ? WHERE id = ?')->execute([$zmen, $davka]);
@@ -632,8 +659,9 @@ function mat_sk_chyba_kodu(string $k): string {
 function mat_skupiny_info(): array {
   $pdo = mat_pdo(); $S = mat_t('mat_skupina'); $T = mat_t('mat');
   $out = [];
+  $typy = mat_sk_typy(true);
   foreach ($pdo->query("SELECT kod, popis FROM $S ORDER BY kod") as $r)
-    $out[$r['kod']] = ['kod' => $r['kod'], 'popis' => $r['popis'], 'gas' => in_array($r['kod'], MAT_SK_GAS, true), 'vyrobky' => []];
+    $out[$r['kod']] = ['kod' => $r['kod'], 'popis' => $r['popis'], 'typ' => $typy[$r['kod']] ?? null, 'gas' => in_array($r['kod'], MAT_SK_GAS, true), 'vyrobky' => []];
   try {
     $q = $pdo->query("SELECT DISTINCT COALESCE(pm.skupina, m.skupina) sk, p.kod FROM t2p_produkt_mat pm JOIN t2p_produkt p ON p.id = pm.produkt_id
                       LEFT JOIN $T m ON m.ref = pm.ref WHERE COALESCE(pm.skupina, m.skupina) IS NOT NULL ORDER BY p.kod");
@@ -650,8 +678,12 @@ function mat_skupina_nova(array $b, string $kdo): array {
   $k = mat_sk_kod($b['kod'] ?? ''); $p = trim((string) ($b['popis'] ?? ''));
   if ($e = mat_sk_chyba_kodu($k)) return ['ok' => false, 'error' => $e];
   if (mat_skupina_ok($k)) return ['ok' => false, 'error' => 'skupina ' . $k . ' už existuje'];
-  mat_pdo()->prepare('INSERT INTO ' . mat_t('mat_skupina') . ' (kod, popis) VALUES (?, ?)')->execute([$k, $p === '' ? null : mb_substr($p, 0, 200)]);
-  mat_sk_log($kdo, 'nová', $k, null, $p);
+  $t = mat_sk_kod($b['typ'] ?? '');
+  if (mat_ma_typ() && !isset(MAT_TYP_ODPIS[$t])) return ['ok' => false, 'error' => 'vyber typ šarže skupiny: IDID (ruční DID) nebo ADID (AutoDID)'];
+  if (mat_ma_typ()) mat_pdo()->prepare('INSERT INTO ' . mat_t('mat_skupina') . ' (kod, popis, typ_sarze) VALUES (?, ?, ?)')->execute([$k, $p === '' ? null : mb_substr($p, 0, 200), $t]);
+  else mat_pdo()->prepare('INSERT INTO ' . mat_t('mat_skupina') . ' (kod, popis) VALUES (?, ?)')->execute([$k, $p === '' ? null : mb_substr($p, 0, 200)]);
+  mat_sk_typy(true);
+  mat_sk_log($kdo, 'nová', $k, null, trim(($t ? $t . ' ' : '') . $p));
   return ['ok' => true, 'kod' => $k];
 }
 
@@ -664,14 +696,26 @@ function mat_skupina_uprav(array $b, string $kdo): array {
     $p = trim((string) $b['popis']); $p = $p === '' ? null : mb_substr($p, 0, 200);
     if ($p !== $sk['popis']) { $pdo->prepare("UPDATE $S SET popis = ? WHERE kod = ?")->execute([$p, $k]); mat_sk_log($kdo, 'popis', $k, null, $p); }
   }
+  $typ = null;
+  if (array_key_exists('typ', $b) && mat_ma_typ()) {
+    $t = mat_sk_kod($b['typ']); $st0 = mat_sk_typy(true)[$k] ?? null;
+    if ($t !== '' && $t !== $st0) {
+      if (!isset(MAT_TYP_ODPIS[$t])) return ['ok' => false, 'error' => 'typ šarže musí být IDID nebo ADID'];
+      if (in_array($k, MAT_SK_GAS, true) && $t !== 'ADID') return ['ok' => false, 'error' => $k . ' je v Apps Scriptu jako AutoDID celá skupina – na IDID ji změnit nejde bez změny skriptu'];
+      $typ = mat_sk_typ_nastav($k, $t, $kdo);
+      if (!$typ['ok']) return $typ;
+    }
+  }
   $n = isset($b['novy_kod']) ? mat_sk_kod($b['novy_kod']) : $k;
-  if ($n === $k) return ['ok' => true, 'kod' => $k, 'karet' => 0];
+  if ($n === $k) return ['ok' => true, 'kod' => $k, 'karet' => $typ['karet'] ?? 0, 'typ_karet' => $typ['karet'] ?? 0, 'propis_ceka' => $typ['propis_ceka'] ?? 0];
   if (in_array($k, MAT_SK_GAS, true)) return ['ok' => false, 'error' => $k . ' je jmenovitě v Apps Scriptu (AutoDID, celá skupina) – přejmenování nejdřív se změnou skriptu'];
   if ($e = mat_sk_chyba_kodu($n)) return ['ok' => false, 'error' => $e];
   if (mat_skupina_ok($n)) return ['ok' => false, 'error' => 'skupina ' . $n . ' už existuje – sloučení skupin dělej hromadnou úpravou v Materiálu'];
 
   /* 1) nový kód, 2) karty přes editor (historie, verze, propis), 3) skladby výrobků, 4) smazat starý */
-  $pdo->prepare("INSERT INTO $S (kod, popis, vyber) VALUES (?, ?, ?)")->execute([$n, $b['popis'] ?? $sk['popis'], $sk['vyber']]);
+  if (mat_ma_typ()) $pdo->prepare("INSERT INTO $S (kod, popis, vyber, typ_sarze) VALUES (?, ?, ?, ?)")->execute([$n, $b['popis'] ?? $sk['popis'], $sk['vyber'], mat_sk_typy(true)[$k] ?? null]);
+  else $pdo->prepare("INSERT INTO $S (kod, popis, vyber) VALUES (?, ?, ?)")->execute([$n, $b['popis'] ?? $sk['popis'], $sk['vyber']]);
+  mat_sk_typy(true);
   $ids = $pdo->prepare("SELECT id FROM $T WHERE skupina = ? ORDER BY id"); $ids->execute([$k]); $ids = array_map('intval', $ids->fetchAll(PDO::FETCH_COLUMN));
   $ok = []; $chyby = [];
   foreach ($ids as $id) {
@@ -701,4 +745,27 @@ function mat_skupina_smaz(array $b, string $kdo): array {
   $pdo->prepare('DELETE FROM ' . mat_t('mat_skupina') . ' WHERE kod = ?')->execute([$k]);
   mat_sk_log($kdo, 'smazání', $k, null, null);
   return ['ok' => true];
+}
+
+function mat_ma_typ(): bool {                        // sloupec mat_skupina.typ_sarze (migrace 093)
+  static $x = null;
+  if ($x === null) { try { $x = (bool) mat_pdo()->query("SHOW COLUMNS FROM " . mat_t('mat_skupina') . " LIKE 'typ_sarze'")->fetch(); } catch (Throwable $e) { $x = false; } }
+  return $x;
+}
+/* nastaví typ skupiny a srovná odpis všech jejích skladových karet (i vyřazených); MD karty skupinu ztratí */
+function mat_sk_typ_nastav(string $k, string $t, string $kdo): array {
+  $pdo = mat_pdo(); $T = mat_t('mat'); $od = MAT_TYP_ODPIS[$t];
+  $pdo->prepare('UPDATE ' . mat_t('mat_skupina') . ' SET typ_sarze = ? WHERE kod = ?')->execute([$t, $k]);
+  mat_sk_typy(true);
+  $st = $pdo->prepare("SELECT id, druh FROM $T WHERE skupina = ? ORDER BY id"); $st->execute([$k]);
+  $ok = []; $chyby = [];
+  foreach ($st->fetchAll() as $r) {
+    $w = $r['druh'] === 'MD' ? ['skupina' => null] : ['odpis' => $od];
+    [$m, $zm, $konf, $e2] = mat_apply((int) $r['id'], $w, $kdo, 'prohlizec');
+    if ($e2 || $konf) $chyby[(int) $r['id']] = $e2 ?: 'konflikt'; elseif ($zm) $ok[] = (int) $r['id'];
+  }
+  $pr = $ok ? mat_sync($ok) : [];
+  $ceka = count(array_filter($ok, fn($i) => ($pr[$i] ?? '') !== 'hotovo'));
+  mat_sk_log($kdo, 'typ', $k, $t, count($ok) . ' karet srovnáno na ' . $od . ($chyby ? ', ' . count($chyby) . ' chyb' : ''));
+  return ['ok' => !$chyby, 'karet' => count($ok), 'propis_ceka' => $ceka, 'chyby' => $chyby, 'error' => $chyby ? 'část karet se nesrovnala' : null];
 }
