@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
   if (isset($q['matref']) && mat_on()) { try {
     $m = mat_by_ref($q['matref']);
     if ($m && $m['trvanlivost_mes'] !== null) $pridej = ['trvanlivost_mes' => (int) $m['trvanlivost_mes']];
-    if (!$m) {                                // EAN / jiný kód z krabice navázaný na kartu (mat_alias) → formulář přejde na kartu
+    if (!$m || $m['stav'] === 'neaktivní') {   // EAN (i REF zrušené duplicitní karty) / jiný kód z krabice navázaný na kartu (mat_alias) → formulář přejde na kartu
       $a = mat_pdo()->prepare('SELECT m.ref, m.nazev FROM ' . mat_t('mat_alias') . ' a JOIN ' . mat_t('mat') . " m ON m.id = a.mat_id WHERE a.ref_alias = ? AND m.stav = 'aktivní' LIMIT 1");
       $a->execute([mat_txt($q['matref'])]);
       if ($x = $a->fetch()) out(['ok' => true, 'alias' => ['kod' => mat_txt($q['matref']), 'ref' => $x['ref'], 'nazev' => $x['nazev']]]);
