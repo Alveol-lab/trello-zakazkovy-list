@@ -37,13 +37,34 @@ function gas(string $url, ?string $post = null, ?array $pridej = null): void {
   echo $r; exit;
 }
 
+/* kód z krabice (EAN), který obsluha při příjmu přiřadila k existující kartě,
+   se uloží jako alias – příště ho formulář pozná sám (24. 11. 2026) */
+function prijem_alias_uloz(array $al, string $kdo): void {
+  try {
+    $kod = mat_txt($al['kod'] ?? ''); $ref = mat_txt($al['ref'] ?? '');
+    if ($kod === '' || $ref === '' || strcasecmp($kod, $ref) === 0 || mb_strlen($kod) > 80) return;
+    if (mat_by_ref($kod)) return;                          // kód je REF jiné karty – alias by kolidoval
+    $m = mat_by_ref($ref); if (!$m) return;
+    mat_pdo()->prepare('INSERT IGNORE INTO ' . mat_t('mat_alias') . ' (ref_alias, mat_id, duvod) VALUES (?, ?, ?)')
+      ->execute([$kod, (int) $m['id'], 'kód z krabice – příjem (' . $kdo . ')']);
+  } catch (Throwable $e) { mat_log('PRIJEM', 'alias', substr($e->getMessage(), 0, 150)); }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
   $q = [];
   foreach (GET_OK as $k) if (isset($_GET[$k])) $q[$k] = (string) $_GET[$k];
   if (count($q) !== 1) out(['ok' => false, 'error' => 'nepovolený dotaz'], 400);
   $q['key'] = $s['key'];
   $pridej = null;                             // trvanlivost je jen v SQL (list MAT ji nemá) – formulář z ní ukáže dopočtenou expiraci
-  if (isset($q['matref']) && mat_on()) { try { $m = mat_by_ref($q['matref']); if ($m && $m['trvanlivost_mes'] !== null) $pridej = ['trvanlivost_mes' => (int) $m['trvanlivost_mes']]; } catch (Throwable $e) {} }
+  if (isset($q['matref']) && mat_on()) { try {
+    $m = mat_by_ref($q['matref']);
+    if ($m && $m['trvanlivost_mes'] !== null) $pridej = ['trvanlivost_mes' => (int) $m['trvanlivost_mes']];
+    if (!$m) {                                // EAN / jiný kód z krabice navázaný na kartu (mat_alias) → formulář přejde na kartu
+      $a = mat_pdo()->prepare('SELECT m.ref, m.nazev FROM ' . mat_t('mat_alias') . ' a JOIN ' . mat_t('mat') . " m ON m.id = a.mat_id WHERE a.ref_alias = ? AND m.stav = 'aktivní' LIMIT 1");
+      $a->execute([mat_txt($q['matref'])]);
+      if ($x = $a->fetch()) out(['ok' => true, 'alias' => ['kod' => mat_txt($q['matref']), 'ref' => $x['ref'], 'nazev' => $x['nazev']]]);
+    }
+  } catch (Throwable $e) {} }
   gas(GAS_URL . '?' . http_build_query($q), null, $pridej);
 }
 
@@ -62,8 +83,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if (($op === 'matNew' || $op === '') && !in_array($oper, ['H', 'M'], true)) out(['ok' => false, 'error' => 'neznámý Trello účet']);
       if ($op === 'matNew') out(mat_op_new($b, $oper));
       if ($op === '') {
+        $aliasNew = is_array($b['aliasNew'] ?? null) ? $b['aliasNew'] : null; unset($b['aliasNew']);
         $r = mat_pre_lot($b, $oper, 'prijem');
         if (!$r['ok']) out($r);
+        if ($aliasNew) prijem_alias_uloz($aliasNew, $oper);
         $b = $r['body'];
         if ($r['matRow']) $pridej = ['matRow' => $r['matRow']];
         if (!empty($r['expAuto'])) $pridej = ($pridej ?? []) + ['expAuto' => $r['expAuto']];
