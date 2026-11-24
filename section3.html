@@ -424,6 +424,13 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 .sbtn{display:flex;justify-content:flex-end;gap:4rem;margin-top:8rem;padding:0 5rem}
 .sbtn #inv{width:66rem;background:var(--inv);color:var(--inv-txt)}
 .sbtn #doc{width:66rem;background:var(--doc);color:var(--doc-txt)}
+/* nabídka (krok 33) – provizorní vzhled, grafiku dodá uživatel */
+.sbtn .nabchk{margin-right:auto;display:flex;align-items:center;gap:3rem;font-size:7.1rem;color:var(--txt-dim);cursor:pointer;white-space:nowrap}
+.sbtn .nabchk input{width:9rem;height:9rem;margin:0;accent-color:var(--blue)}
+.sbtn .nabchk.on{color:var(--txt-hi)}
+.sbtn #nabAcc,.sbtn #nabRej{width:56rem}
+.sbtn .btn.arm{box-shadow:inset 0 0 0 .6rem var(--blue)}
+.dc.nab{color:var(--txt-hi);font-size:6.25rem;letter-spacing:.3rem}
 </style>
 </head>
 <body>
@@ -630,6 +637,9 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     <div class="scol s4"><div class="box blue" id="sumRating"></div><label>status / rating</label></div>
   </div>
   <div class="sbtn">
+    <label class="nabchk" title="nově vložené položky se zapíšou jako nabídka – bez materiálu, cena a odměna 0 do přijetí"><input type="checkbox" id="nabChk"> nabídka</label>
+    <button class="btn" id="nabAcc" hidden title="nabídkové položky se zapíšou jako výkony v dnešním měsíci">přijmout</button>
+    <button class="btn" id="nabRej" hidden title="nabídkové položky se smažou z karty i z EVIDENCE">odmítnout</button>
     <button class="btn" id="inv">fakturace</button>
     <button class="btn" id="doc">dokumentace</button>
   </div>
@@ -641,7 +651,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   var t = null;
   try { t = window.TrelloPowerUp && window.TrelloPowerUp.iframe(); } catch (e) { t = null; }
   var $ = function (id) { return document.getElementById(id); };
-  var state = { mats: [], rows: [], editIndex: null, open: {} };
+  var state = { mats: [], rows: [], editIndex: null, open: {}, nab: false };
 
   /* pole formuláře, která se ukládají do řádku seznamu */
   var FIELDS = ['qa','anid','anam','ord','outs','tid','ceny','cjed','ctot','odmj','odmt'];
@@ -1626,7 +1636,14 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
      ================================================================= */
   var A = { key:'', seq:0, t:null, busy:false, ok:false, keep:false, items:[], chybi:[], nas:null, missOpen:false, nasVal:'', nasErr:'', nasBusy:false, off:{}, pick:{}, conf:{}, end:{} };
   function autoReset(){ A.key = ''; A.seq++; clearTimeout(A.t); A.busy = false; A.ok = false; A.keep = false; A.items = []; A.chybi = []; A.nas = null; A.off = {}; A.pick = {}; A.conf = {}; A.end = {}; }
+  /* nabídka (krok 33): upravovaná položka si nese svůj příznak, nová
+     položka se řídí zaškrtávátkem „nabídka“ na kartě                   */
+  function nabNow(){
+    var e = (state.editIndex != null) ? state.rows[state.editIndex] : null;
+    return e ? !!e.nab : !!state.nab;
+  }
   function autoCtx(){
+    if (nabNow()) return null;                        /* nabídka nemá materiál ani ADID */
     var anid = anidClean($('anid').value), tid = $('tid').value, outs = $('outs').value;
     if (!anidValid(anid) || !MEMBERS[tid]) return null;
     var ref = (state.editIndex != null && state.rows[state.editIndex]) ? (state.rows[state.editIndex]._href || '') : '';
@@ -1927,6 +1944,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   var IC_MAT = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5l6 2.7v7.6L8 14.5 2 11.8V4.2z" opacity=".35"/><path d="M8 7.2L2 4.2 8 1.5l6 2.7zM8 7.2v7.3l6-2.7V4.2z"/></svg>';
   function rowDids(r){ var l = matLotText(r.mats); return l ? l.split(' | ') : []; }
   function lotsHtml(r){
+    if (r.nab) return '<span class="dc nab" title="nabídka – cena a odměna 0 do přijetí">NABÍDKA</span>';
     if (r.lotErr) return '<span class="dc err" title="řádek je zapsaný, ale odpis materiálu selhal – edituj a vlož znovu">odpis selhal</span>';
     var d = rowDids(r);
     var za = String(r.za || '').split('|').map(function(x){ return x.trim(); }).filter(String);
@@ -2063,15 +2081,80 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
      prodávaná položka); odměny lab. počítá tabulka (rewardSum)        */
   function isZana(a){ return String(a || '').toUpperCase().indexOf('ZANA') === 0; }
   function sumRows(){
-    var tot = 0, anyT = false, zal = 0, anyZ = false;
+    /* nabídka se počítá zvlášť: karta jen s nabídkou ukáže rozpočet nabídky,
+       smíšená karta ukáže výkony a nabídku jen v popisku               */
+    var s = { v: { tot:0, anyT:false, zal:0, anyZ:false }, n: { tot:0, anyT:false, zal:0, anyZ:false } };
     state.rows.forEach(function(r){
       if (isPhase(r)) return;
       var n = numParse(r.ctot); if (isNaN(n)) return;
-      if (isZana(r.anid)) { zal += n; anyZ = true; } else { tot += n; anyT = true; }
+      var b = r.nab ? s.n : s.v;
+      if (isZana(r.anid)) { b.zal += n; b.anyZ = true; } else { b.tot += n; b.anyT = true; }
     });
-    $('sumCena').textContent = anyT ? numFmt(tot) : '';
-    $('sumZaloha').textContent = anyZ ? numFmt(zal) : '';
+    var onlyNab = !s.v.anyT && !s.v.anyZ && (s.n.anyT || s.n.anyZ), u = onlyNab ? s.n : s.v;
+    $('sumCena').textContent = u.anyT ? numFmt(u.tot) : '';
+    $('sumZaloha').textContent = u.anyZ ? numFmt(u.zal) : '';
+    var lab = $('sumCena').parentNode.querySelector('label');
+    lab.textContent = onlyNab ? 'rozpočet nabídky' : 'cena celkem';
+    $('sumCena').title = (!onlyNab && (s.n.anyT || s.n.anyZ)) ? 'v nabídce dalších ' + numFmt(s.n.tot + s.n.zal) : '';
+    nabSync();
   }
+
+  /* ---- nabídka (krok 33): zaškrtávátko, přijetí a odmítnutí ---- */
+  function nabRows(){ return state.rows.filter(function(r){ return r.nab; }); }
+  function nabSync(){
+    var has = nabRows().length > 0;
+    $('nabChk').checked = !!state.nab;
+    $('nabChk').parentNode.classList.toggle('on', !!state.nab);
+    if ($('nabAcc').hidden === has) { $('nabAcc').hidden = !has; $('nabRej').hidden = !has; resize(); }
+  }
+  $('nabChk').addEventListener('change', function(){
+    state.nab = this.checked;
+    if (state.nab && state.mats.length && state.editIndex == null) wmsg('Nabídka se zapisuje bez materiálu – rozepsaný materiál se k ní nepřipojí.', 8);
+    save(); autoReset(); renderMats(); nabSync();
+  });
+  /* potvrzení druhým klepnutím do 4 s (Trello nemá vlastní potvrzovací okno) */
+  function arm2(btn, label, fn){
+    if (btn._arm) { clearTimeout(btn._arm); btn._arm = null; btn.classList.remove('arm'); btn.textContent = label; fn(); return; }
+    btn.classList.add('arm'); btn.textContent = 'opravdu?';
+    btn._arm = setTimeout(function(){ btn._arm = null; btn.classList.remove('arm'); btn.textContent = label; }, 4000);
+  }
+  function nabLetter(r){ return r.tid || (r._href ? String(r._href).split('_')[0] : ''); }
+  $('nabAcc').addEventListener('click', function(){
+    var btn = this;
+    arm2(btn, 'přijmout', function(){
+      if (state.editIndex != null) { wmsg('Dokonči nebo zruš rozpracovanou úpravu řádku.', 8); return; }
+      var list = nabRows();
+      if (list.some(function(r){ return r._href && !sheetAllowed(nabLetter(r), 'Přijetí'); })) return;
+      list.forEach(function(r){ if (!r._href) delete r.nab; });     /* nezapsaná položka jen ztratí příznak */
+      var todo = list.filter(function(r){ return r._href; });
+      state.nab = false; save(); renderRows();
+      if (!todo.length) return;
+      wmsg('Přijímám nabídku – ' + todo.length + ' položek…', 6);
+      cardInfo().then(function(card){
+        return postJob(function(){
+          return todo.reduce(function(p, r){
+            return p.then(function(){ if (!r.tid) r.tid = nabLetter(r); return postRow({ r:r, same:-1, old:r, target:r, auto:null, nabOff:true }, card); });
+          }, Promise.resolve());
+        });
+      });
+    });
+  });
+  $('nabRej').addEventListener('click', function(){
+    var btn = this;
+    arm2(btn, 'odmítnout', function(){
+      if (state.editIndex != null) { wmsg('Dokonči nebo zruš rozpracovanou úpravu řádku.', 8); return; }
+      var list = nabRows();
+      if (list.some(function(r){ return r._href && !sheetAllowed(nabLetter(r), 'Výmaz'); })) return;
+      /* výrobek se zapsanými fázemi mimo nabídku se nemaže */
+      var keep = list.filter(function(r){ return !isPhase(r) && childrenOf(r).some(function(c){ return !c.nab; }); });
+      if (keep.length) { wmsg('Nabídkový výrobek ' + keep[0].anid + ' má fáze mimo nabídku – nejdřív je smaž.', 12); return; }
+      state.rows = state.rows.filter(function(r){ return !r.nab; });
+      state.nab = false; save(); renderRows();
+      list.filter(function(r){ return r._href; }).forEach(function(r){ clearInSheet(r); });
+      postJob(function(){});                          /* po výmazech obnoví odměny */
+      wmsg('Nabídka odmítnuta – ' + list.length + ' položek smazáno.', 6);
+    });
+  });
   var odmSeq = 0, odmShown = 0;
   /* součet odměn přišel rovnou v odpovědi na zápis (jen když řádek patří
      přihlášenému technikovi – odměny v kartě jsou z jeho listu)        */
@@ -2175,7 +2258,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     for (var i = 0; i < state.rows.length; i++) {
       var x = state.rows[i];
       if (i === skip || isPhase(x)) continue;
-      if (x.anid === r.anid && (x.ord || '') === (r.ord || '') && (x.tid || '') === (r.tid || '')) return i;
+      if (x.anid === r.anid && (x.ord || '') === (r.ord || '') && (x.tid || '') === (r.tid || '') && !!x.nab === !!r.nab) return i;
     }
     return -1;
   }
@@ -2190,6 +2273,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       wmsg('U zapsané položky nelze změnit TID – smaž ji a vlož znovu pod správným technikem.', 12);
       mark($('tid'), false); return null;
     }
+    if (old ? old.nab : state.nab) { r.nab = 1; r.mats = []; } else delete r.nab;
     if (r.outs === VB_CODE) {
       r.qa = '1';
       if (vbExists(edit == null ? -1 : edit)) {
@@ -2230,9 +2314,11 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       /* automatická DID z náhledu – při sloučení do jiné položky se neposílají
          (server ponechá Z cílového řádku); ukončení balení jen jednou      */
       autoDids: (c.auto && c.same < 0) ? c.auto.dids : undefined,
-      autoEnd: (c.auto && c.auto.end.length) ? c.auto.end : undefined
-    }, 'Zapsáno do ', 'Zápis').then(function(resp){
+      autoEnd: (c.auto && c.auto.end.length) ? c.auto.end : undefined,
+      nab: c.nabOff ? false : (r.nab ? true : undefined)
+    }, c.nabOff ? 'Přijato do ' : 'Zapsáno do ', 'Zápis').then(function(resp){
       if (!resp) return;
+      if (resp.ok && c.nabOff && c.target) { delete c.target.nab; save(); renderRows(); }
       if (resp.ok && c.auto) c.auto.end = [];
       if (resp.autoEndErr && resp.autoEndErr.length) wmsg('Balení se nepodařilo ukončit: ' + resp.autoEndErr.join(', '), 15);
       if (resp.ok && resp.odm && r.tid === myLetter) odmShow(resp.odm);
@@ -2304,6 +2390,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (!sheetAllowed(r.tid, 'Zápis')) return;
     var edit = state.editIndex, ref = (edit != null && state.rows[edit]) ? state.rows[edit]._href : null;
     var auto = isPhase(r) ? null : autoPayload();
+    if (nabNow()) {                                     /* nabídka: bez materiálu a bez ADID */
+      if (r.mats.length) wmsg('Nabídka se zapisuje bez materiálu – materiál se k ní nepřipojil.', 8);
+      r.mats = []; auto = null;
+    }
     insBusy = true; $('insert').disabled = true; $('insert').textContent = 'kontrola…';
     lotGate(r.mats, ref).then(function(go){
       insBusy = false; updateInsertLabel(); insSync();
@@ -2531,7 +2621,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   /* ---- perzistence v kartě (sdílená data, stejný klíč jako verze 2) ---- */
   function save(){
     if (!t) return;
-    t.set('card', 'shared', 'zakazkovyList', { rows: state.rows }).catch(function(err){
+    var d = { rows: state.rows }; if (state.nab) d.nab = true;
+    t.set('card', 'shared', 'zakazkovyList', d).catch(function(err){
       wmsg('Seznam se do karty neuložil – ' + (err && err.message ? err.message : 'neznámá chyba')
          + '. Karta má limit dat cca 4 000 znaků.', 15);
     });
@@ -2545,11 +2636,12 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     ready.then(function(){
       resetDefaults();
       if (!t) {
-        if (window.__ZL_DEMO__) { state.rows = window.__ZL_DEMO__.rows || []; state.mats = window.__ZL_DEMO__.mats || []; state.open = window.__ZL_DEMO__.open || {}; }
+        if (window.__ZL_DEMO__) { state.rows = window.__ZL_DEMO__.rows || []; state.mats = window.__ZL_DEMO__.mats || []; state.open = window.__ZL_DEMO__.open || {}; state.nab = !!window.__ZL_DEMO__.nab; }
         renderMats(); renderRows(); return null;
       }
       return t.get('card', 'shared', 'zakazkovyList').then(function(d){
         state.rows = (d && d.rows) || [];
+        state.nab = !!(d && d.nab);
       }).catch(function(){}).then(function(){ renderMats(); renderRows(); refreshOdmeny(); });
     });
   }
