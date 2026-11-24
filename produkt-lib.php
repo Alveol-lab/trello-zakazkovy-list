@@ -71,11 +71,11 @@ function pr_check(string $k, $x): array {
   if ($k === 'pt') $v = implode(' | ', array_filter(array_map('trim', explode('|', mb_strtoupper($v))), 'strlen'));
   if ($k === 'kat' || $k === 'hs') $v = mb_strtoupper($v);
   if ($v === '') {
-    if (in_array($k, ['nazev', 'pt', 'kat'], true)) return [null, ['nazev' => 'název', 'pt' => 'PT', 'kat' => 'KAT'][$k] . ' nejde vyprázdnit'];
+    if (in_array($k, ['nazev', 'pt', 'kat'], true)) return [null, ['nazev' => 'název', 'pt' => 'kategorie určení', 'kat' => 'KAT'][$k] . ' nejde vyprázdnit'];
     return [null, ''];
   }
   if (isset(PR_DELKY[$k]) && mb_strlen($v) > PR_DELKY[$k]) return [null, 'text je delší než ' . PR_DELKY[$k] . ' znaků'];
-  if ($k === 'pt' && !preg_match('/^[FROU][MST]( \| [FROU][MST])*$/', $v)) return [null, 'PT = dvojice písmen (F/R/O/U + M/S/T), víc oddělit „ | “'];
+  if ($k === 'pt' && !preg_match('/^[FROU][MST]( \| [FROU][MST])*$/', $v)) return [null, 'kategorie určení = dvojice písmen (F/R/O/U + M/S/T), víc oddělit „ | “'];
   if ($k === 'kat' && !in_array($v, PR_KAT, true)) return [null, 'KAT musí být OR / FP / RP / DTO'];
   if ($k === 'kzp' && !preg_match('/^[A-Z]{3}$/', $v)) return [null, 'KZP jsou 3 písmena'];
   if ($k === 'hs' && !preg_match('/^[A-Z]$/', $v)) return [null, 'HS je jedno písmeno'];
@@ -155,7 +155,7 @@ function pr_apply(int $id, string $pole, $hodnota, string $kdo, string $role, ?i
         ? (($s === 'aktivní' && $v === 'neaktivní') || ($s === 'neaktivní' && $v === 'aktivní') || ($s === 'návrh' && in_array($v, ['aktivní', 'neaktivní'], true)))
         : ($s === 'návrh' && $v === 'neaktivní');
       if (!$ok) { $pdo->rollBack(); return [$p, [], null, 'tuto změnu stavu nelze provést']; }
-      if ($v === 'aktivní' && ($p['nazev'] === '' || $p['pt'] === null || $p['kat'] === null)) { $pdo->rollBack(); return [$p, [], null, 'před schválením doplň název, PT a KAT']; }
+      if ($v === 'aktivní' && ($p['nazev'] === '' || $p['pt'] === null || $p['kat'] === null)) { $pdo->rollBack(); return [$p, [], null, 'před schválením doplň název, kategorii určení a KAT']; }
       $zm['stav'] = $v;
       if ($s === 'návrh' && $v === 'aktivní') { $zm['schvalil'] = $kdo; $zm['schvaleno'] = $now; }
       $log[] = ['stav', $s, $v];
