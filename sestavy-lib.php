@@ -124,7 +124,7 @@ function sest_prohlaseni_pdf(array $d): string {
   $M = '<table style="width:100%"><tr class="gh"><td>materiál</td><td>REF</td><td>LOT</td><td>DID</td><td>exp.</td></tr>';
   $MM = $d['materialy'] ?? [];
   if (!$MM) $M .= '<tr class="it"><td colspan="5">bez evidovaných šarží</td></tr>';
-  foreach ($MM as $m) $M .= '<tr class="it"><td class="b">' . $e($m['material'] ?? '') . '</td><td style="font-size:6.5pt">' . $e($m['ref'] ?? '') . '</td><td class="b">' . $e($m['lot'] ?? '') . '</td><td>' . $e($m['did'] ?? '') . '</td><td style="white-space:nowrap">' . $e(sest_dat($m['exp'] ?? '')) . '</td></tr>';
+  foreach ($MM as $m) $M .= '<tr class="it"><td class="b">' . $e($m['material'] ?? '') . '</td><td style="font-size:6.5pt;padding-right:1.5mm;width:24mm">' . str_replace(['-', '_'], ['-&#8203;', '_&#8203;'], $e($m['ref'] ?? '')) . '</td><td class="b">' . $e($m['lot'] ?? '') . '</td><td>' . $e($m['did'] ?? '') . '</td><td style="white-space:nowrap">' . $e(sest_dat($m['exp'] ?? '')) . '</td></tr>';
   $M .= '</table>';
   $h .= '<table style="width:100%;margin-top:4mm"><tr><td style="width:113mm;padding-right:3mm"><div class="sec">EVIDENCE PROCESŮ</div>' . $V . '</td>'
       . '<td style="padding-left:3mm"><div class="sec">PROTOKOL POUŽITÝCH MATERIÁLŮ</div>' . $M . '</td></tr></table>';
