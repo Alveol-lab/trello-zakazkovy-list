@@ -12,6 +12,7 @@
 require __DIR__ . '/prijem-auth.php';          // prijem_secret() – klíč pro Apps Script
 require __DIR__ . '/mat-lib.php';             // krok 5: karty MAT v SQL (přepínač autolab-mat.json)
 require __DIR__ . '/archiv-lib.php';          // krok 31: archiv vydaných prohlášení (přepínač autolab-archiv.json)
+require __DIR__ . '/sestavy-lib.php';         // krok 32: tiskové sestavy ze šablon (přepínač autolab-sestavy.json)
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -35,7 +36,7 @@ const API_ACTORS = [
 const API_USERS = [...API_ACTORS, '655329144f809c15a1896437', '6b00d5c2c5be2a396f89949e'];
 
 const API_POST_OK = ['writeEvidence', 'clearEvidence', 'rewardSum', 'compliancePdf',
-                     'autoDidPreview', 'lotCreate', 'lotCheck', 'lotEnd', 'lotNasad'];
+                     'autoDidPreview', 'lotCreate', 'lotCheck', 'lotEnd', 'lotNasad', 'nabidkaPdf'];
 const API_GET_OK  = ['code', 'ver', 'lot', 'lotq', 'matref', 'matlists',
                      'suggest', 'search', 'typ', 'ord', 'limit_sady', 'limit_kody'];
 
@@ -159,10 +160,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       api_out(['ok' => false, 'error' => 'databáze karet MAT neodpověděla – nic se neuložilo, zkus to znovu'], 502);
     }
   }
+  if ($a === 'nabidkaPdf') {                            // krok 32: kalkulace (F-NAB) ze šablony, jen čtení
+    $tag = trim((string) ($b['tag'] ?? ''));
+    if (!preg_match('/^[A-Za-z0-9]{6,20}$/', $tag)) api_out(['ok' => false, 'error' => 'neplatný kód zakázky'], 400);
+    $d = sest_data('nabidka', ['tag' => $tag]);
+    if (!$d['ok']) { api_log($actor, 'POST nabidkaPdf', $d['error']); api_out($d); }
+    try { $pdf = sest_pdf('nabidka', $d['data']); }
+    catch (Throwable $e) { api_log($actor, 'POST nabidkaPdf', 'PDF ' . substr($e->getMessage(), 0, 150)); api_out(['ok' => false, 'error' => 'PDF se nepodařilo vytvořit'], 500); }
+    api_log($actor, 'POST nabidkaPdf', 'ok');
+    api_out(['ok' => true, 'nazev' => 'F-NAB ' . $tag . '.pdf', 'pdf' => base64_encode($pdf)]);
+  }
   $po = null;
+  $srovnani = null;
+  if ($a === 'compliancePdf' && sest_rezim() !== 'sheets') {   // krok 32: prohlášení ze šablony místo listu F-Stitek II.
+    $tag = trim((string) ($b['tag'] ?? ''));
+    $t0 = microtime(true);
+    $d = $tag !== '' ? sest_data('prohlaseni', ['tag' => $tag]) : ['ok' => false, 'error' => 'chybí kód'];
+    $pdf = null;
+    if ($d['ok']) { try { $pdf = sest_pdf('prohlaseni', $d['data']); } catch (Throwable $e) { $d = ['ok' => false, 'error' => 'PDF ' . substr($e->getMessage(), 0, 150)]; } }
+    if (sest_rezim() === 'server' && $pdf !== null && trim((string) ($d['data']['klient'] ?? '')) !== '') {
+      $b['pdfServer'] = base64_encode($pdf);
+      $b['pacient']   = (string) $d['data']['klient'];
+      sest_log($actor, 'prohlaseni ' . $tag, 'server ' . SEST_VERZE['prohlaseni'] . sprintf(' %.1fs', microtime(true) - $t0));
+    } elseif (sest_rezim() === 'srovnani' && $pdf !== null) {
+      $srovnani = [$tag, $pdf];                         // uloží se až po úspěchu původní cesty
+    } else {
+      sest_log($actor, 'prohlaseni ' . $tag, 'šablona selhala, jede list: ' . ($d['error'] ?? 'bez PDF'));   // záloha: původní cesta přes list
+    }
+  }
   if ($a === 'compliancePdf') {                         // krok 31: Apps Script vrátí i originál PDF a data pro archiv
     if (arch_on()) $b['archiv'] = true;
-    $po = function (array $j) use ($actor): array {
+    $po = function (array $j) use ($actor, $srovnani): array {
+      if ($srovnani && !empty($j['ok'])) {              // režim srovnani: PDF ze šablony vedle PDF z listu
+        if (!is_dir(SEST_SROVNANI)) @mkdir(SEST_SROVNANI, 0700, true);
+        $f = SEST_SROVNANI . '/' . date('Ymd-His') . '-' . preg_replace('/[^A-Za-z0-9]/', '', $srovnani[0]);
+        @file_put_contents($f . '-sablona.pdf', $srovnani[1]);
+        $x0 = $j['archiv']['pdf'] ?? null;              // originál z listu, pokud ho Apps Script poslal pro archiv
+        if (is_string($x0)) @file_put_contents($f . '-list.pdf', base64_decode($x0));
+        sest_log($actor, 'prohlaseni ' . $srovnani[0], 'srovnani uloženo');
+      }
       $x = $j['archiv'] ?? null;
       unset($j['archiv']);                              // do prohlížeče archivní data nejdou
       if (is_array($x) && !empty($j['ok']) && arch_on()) {
