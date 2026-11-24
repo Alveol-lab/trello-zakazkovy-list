@@ -139,6 +139,9 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 .sumt td:first-child{width:62rem;color:var(--txt-dim)}
 .sumt tr:first-child td{border-top:0}
 .msgs{margin-top:6rem}
+.sum1{margin:0 0 4rem;font-size:8.333rem;line-height:1.45;color:var(--txt-hi)}
+.sum1 b{color:var(--txt-strong)}
+.sumd summary{cursor:pointer;font-size:7.1rem;color:var(--txt-dim);padding:1rem 0}
 .msg{display:flex;gap:4rem;align-items:flex-start;font-size:7.4rem;line-height:9.5rem;padding:3rem 4rem;border-radius:2.5rem}
 .msg+.msg{margin-top:3rem}
 .msg.bad{color:var(--bad);box-shadow:inset 0 0 0 .6rem var(--bad)}
@@ -306,7 +309,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   <!-- kontrola -->
   <div class="need" id="review" hidden>
     <h4>Zkontroluj údaje před založením</h4>
-    <table class="sumt" id="sumt"></table>
+    <p class="sum1" id="sum1"></p>
+    <details class="sumd"><summary>podrobnosti</summary><table class="sumt" id="sumt"></table></details>
     <div class="msgs" id="msgs"></div>
     <div class="nacts">
       <button type="button" class="btn ghost" id="back">opravit</button>
@@ -765,11 +769,23 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     rows.push(['LOT', r.lot || '—']);
     rows.push(['expirace', r.exp ? dFmt(dParse(r.exp)) : dFmt(dParse(expAuto())) + ' – dopočteno, obal ji neuvádí (trvanlivost ' + trvMes() + ' měs.)']);
     rows.push(['založí se', r.q + ' × ' + (r.forma === 'ks' ? 'kus' : 'balení po ' + n2(r.jed) + ' ks') + ' = ' + r.q + ' DID']);
+    $('sum1').innerHTML = sumVeta(r);
     $('sumt').innerHTML = rows.map(function(x){ return '<tr><td>' + esc(x[0]) + '</td><td>' + esc(x[1]) + '</td></tr>'; }).join('');
     $('msgs').innerHTML = r.err.map(function(m){ return '<div class="msg bad"><span class="x">!</span><span>' + esc(m) + '</span></div>'; }).join('')
       + r.warn.map(function(m, i){ return '<label class="msg warn"><input type="checkbox" data-w="' + i + '"><span>' + esc(m) + ' <b>Potvrzuji.</b></span></label>'; }).join('');
     $('review').hidden = false; goSync();
     $('review').scrollIntoView({ behavior:'smooth', block:'nearest' });
+  }
+  /* souhrn jednou větou (krok 28, bod 4) – chyba typu 1000 balení je vidět hned */
+  function sklon(n, a, b, c){ n = Math.abs(n); return n === 1 ? a : (n >= 2 && n <= 4 ? b : c); }
+  function sumVeta(r){
+    var q = r.q || 0, jed = parseFloat(r.jed) || 0;
+    var co = r.forma === 'ks' ? q + ' ' + sklon(q, 'kus', 'kusy', 'kusů')
+           : q + ' balení' + (jed ? ' po ' + n2(r.jed) + ' ks' + (q > 1 ? ' (celkem ' + n2(q * jed) + ' ks)' : '') : '');
+    var ex = r.exp ? dFmt(dParse(r.exp)) : dFmt(dParse(expAuto())) + ' (dopočteno)';
+    return 'Zakládáš na sklad <b>' + esc(co) + '</b> materiálu <b>' + esc(r.nazev || r.ref || '—') + '</b> (REF ' + esc(r.ref || '—')
+      + (S.newMat ? ', nová karta' : '') + '), šarže <b>' + esc(r.lot || '—') + '</b>, expirace <b>' + esc(ex) + '</b>. ' + (q >= 2 && q <= 4 ? 'Vzniknou ' : 'Vznikne ')
+      + q + ' ' + sklon(q, 'nové DID', 'nová DID', 'nových DID') + '.';
   }
   function goSync(){
     var bad = $('msgs').querySelector('.msg.bad'), open = $('msgs').querySelectorAll('input[data-w]:not(:checked)').length;

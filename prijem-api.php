@@ -45,8 +45,8 @@ function prijem_alias_uloz(array $al, string $kdo): void {
     if ($kod === '' || $ref === '' || strcasecmp($kod, $ref) === 0 || mb_strlen($kod) > 80) return;
     if (mat_by_ref($kod)) return;                          // kód je REF jiné karty – alias by kolidoval
     $m = mat_by_ref($ref); if (!$m) return;
-    mat_pdo()->prepare('INSERT IGNORE INTO ' . mat_t('mat_alias') . ' (ref_alias, mat_id, duvod) VALUES (?, ?, ?)')
-      ->execute([$kod, (int) $m['id'], 'kód z krabice – příjem (' . $kdo . ')']);
+    mat_pdo()->prepare('INSERT IGNORE INTO ' . mat_t('mat_alias') . ' (ref_alias, mat_id, duvod, zalozil) VALUES (?, ?, ?, ?)')
+      ->execute([$kod, (int) $m['id'], 'kód z krabice – příjem (' . $kdo . ')', mb_substr($kdo, 0, 40)]);
   } catch (Throwable $e) { mat_log('PRIJEM', 'alias', substr($e->getMessage(), 0, 150)); }
 }
 
