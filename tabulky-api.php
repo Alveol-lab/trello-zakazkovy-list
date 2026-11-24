@@ -68,7 +68,7 @@ const TB_TABLES = [
   ],
   'produkt' => [
     'title' => 'Výrobky (PRODB)',
-    'cols'  => [['kod','Kód','t'],['nazev','Název','t'],['pt','Kategorie určení','t'],['kat','Kat.','t'],['kzp','KZP','t'],
+    'cols'  => [['kod','Kód','t'],['nazev','Název','t'],['pt','KU','t'],['kat','Kat.','t'],['kzp','KZP','t'],
                 ['hs','HS','t'],['vzp','VZP','t'],['mat_hlavni','Hlavní materiál','t'],
                 ['mat_pomoc','Pomocný materiál','t'],['gmdn','GMDN','t'],['udi_pi','UDI-PI','t'],
                 ['trvanlivost','Trvanlivost','t'],['poznamka','Poznámka','t'],['radek','Řádek','n']],
