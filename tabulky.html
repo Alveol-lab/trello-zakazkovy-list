@@ -102,6 +102,14 @@ td.more:hover{color:var(--txt-strong)}
 .dlg .body{padding:10px 14px;overflow:auto}
 .dlg ul{margin:6px 0 0;padding-left:18px;columns:2;color:var(--txt)}
 .dlg .foot{display:flex;justify-content:flex-end;gap:8px;padding:10px 14px;border-top:1px solid var(--bd)}
+.dlg.wide{width:780px}
+.bp{display:grid;grid-template-columns:130px 1fr 150px;gap:6px 10px;align-items:center}
+.bp label{color:var(--txt-dim)} .bp .hint{grid-column:1/-1;color:var(--txt-dim);font-size:12px;margin-top:4px}
+.bp input,.bp select{font:inherit;color:var(--txt);background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:4px 6px;width:100%;box-sizing:border-box}
+table.pv{width:100%;border-collapse:collapse;font-size:12px} table.pv td,table.pv th{padding:3px 6px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:top}
+table.pv tr.same td{color:var(--txt-dim)} table.pv tr.bad td{color:var(--bad)} table.pv s{color:var(--txt-dim)}
+.sum{display:flex;gap:14px;margin-bottom:8px;flex-wrap:wrap} .sum b{color:var(--txt-strong)}
+.bulk a{color:var(--act);cursor:pointer;text-decoration:underline}
 .toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);max-width:560px;background:var(--head);color:var(--txt-strong);border:1px solid var(--bad);border-left:4px solid var(--bad);border-radius:4px;padding:9px 12px;z-index:7;box-shadow:0 4px 14px rgba(0,0,0,.4)}
 .toast.ok{border-color:var(--good)}
 /* ---------- E2b: výrobky (záložka Výrobky) ---------- */
@@ -180,6 +188,7 @@ td.vy{color:var(--txt-strong)}
     <label><input type="checkbox" id="fZas"> jen se zásobou</label>
     <label><input type="checkbox" id="fOff"> i vyřazené</label>
     <button class="btn" id="mNew" type="button">+ karta</button>
+    <button class="btn" id="mDavky" type="button" title="hromadné úpravy a jejich vrácení">Dávky</button>
   </div>
   <div class="matbar" id="vbar" hidden>
     <select id="vfS" aria-label="Skladba"><option value="">každá skladba</option><option value="se">se skladbou</option><option value="bez">bez skladby</option><option value="chyba">s chybou ve skladbě</option><option value="prav">s pravidly</option><option value="bezprav">bez pravidel</option></select>
@@ -355,6 +364,7 @@ td.vy{color:var(--txt-strong)}
       { k:'zalozil', l:'Založil', ro:1 }, { k:'zalozeno', l:'Založeno', ro:1, d:1 }
     ];
     var D = null, R = [], byId = {}, sel = {}, rs = {}, edit = null, side = null, sortK = null, sortDir = 1, lists = {};
+    var jenVyb = false, lastChk = null;           /* krok 35: „ukázat vybrané“ a Shift+klik */
 
     function prep(d){
       if (D === d) return; D = d; byId = {}; sel = {}; rs = {};
@@ -375,6 +385,7 @@ td.vy{color:var(--txt-strong)}
     function shown(){
       var q = $('q').value.trim().toLowerCase(), fN = $('fNeupl').checked, fZ = $('fZas').checked, fO = $('fOff').checked;
       var rows = R.filter(function(o){
+        if (jenVyb) return !!sel[o.id];
         if (!fO && o.stav === 'neaktivní') return false;
         if (fN && uplna(o)) return false;
         if (fZ && !o.otev) return false;
@@ -437,41 +448,176 @@ td.vy{color:var(--txt-strong)}
       if (side) openSide(side);
       if (edit) { var f = $('wrap').querySelector('td.editing input, td.editing select'); if (f) { f.focus(); if (f.select) try { f.select(); } catch(e){} } }
     }
+    /* ---------- krok 35: hromadné úpravy v2 ---------- */
+    var BP = [
+      { k:'vyrobce', l:'Výrobce', dl:1 }, { k:'dodavatel', l:'Dodavatel', dl:1, vym:1 },
+      { k:'skupina', l:'Skupina', sk:1, vym:1 }, { k:'odpis', l:'Odpis', sel:['auto','ruční'] },
+      { k:'kat', l:'Kategorie', sel:['FM','FS','RM','RS','OM','OS','UM','US'] },
+      { k:'trvanlivost_mes', l:'Trvanlivost (měs.)', n:1, vym:1 },
+      { k:'forma', l:'Forma', sel:['kus','balení'] }, { k:'jednotek', l:'Jedn. v balení', n:1, jenS:'forma' },
+      { k:'navyseni_pct', l:'Navýšení %', n:1, cena:1 }
+    ];
+    var POPB = { vyrobce:'výrobce', dodavatel:'dodavatel', skupina:'skupina', odpis:'odpis', kat:'kategorie', trvanlivost_mes:'trvanlivost', forma:'forma', jednotek:'jednotek', navyseni_pct:'navýšení %', stav:'stav' };
+    function kar(n){ return n === 1 ? ' karta' : (n > 1 && n < 5 ? ' karty' : ' karet'); }
     function bulk(n){
-      var b = $('bulk'); b.hidden = !n; b.style.display = n ? '' : 'none'; if (!n) return;   /* CSS display přebíjí hidden */
-      var pole = [['odpis','Odpis'],['skupina','Skupina'],['vyrobce','Výrobce'],['dodavatel','Dodavatel'],['forma','Forma'],['kat','Kategorie']];
-      b.innerHTML = '<b>Vybráno ' + n + (n === 1 ? ' karta' : (n < 5 ? ' karty' : ' karet')) + '</b> · nastavit ' +
-        '<select id="bPole">' + pole.map(function(p){ return '<option value="' + p[0] + '">' + p[1] + '</option>'; }).join('') + '</select> na <span id="bVal"></span>' +
-        '<button class="btn prim" id="bGo" type="button">Použít…</button><button class="btn" id="bClr" type="button">Zrušit výběr</button>';
-      bVal();
-      $('bPole').addEventListener('change', bVal);
-      $('bClr').addEventListener('click', function(){ sel = {}; render(D); });
-      $('bGo').addEventListener('click', confirmBulk);
+      var b = $('bulk'); b.hidden = !n && !jenVyb; b.style.display = b.hidden ? 'none' : ''; if (b.hidden) return;
+      var vid = {}; shown().forEach(function(o){ vid[o.id] = 1; });
+      var skr = Object.keys(sel).filter(function(i){ return !vid[i]; }).length;
+      b.innerHTML = '<b>Vybráno ' + n + kar(n) + '</b>' +
+        (skr ? ' · <span style="color:var(--warn)">' + skr + ' nejsou vidět</span>' : '') +
+        ' · <a id="bJen">' + (jenVyb ? 'ukázat vše' : 'ukázat vybrané') + '</a>' +
+        (D.smi_upravovat && n ? '<button class="btn prim" id="bEdit" type="button">Upravit vybrané…</button><button class="btn" id="bOff" type="button">Vyřadit vybrané…</button>' : '') +
+        '<button class="btn" id="bClr" type="button">Zrušit výběr</button><span style="color:var(--txt-dim);font-size:12px">Shift+klik vybere rozsah</span>';
+      $('bJen').addEventListener('click', function(){ jenVyb = !jenVyb; render(D); });
+      $('bClr').addEventListener('click', function(){ sel = {}; jenVyb = false; render(D); });
+      if ($('bEdit')) { $('bEdit').addEventListener('click', panel); $('bOff').addEventListener('click', vyradit); }
     }
-    function bVal(){
-      var k = $('bPole').value, c = COLS.filter(function(x){ return x.k === k; })[0];
-      $('bVal').innerHTML = ctrl({}, c).replace('– vyber –', '– vyber –');
+    function dlgX(title, body, btns, wide){       /* dialog s více tlačítky: [[text, fn, prim], …] */
+      var x = document.createElement('div'); x.className = 'dlgbg';
+      x.innerHTML = '<div class="dlg' + (wide ? ' wide' : '') + '" role="dialog"><h3>' + esc(title) + '</h3><div class="body">' + body + '</div><div class="foot">' +
+        btns.map(function(b, i){ return '<button class="btn' + (b[2] ? ' prim' : '') + '" type="button" data-i="' + i + '">' + esc(b[0]) + '</button>'; }).join('') + '</div></div>';
+      x.addEventListener('click', function(e){ var i = e.target.dataset.i; if (i === undefined) return;
+        var f = btns[+i][1]; if (f && f(x) === false) return; x.remove(); });
+      document.body.appendChild(x); return x;
     }
-    function confirmBulk(){
-      var k = $('bPole').value, f = $('bVal').firstChild, v = f.value.trim(), c = COLS.filter(function(x){ return x.k === k; })[0];
-      if (!v && k !== 'skupina') return toast('Vyber hodnotu.', 1);
-      var ids = Object.keys(sel).map(Number), refs = ids.map(function(i){ return byId[i].ref; });
-      var zmena = ids.filter(function(i){ return (byId[i][k] || '') !== v; }).length;
-      dlg('Nastavit ' + c.l.toLowerCase() + ' = ' + (v || 'samostatný') + ' u ' + ids.length + ' karet',
-        '<div>Změní se ' + zmena + ' karet, ' + (ids.length - zmena) + ' už hodnotu má. Každá změna se zapíše do historie karty a propíše do listu MAT.</div><ul>' +
-        refs.map(function(r){ return '<li>' + esc(r) + '</li>'; }).join('') + '</ul>', 'Uložit ' + zmena + ' změn', function(){
-          /* krok 5: uložit všechny s odloženým propisem, pak jeden společný propis (ne 50 volání Apps Scriptu) */
-          var pr = ids.filter(function(i){ return (byId[i][k] || '') !== v; }).map(function(i){ return save(byId[i], k, v || null, true, true); });
-          sel = {}; render(D);
-          Promise.all(pr).then(function(ok){
-            var cek = ok.filter(function(x){ return x && x.propis === 'čeká'; }).map(function(x){ return x.id; });
-            if (!cek.length || NAHLED) return;
-            return post({ propis: cek }).then(function(r){
-              cek.forEach(function(i){ rs[i] = (r.vysledky || {})[i] === 'hotovo' ? { c:'ok', t:'uloženo a propsáno' } : { c:'wait', t:'uloženo v SQL, propis do listu MAT doběhne do 15 minut' }; });
-            }).catch(function(e){ toast('Uloženo v SQL, propis do listu MAT doběhne do 15 minut (' + esc(e.message) + ').', 1); })
-              .then(function(){ if (cur === 'mat') render(D); });
-          });
-        });
+    function bCtrl(c){
+      if (c.sel) return '<select data-k="' + c.k + '"><option value="">– neměnit –</option>' + c.sel.map(function(x){ return '<option>' + x + '</option>'; }).join('') + '</select>';
+      if (c.sk) return '<select data-k="' + c.k + '"><option value="">– neměnit –</option><option value="samostatný">samostatný</option>' + D.skupiny.map(function(x){ return '<option>' + esc(x) + '</option>'; }).join('') + '</select>';
+      return '<input data-k="' + c.k + '" ' + (c.n ? 'inputmode="decimal" ' : '') + (c.dl ? 'list="dl-' + c.k + '" ' : '') + 'placeholder="– neměnit –">';
+    }
+    function panel(){
+      var n = Object.keys(sel).length;
+      var body = '<div class="bp">' + BP.filter(function(c){ return !c.cena || D.vidi_ceny; }).map(function(c){
+        return '<label' + (c.jenS ? ' data-jen="1" style="display:none"' : '') + '>' + esc(c.l) + '</label><div' + (c.jenS ? ' data-jen="1" style="display:none"' : '') + '>' + bCtrl(c) + '</div>' +
+          (c.jenS ? '<div data-jen="1" style="display:none;color:var(--txt-dim);font-size:12px">povinné u formy balení</div>'
+            : '<select data-r="' + c.k + '"><option value="prazdne">jen prázdné</option><option value="prepsat">přepsat</option>' + (c.vym ? '<option value="vymazat">vymazat</option>' : '') + '</select>');
+      }).join('') + '<div class="hint">Vyplň jen pole, která chceš změnit. „Jen prázdné“ doplní hodnotu jen kartám, které ji nemají; „přepsat“ ji nastaví všem vybraným. Forma kus nastaví 1 jednotku. Kartám s otevřeným balením formu nezměníš.</div></div>';
+      var x = dlgX('Upravit vybrané (' + n + ')', body, [['Zpět'], ['Náhled změn…', function(x){ var p = sber(x); if (!p) return false; nahled(p); }, 1]], true);
+      var f = x.querySelector('select[data-k="forma"]');
+      f.addEventListener('change', function(){ var on = f.value === 'balení';
+        Array.prototype.forEach.call(x.querySelectorAll('[data-jen]'), function(e){ e.style.display = on ? '' : 'none'; }); });
+      Array.prototype.forEach.call(x.querySelectorAll('select[data-r]'), function(r){ r.addEventListener('change', function(){
+        var i = x.querySelector('[data-k="' + r.dataset.r + '"]'); i.disabled = r.value === 'vymazat'; if (i.disabled) i.value = ''; }); });
+    }
+    function sber(x){                              /* panel → {pole: {hodnota, rezim}} */
+      var p = {};
+      BP.forEach(function(c){
+        var i = x.querySelector('[data-k="' + c.k + '"]'); if (!i) return;
+        var r = x.querySelector('[data-r="' + c.k + '"]'), rez = r ? r.value : 'prepsat', v = i.value.trim();
+        if (c.k === 'jednotek') { if (p.forma && p.forma.hodnota === 'balení') { p.jednotek = { hodnota:v.replace(',', '.'), rezim:p.forma.rezim }; } return; }
+        if (rez === 'vymazat') { p[c.k] = { hodnota:null, rezim:'vymazat' }; return; }
+        if (v === '') return;
+        p[c.k] = { hodnota:c.n ? v.replace(',', '.') : v, rezim:rez };
+      });
+      if (!Object.keys(p).length) { toast('Vyplň aspoň jedno pole.', 1); return null; }
+      if (p.forma && p.forma.hodnota === 'balení' && !(Number(p.jednotek && p.jednotek.hodnota) > 0)) { toast('U formy balení vyplň počet jednotek.', 1); return null; }
+      if (p.trvanlivost_mes && p.trvanlivost_mes.rezim !== 'vymazat' && check({}, 'trvanlivost_mes', p.trvanlivost_mes.hodnota)) { toast(check({}, 'trvanlivost_mes', p.trvanlivost_mes.hodnota), 1); return null; }
+      if (p.navyseni_pct && check({}, 'navyseni_pct', p.navyseni_pct.hodnota)) { toast('Navýšení: číslo 0 až 100.', 1); return null; }
+      if (p.forma && p.forma.hodnota === 'kus') p.jednotek = { hodnota:'1', rezim:p.forma.rezim, auto:1 };
+      return p;
+    }
+    function norm(k, v){ if (v === null || v === undefined || v === '') return null; if (k === 'skupina' && v === 'samostatný') return null;
+      if (k === 'jednotek' || k === 'navyseni_pct' || k === 'trvanlivost_mes') return Number(v); return String(v); }
+    function zmenyKarty(o, p){                     /* stejné pravidlo jako server (mat_hromadne): [pole, stará, nová] nebo {proc} */
+      if (o.stav === 'neaktivní') return { proc:'karta je vyřazená' };
+      var kand = {};
+      Object.keys(p).forEach(function(k){ var ov = o[k]; if (p[k].rezim !== 'prazdne' || ov === null || ov === undefined || ov === '') kand[k] = norm(k, p[k].hodnota); });
+      if ('jednotek' in kand && !('forma' in kand)) delete kand.jednotek;
+      if ('forma' in kand && kand.forma !== o.forma && o.otev > 0) return { proc:'formu nejde změnit: otevřená balení' };
+      if (kand.stav === 'neaktivní' && o.otev > 0) return { proc:'vyřadit nejde: otevřená balení' };
+      var w = [];
+      Object.keys(kand).forEach(function(k){
+        var nv = kand[k], ov = o[k] === undefined || o[k] === '' ? null : o[k];
+        if ((ov === null ? null : (typeof nv === 'number' ? Number(ov) : String(ov))) !== nv) w.push([k, ov, nv]);
+      });
+      return w;
+    }
+    function fv(k, v){ return v === null || v === undefined || v === '' ? (k === 'skupina' ? 'samostatný' : 'prázdné') : (typeof v === 'number' ? fmtN(v) : v); }
+    function nahled(p){
+      var ids = Object.keys(sel).map(Number), zm = 0, same = 0, bad = 0, h = '';
+      ids.forEach(function(i){
+        var o = byId[i], w = zmenyKarty(o, p);
+        if (w.proc) { bad++; h += '<tr class="bad"><td>' + esc(o.ref) + '</td><td>' + esc(o.nazev) + '</td><td>' + esc(w.proc) + '</td></tr>'; return; }
+        if (!w.length) { same++; h += '<tr class="same"><td>' + esc(o.ref) + '</td><td>' + esc(o.nazev) + '</td><td>beze změny</td></tr>'; return; }
+        zm++; h += '<tr><td>' + esc(o.ref) + '</td><td>' + esc(o.nazev) + '</td><td>' + w.map(function(z){ return esc(POPB[z[0]]) + ': <s>' + esc(fv(z[0], z[1])) + '</s> → ' + esc(fv(z[0], z[2])); }).join('<br>') + '</td></tr>';
+      });
+      var body = '<div class="sum"><span>Změní se <b>' + zm + '</b>' + kar(zm) + '</span><span>beze změny ' + same + '</span>' + (bad ? '<span style="color:var(--bad)">odmítne se ' + bad + '</span>' : '') +
+        '</div><div style="color:var(--txt-dim);font-size:12px;margin-bottom:6px">Celá úprava se uloží jako jedna dávka a jde vrátit (tlačítko Dávky). Změny se zapíšou do historie karet a propíšou do listu MAT.</div>' +
+        '<table class="pv"><thead><tr><th>REF</th><th>Název</th><th>Změna</th></tr></thead><tbody>' + h + '</tbody></table>';
+      dlgX('Náhled hromadné úpravy', body, [['Zpět', function(){ setTimeout(panel, 0); }], ['Uložit ' + zm + kar(zm), function(){ if (!zm) return false; ulozit(p, ids); }, 1]], true);
+    }
+    function vyradit(){
+      var p = { stav:{ hodnota:'neaktivní', rezim:'prepsat' } }, ids = Object.keys(sel).map(Number);
+      var ok = ids.filter(function(i){ return !(byId[i].otev > 0); }), ne = ids.filter(function(i){ return byId[i].otev > 0; });
+      dlgX('Vyřadit vybrané (' + ids.length + ')',
+        '<div>Vyřadí se <b>' + ok.length + '</b>' + kar(ok.length) + '. Nic se nemaže, karty se jen skryjí a nepůjdou vybírat pro nová balení. Vrátit je jde vrácením dávky.</div>' +
+        (ne.length ? '<div style="margin-top:8px;color:var(--bad)">Nevyřadí se ' + ne.length + ' (otevřená balení): ' + ne.map(function(i){ return esc(byId[i].ref); }).join(', ') + '</div>' : ''),
+        [['Zpět'], ['Vyřadit ' + ok.length, function(){ if (!ok.length) return false; ulozit(p, ids); }, 1]]);
+    }
+    function ulozit(p, ids){
+      var ver = {}, plan = {};
+      ids.forEach(function(i){ ver[i] = byId[i].verze; var w = zmenyKarty(byId[i], p); if (!w.proc) plan[i] = w; rs[i] = { c:'wait', t:'ukládám…' }; });
+      var pole = {}; Object.keys(p).forEach(function(k){ if (!p[k].auto) pole[k] = { hodnota:p[k].hodnota, rezim:p[k].rezim }; });
+      if (pole.skupina && pole.skupina.hodnota === 'samostatný') pole.skupina.hodnota = '';
+      render(D);
+      post({ hromadne:{ ids:ids, verze:ver, pole:pole } }).then(function(r){
+        if (!r.ok) throw new Error(r.error || 'chyba serveru');
+        if (r.davka && !NAHLED) (D.davky = D.davky || []).unshift({ id:r.davka, cas:stampM(), kdo:D.kdo || '?', vraci:null, vraceno:null,
+          pole:Object.keys(pole).map(function(k){ return [k, pole[k].rezim, pole[k].hodnota]; }),
+          karet:Object.keys(r.vysledky || {}).filter(function(i){ return r.vysledky[i].v === 'uloženo'; }).length });
+        vysledek(r, plan, 'Hromadná úprava');
+      }).catch(function(e){ ids.forEach(function(i){ rs[i] = { c:'bad', t:'chyba: ' + e.message }; }); toast(esc(e.message), 1); render(D); });
+    }
+    function vysledek(r, plan, tit){
+      var V_ = r.vysledky || {}, c = {}, neul = [], kdo = D.kdo || '?', nw = stampM();
+      Object.keys(V_).forEach(function(i){
+        var x = V_[i], o = byId[i]; if (!o) return; c[x.v] = (c[x.v] || 0) + 1;
+        if (x.v === 'uloženo' || x.v === 'vráceno') {
+          (plan && plan[i] || []).forEach(function(z){ o[z[0]] = z[2]; D.zmeny.push([o.id, nw, kdo, 'prohlizec', z[0], z[1] === null ? null : String(z[1]), z[2] === null ? null : String(z[2]), r.davka]); });
+          o.verze = x.verze || o.verze;
+          rs[i] = x.propis === 'čeká' ? { c:'wait', t:'uloženo v SQL, propis do listu MAT doběhne do 15 minut' } : { c:'ok', t:'uloženo' + (x.propis ? ' a propsáno' : '') };
+        } else if (x.v === 'beze změny') { delete rs[i]; }
+        else { neul.push(+i); rs[i] = { c:'bad', t:x.v + ': ' + (x.proc || '') }; }
+      });
+      if (!plan) return reloadAll(function(){ souhrn(); });
+      sel = {}; jenVyb = false; render(D); souhrn();
+      function souhrn(){
+        var body = '<div class="sum">' + Object.keys(c).map(function(k){ return '<span>' + esc(k) + ' <b>' + c[k] + '</b></span>'; }).join('') + '</div>' +
+          (neul.length ? '<table class="pv"><tbody>' + neul.map(function(i){ var o = byId[i], x = V_[i]; return '<tr class="bad"><td>' + esc(o.ref) + '</td><td>' + esc(x.v) + '</td><td>' + esc(x.proc || '') + '</td></tr>'; }).join('') + '</tbody></table>' : '') +
+          (r.davka ? '<div style="margin-top:8px;color:var(--txt-dim)">Dávka č. ' + r.davka + '.</div>' : '');
+        var b = [['Zavřít']];
+        if (neul.length) b.unshift(['Vybrat neuložené', function(){ sel = {}; neul.forEach(function(i){ sel[i] = 1; }); jenVyb = true; render(D); }]);
+        if (r.davka && plan) b.unshift(['Vrátit tuto dávku', function(){ vratit(r.davka); }]);
+        dlgX(tit + ' – výsledek', body, b, neul.length > 0);
+      }
+    }
+    function stampM(){ var nw = new Date(), p2 = function(x){ return (x < 10 ? '0' : '') + x; };
+      return nw.getFullYear() + '-' + p2(nw.getMonth() + 1) + '-' + p2(nw.getDate()) + ' ' + p2(nw.getHours()) + ':' + p2(nw.getMinutes()); }
+    function reloadAll(then){
+      if (NAHLED) return then && then();
+      req(MAT_API).then(function(d){ cache.mat = d; D = null; if (cur === 'mat') render(d); if (then) then(); })
+        .catch(function(e){ toast('Načtení po změně selhalo: ' + esc(e.message), 1); });
+    }
+    function vratit(id){
+      var d = (D.davky || []).filter(function(x){ return x.id === id; })[0];
+      dlgX('Vrátit dávku č. ' + id, '<div>Vrátí původní hodnoty na kartách, které od té doby nikdo v daných polích neměnil. Ostatní se přeskočí a vypíšou. Vrácení je samo další dávka.</div>' +
+        (d ? '<div style="margin-top:6px;color:var(--txt-dim)">' + esc(popisD(d)) + ' · ' + d.karet + kar(d.karet) + '</div>' : ''),
+        [['Zpět'], ['Vrátit', function(){
+          if (NAHLED) return toast('V náhledu se dávky nevracejí.', 1);
+          post({ vratit_davku:id }).then(function(r){ if (!r.ok) throw new Error(r.error); vysledek(r, null, 'Vrácení dávky ' + id); })
+            .catch(function(e){ toast(esc(e.message), 1); });
+        }, 1]]);
+    }
+    function popisD(d){ return (d.pole || []).map(function(x){ return (POPB[x[0]] || x[0]) + ' = ' + fv(x[0], x[2]) + (x[1] === 'prazdne' ? ' (jen prázdné)' : (x[1] === 'vymazat' ? ' (vymazat)' : '')); }).join(', '); }
+    function davky(){
+      var L = D.davky || [];
+      var body = L.length ? '<table class="pv"><thead><tr><th>Č.</th><th>Kdy</th><th>Kdo</th><th>Úprava</th><th>Karet</th><th></th></tr></thead><tbody>' + L.map(function(d){
+        var st = d.vraceno ? 'vrácena ' + esc(fmtT(d.vraceno)) + ' (' + esc(d.vratil || '') + ')' : (d.vraci ? 'vrací č. ' + d.vraci : '');
+        return '<tr' + (d.vraceno ? ' class="same"' : '') + '><td>' + d.id + '</td><td>' + esc(fmtT(d.cas)) + '</td><td>' + esc(d.kdo) + '</td><td>' + esc(popisD(d)) + '</td><td>' + d.karet + '</td><td>' +
+          (st || (D.smi_upravovat && d.karet ? '<button class="btn" type="button" data-vr="' + d.id + '">Vrátit</button>' : '')) + '</td></tr>';
+      }).join('') + '</tbody></table>' : '<div>Zatím žádná hromadná úprava v2.</div>';
+      var x = dlgX('Hromadné úpravy (dávky)', body, [['Zavřít']], true);
+      x.addEventListener('click', function(e){ var v = e.target.dataset.vr; if (v) { x.remove(); vratit(+v); } });
     }
     function dlg(title, body, okTxt, ok){
       var x = document.createElement('div'); x.className = 'dlgbg';
@@ -496,6 +642,14 @@ td.vy{color:var(--txt-strong)}
       return '';
     }
     function post(p){
+      if (NAHLED && p.hromadne) return new Promise(function(res){ setTimeout(function(){
+        var v = {}; p.hromadne.ids.forEach(function(i){ var o = byId[i], w = zmenyKarty(o, Object.keys(p.hromadne.pole).reduce(function(a, k){ a[k] = p.hromadne.pole[k]; return a; }, p.hromadne.pole.forma && p.hromadne.pole.forma.hodnota === 'kus' ? { jednotek:{ hodnota:'1', rezim:p.hromadne.pole.forma.rezim } } : {}));
+          v[i] = w.proc ? { v:'odmítnuto', proc:w.proc } : (!w.length ? { v:'beze změny' } : (P.get('konflikt') === o.ref ? { v:'konflikt', proc:'kartu mezitím změnil(a) M (výrobce)' } : { v:'uloženo', verze:o.verze + 1, propis:'čeká' })); });
+        D.davky = D.davky || []; var id = (D.davky[0] ? D.davky[0].id : 0) + 1;
+        D.davky.unshift({ id:id, cas:stampM(), kdo:D.kdo || 'H', pole:Object.keys(p.hromadne.pole).map(function(k){ return [k, p.hromadne.pole[k].rezim, p.hromadne.pole[k].hodnota]; }),
+          karet:Object.keys(v).filter(function(i){ return v[i].v === 'uloženo'; }).length, vraci:null, vraceno:null });
+        res({ ok:true, davka:id, vysledky:v });
+      }, 500); });
       if (NAHLED) return new Promise(function(res){ setTimeout(function(){
         var o = byId[p.id];
         if (P.get('konflikt') && o.ref === P.get('konflikt')) return res({ ok:false, konflikt:{ kdo:'M', kdy:'před 2 min', pole:p.pole, hodnota:p.pole === 'skupina' ? 'samostatný' : 'jiná hodnota' } });
@@ -563,7 +717,7 @@ td.vy{color:var(--txt-strong)}
           '<dt>Okamžitý náklad</dt><dd>' + (o.cena_nakup !== null ? fmtN(o.cena_nakup * (1 + (o.navyseni_pct || 0) / 100)) + ' Kč / jedn.' : 'bez ceny') + '</dd>' : '') +
         '<dt>Verze</dt><dd>' + o.verze + '</dd></dl>' +
         '<h4>Historie</h4>' + (hz.length ? '<ul class="hist">' + hz.map(function(z){
-          return '<li><div class="t">' + esc(fmtT(z[1])) + ' · ' + esc(z[2]) + ' · ' + esc(ZDR[z[3]] || z[3]) + '</div>' + esc(POPIS[z[4]] || z[4]) + ': ' +
+          return '<li><div class="t">' + esc(fmtT(z[1])) + ' · ' + esc(z[2]) + ' · ' + esc(ZDR[z[3]] || z[3]) + (z[7] ? ' · hromadně, dávka ' + z[7] : '') + '</div>' + esc(POPIS[z[4]] || z[4]) + ': ' +
             (z[5] !== null ? '<s>' + esc(z[5]) + '</s> → ' : '') + '<span class="v">' + esc(z[6] === null ? 'prázdné' : z[6]) + '</span></li>';
         }).join('') + '</ul>' : '<div class="t">Bez změn od importu.</div>') + '</div>' +
         '<div class="foot"><button class="btn" type="button" data-a="undo"' + (lastOk ? '' : ' disabled') + '>Vrátit poslední změnu</button>' +
@@ -604,7 +758,13 @@ td.vy{color:var(--txt-strong)}
       }
       var tr = e.target.closest('tr[data-id]'); if (!tr) return;
       var id = +tr.dataset.id, cell_ = e.target.closest('td');
-      if (cell_.classList.contains('chk')) { if (e.target.type === 'checkbox') { if (e.target.checked) sel[id] = 1; else delete sel[id]; render(D); } return; }
+      if (cell_.classList.contains('chk')) { if (e.target.type === 'checkbox') {
+        var on = e.target.checked;
+        if (e.shiftKey && lastChk !== null) {        /* krok 35: Shift+klik = rozsah v aktuálním pořadí */
+          var L = shown(), a = L.findIndex(function(o){ return o.id === lastChk; }), b = L.findIndex(function(o){ return o.id === id; });
+          if (a >= 0 && b >= 0) L.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(function(o){ if (o.stav === 'aktivní') { if (on) sel[o.id] = 1; else delete sel[o.id]; } });
+        }
+        if (on) sel[id] = 1; else delete sel[id]; lastChk = id; render(D); } return; }
       if (cell_.classList.contains('more')) return openSide(id);
       if (cell_.classList.contains('ed') && !(edit && edit.id === id && edit.k === cell_.dataset.k)) { edit = { id:id, k:cell_.dataset.k }; render(D); }
     });
@@ -625,6 +785,7 @@ td.vy{color:var(--txt-strong)}
     $('wrap').addEventListener('change', function(e){ if (edit && e.target.tagName === 'SELECT' && e.target.closest('td.editing')) commit(e.target); });
     ['fNeupl','fZas','fOff'].forEach(function(id){ $(id).addEventListener('change', function(){ if (D) render(D); }); });
     $('mNew').addEventListener('click', newCard);
+    $('mDavky').addEventListener('click', function(){ if (D) davky(); });
     return { render:render, close:close, dlg:dlg, toast:toast, _s:function(){ return { R:R, byId:byId, sel:sel, rs:rs, setEdit:function(x){ edit = x; }, openSide:openSide, save:save, D:function(){ return D; } }; } };
   })();
 

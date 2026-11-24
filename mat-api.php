@@ -3,7 +3,9 @@
    Záložka Materiál v prohlížeči tabulek – živá data ze SQL (krok 5)
    GET            → karty, skupiny, historie, práva (tvar jako náhled krok 3)
    POST {id, verze, pole, hodnota, odlozit?}  → úprava jednoho pole
-   POST {propis: [id, …]}                     → propis po hromadné úpravě
+   POST {propis: [id, …]}                     → propis po hromadné úpravě (verze 1)
+   POST {hromadne: {ids, verze, pole}}        → hromadná úprava v2 (krok 35), jedna dávka
+   POST {vratit_davku: id}                    → vrácení dávky
    Kdo volá: Trello JWT (zakázkový list) nebo cookie formuláře příjmu.
    Upravovat smí H, Marie, Brigit a formulář příjmu; ostatní jen čtou.
    Bez zapnutého přepínače (autolab-mat.json) odpoví „zatím vypnuto“.
@@ -89,19 +91,26 @@ try {
       $rows[] = array_map(fn($k) => in_array($k, ['jednotek', 'cena_nakup', 'navyseni_pct'], true) && $m[$k] !== null ? (float) $m[$k]
                                     : (in_array($k, ['id', 'verze', 'trvanlivost_mes'], true) && $m[$k] !== null ? (int) $m[$k] : $m[$k]), $cols);
     }
-    $zm = $pdo->query('SELECT mat_id, DATE_FORMAT(cas, "%Y-%m-%d %H:%i:%s") AS cas, kdo, zdroj, pole, stara, nova FROM ' . mat_t('mat_zmena')
+    $zm = $pdo->query('SELECT mat_id, DATE_FORMAT(cas, "%Y-%m-%d %H:%i:%s") AS cas, kdo, zdroj, pole, stara, nova' . (mat_ma_davku() ? ', davka' : ', NULL') . ' FROM ' . mat_t('mat_zmena')
                       . ($smi ? '' : " WHERE pole NOT IN ('cena_nakup', 'navyseni_pct')") . ' ORDER BY id DESC LIMIT 5000')->fetchAll(PDO::FETCH_NUM);
     $cek = $pdo->query('SELECT DISTINCT mat_id FROM ' . mat_t('mat_propis') . " WHERE stav IN ('čeká', 'chyba')")->fetchAll(PDO::FETCH_COLUMN);
     ma_out(['ok' => true, 'zdroj' => 'sql', 'tabulka' => 'SQL ' . $T, 'cols' => $cols, 'rows' => $rows,
             'skupiny' => $pdo->query('SELECT kod FROM ' . mat_t('mat_skupina') . ' ORDER BY kod')->fetchAll(PDO::FETCH_COLUMN),
-            'zmeny' => array_map(fn($z) => [(int) $z[0], $z[1], $z[2], $z[3], $z[4], $z[5], $z[6]], array_reverse($zm)),
+            'zmeny' => array_map(fn($z) => [(int) $z[0], $z[1], $z[2], $z[3], $z[4], $z[5], $z[6], $z[7] === null ? null : (int) $z[7]], array_reverse($zm)),
+            'davky' => $smi ? mat_davky() : [],
             'cekaji' => array_map('intval', $cek), 'smi_upravovat' => $smi, 'vidi_ceny' => $smi, 'kdo' => $kdo]);
   }
   if ($_SERVER['REQUEST_METHOD'] !== 'POST') ma_out(['ok' => false, 'error' => 'nepovolená metoda'], 405);
   if (!$smi) ma_out(['ok' => false, 'error' => 'kartu MAT může upravit jen Honza, Majda nebo Brigit'], 403);
-  $b = json_decode((string) file_get_contents('php://input'), true);
+  $b = json_decode((string) file_get_contents(PHP_SAPI === 'cli' ? 'php://stdin' : 'php://input'), true);
   if (!is_array($b)) ma_out(['ok' => false, 'error' => 'neplatný požadavek'], 400);
 
+  if (isset($b['hromadne'])) {                       // krok 35: víc polí, jedna dávka
+    $h = is_array($b['hromadne']) ? $b['hromadne'] : [];
+    if (isset($h['pole']['navyseni_pct']) && $actor !== 'prijem' && !isset(MA_EDIT[$actor])) ma_out(['ok' => false, 'error' => 'navýšení smí měnit jen role s cenami'], 403);
+    ma_out(mat_hromadne($h, $kdo));
+  }
+  if (isset($b['vratit_davku'])) ma_out(mat_vratit_davku((int) $b['vratit_davku'], $kdo));
   if (isset($b['propis'])) {                         // po hromadné úpravě: jeden propis pro všechny
     $ids = array_slice(array_map('intval', (array) $b['propis']), 0, 1000);
     $r = mat_sync($ids);
