@@ -170,7 +170,7 @@ function mat_same(string $k, $a, $b): bool {
   }
   return (string) ($a ?? '') === (string) ($b ?? '');
 }
-function mat_apply(int $id, array $v, string $kdo, string $zdroj, ?int $verze = null): array {
+function mat_apply(int $id, array $v, string $kdo, string $zdroj, ?int $verze = null, ?int $davka = null): array {
   $pdo = mat_pdo(); $T = mat_t('mat');
   $pdo->beginTransaction();
   try {
@@ -194,10 +194,13 @@ function mat_apply(int $id, array $v, string $kdo, string $zdroj, ?int $verze = 
     $now = mat_now();
     $pdo->prepare("UPDATE $T SET $set, upravil = ?, upraveno = ?, verze = verze + 1 WHERE id = ?")
         ->execute([...array_values($zm), $kdo, $now, $id]);
-    $ins = $pdo->prepare('INSERT INTO ' . mat_t('mat_zmena') . ' (mat_id, cas, kdo, zdroj, pole, stara, nova) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    $sD = $davka !== null && mat_ma_davku();
+    $ins = $pdo->prepare('INSERT INTO ' . mat_t('mat_zmena') . ' (mat_id, cas, kdo, zdroj, pole, stara, nova' . ($sD ? ', davka' : '') . ') VALUES (?, ?, ?, ?, ?, ?, ?' . ($sD ? ', ?' : '') . ')');
     foreach ($zm as $k => $x) {
       if ($k === 'cena_datum') continue;
-      $ins->execute([$id, $now, $kdo, $zdroj, $k, $m[$k] === null ? null : mb_substr((string) $m[$k], 0, 200), $x === null ? null : mb_substr((string) $x, 0, 200)]);
+      $r = [$id, $now, $kdo, $zdroj, $k, $m[$k] === null ? null : mb_substr((string) $m[$k], 0, 200), $x === null ? null : mb_substr((string) $x, 0, 200)];
+      if ($sD) $r[] = $davka;
+      $ins->execute($r);
     }
     if (array_diff(array_keys($zm), ['cena_nakup', 'cena_datum', 'navyseni_pct', 'stav'])) mat_queue([$id]);  // ceny a stav list MAT nenese
     $pdo->commit();
@@ -478,3 +481,128 @@ function mat_kontrola(): array {
   $ok = !$sum['rozdily'] && !$sum['chybi_v_listu'] && !$sum['chyby'] && !$sum['navic_v_listu'] && !$sum['duplicity'];
   return ['ok' => $ok, 'souhrn' => $sum, 'detail' => array_slice($det, 0, 50)];
 }
+
+/* =====================================================================
+   Hromadné úpravy, verze 2 (krok 35)
+   - víc polí najednou, režim přepsat / jen prázdné / vymazat
+   - každá karta ve vlastní transakci s kontrolou verze (mat_apply)
+   - celá úprava = jedna dávka (mat_davka), jde vrátit
+   - jeden společný propis do listu MAT na konci
+   ===================================================================== */
+const MAT_HROM_POLE  = ['vyrobce', 'dodavatel', 'skupina', 'odpis', 'kat', 'trvanlivost_mes', 'forma', 'jednotek', 'navyseni_pct', 'stav'];
+const MAT_HROM_VYMAZ = ['dodavatel', 'skupina', 'trvanlivost_mes'];          // jen tato pole jde hromadně vyprázdnit
+const MAT_PROPIS_NE  = ['cena_nakup', 'cena_datum', 'navyseni_pct', 'stav', 'trvanlivost_mes'];   // list MAT je nenese
+
+function mat_ma_davku(): bool {                      // sloupec mat_zmena.davka (migrace 091) – kód funguje i bez něj
+  static $x = null;
+  if ($x === null) {
+    try { $x = (bool) mat_pdo()->query("SHOW COLUMNS FROM " . mat_t('mat_zmena') . " LIKE 'davka'")->fetch(); } catch (Throwable $e) { $x = false; }
+  }
+  return $x;
+}
+function mat_prazdne($k, $v): bool { return $v === null || (string) $v === ''; }
+
+function mat_hromadne(array $b, string $kdo): array {
+  $ids = array_values(array_unique(array_filter(array_map('intval', (array) ($b['ids'] ?? [])))));
+  $ver = is_array($b['verze'] ?? null) ? $b['verze'] : [];
+  $pole = is_array($b['pole'] ?? null) ? $b['pole'] : [];
+  if (!$ids) return ['ok' => false, 'error' => 'nejsou vybrané žádné karty'];
+  if (count($ids) > 1000) return ['ok' => false, 'error' => 'najednou jde upravit nejvýš 1000 karet'];
+  if (!mat_ma_davku()) return ['ok' => false, 'error' => 'server: chybí migrace 091 (dávky)'];
+
+  /* pole → [hodnota, režim]; kontrola hodnot stejnými pravidly jako v buňce */
+  $set = []; $rez = [];
+  foreach ($pole as $k => $p) {
+    if (!in_array($k, MAT_HROM_POLE, true)) return ['ok' => false, 'error' => 'pole ' . $k . ' nejde upravit hromadně'];
+    $r = (string) ($p['rezim'] ?? 'prazdne');
+    if (!in_array($r, ['prepsat', 'prazdne', 'vymazat'], true)) return ['ok' => false, 'error' => 'neznámý režim'];
+    if ($r === 'vymazat' && !in_array($k, MAT_HROM_VYMAZ, true)) return ['ok' => false, 'error' => 'pole ' . $k . ' nejde vyprázdnit'];
+    $set[$k] = $r === 'vymazat' ? '' : ($p['hodnota'] ?? null); $rez[$k] = $r;
+  }
+  if (!$set) return ['ok' => false, 'error' => 'není vyplněné žádné pole'];
+  if (isset($set['jednotek']) && ($set['forma'] ?? null) !== 'balení') return ['ok' => false, 'error' => 'počet jednotek jde hromadně nastavit jen spolu s formou balení'];
+  if (($set['forma'] ?? null) === 'balení' && !isset($set['jednotek'])) return ['ok' => false, 'error' => 'u formy balení vyplň počet jednotek'];
+  if (isset($set['stav']) && $set['stav'] !== 'neaktivní') return ['ok' => false, 'error' => 'hromadně jde karty jen vyřadit, vrátit je jde vrácením dávky nebo po jedné'];
+  foreach (['vyrobce', 'odpis', 'kat', 'forma'] as $k) if (isset($set[$k]) && mat_txt($set[$k]) === '') return ['ok' => false, 'error' => 'pole ' . $k . ' nejde vyprázdnit'];
+  $chk = array_filter($set, fn($x, $k) => !($rez[$k] === 'vymazat'), ARRAY_FILTER_USE_BOTH);
+  [$v, $err] = mat_check($chk, true);
+  if ($err) return ['ok' => false, 'error' => $err];
+  foreach ($rez as $k => $r) if ($r === 'vymazat') $v[$k] = null;
+  if (($v['forma'] ?? null) === 'kus') { $v['jednotek'] = 1.0; $rez['jednotek'] = $rez['forma']; }
+
+  $pdo = mat_pdo();
+  $pdo->prepare('INSERT INTO ' . mat_t('mat_davka') . ' (cas, kdo, pole, karet) VALUES (?, ?, ?, 0)')
+      ->execute([mat_now(), $kdo, json_encode(array_map(fn($k) => [$k, $rez[$k], $v[$k] ?? null], array_keys($v)), JSON_UNESCAPED_UNICODE)]);
+  $davka = (int) $pdo->lastInsertId();
+
+  $out = []; $sync = []; $zmen = 0;
+  foreach ($ids as $id) {
+    $m = mat_by_id($id);
+    if (!$m) { $out[$id] = ['v' => 'odmítnuto', 'proc' => 'karta neexistuje']; continue; }
+    if ($m['stav'] === 'neaktivní') { $out[$id] = ['v' => 'odmítnuto', 'proc' => 'karta je vyřazená']; continue; }
+    $w = [];
+    foreach ($v as $k => $x) if ($rez[$k] !== 'prazdne' || mat_prazdne($k, $m[$k])) $w[$k] = $x;
+    if (isset($w['jednotek']) && !isset($w['forma'])) unset($w['jednotek']);        // jednotek jen s formou
+    if ((isset($w['forma']) && $w['forma'] !== $m['forma']) && mat_otevrena($m['ref']) > 0) {
+      $out[$id] = ['v' => 'odmítnuto', 'proc' => 'formu nejde změnit: na kartě jsou otevřená balení']; continue;
+    }
+    if (!$w) { $out[$id] = ['v' => 'beze změny', 'proc' => 'pole už má hodnotu']; continue; }
+    [$m2, $zm, $konf, $e2] = mat_apply($id, $w, $kdo, 'prohlizec', isset($ver[$id]) ? (int) $ver[$id] : (isset($ver[(string) $id]) ? (int) $ver[(string) $id] : null), $davka);
+    if ($konf) { $out[$id] = ['v' => 'konflikt', 'proc' => 'kartu mezitím změnil(a) ' . $konf['kdo'] . ' (' . $konf['pole'] . ')']; continue; }
+    if ($e2) { $out[$id] = ['v' => 'odmítnuto', 'proc' => $e2]; continue; }
+    if (!$zm) { $out[$id] = ['v' => 'beze změny', 'proc' => 'stejná hodnota']; continue; }
+    $zmen++;
+    $out[$id] = ['v' => 'uloženo', 'pole' => $zm, 'verze' => (int) $m2['verze']];
+    if (array_diff($zm, MAT_PROPIS_NE)) $sync[] = $id;
+  }
+  if ($zmen) $pdo->prepare('UPDATE ' . mat_t('mat_davka') . ' SET karet = ? WHERE id = ?')->execute([$zmen, $davka]);
+  else { $pdo->prepare('DELETE FROM ' . mat_t('mat_davka') . ' WHERE id = ?')->execute([$davka]); $davka = 0; }
+  $pr = $sync ? mat_sync($sync) : [];
+  foreach ($sync as $id) $out[$id]['propis'] = ($pr[$id] ?? '') === 'hotovo' ? 'hotovo' : 'čeká';
+  mat_log($kdo, 'hromadně ' . count($ids) . ' karet, dávka ' . $davka, $zmen . ' uloženo');
+  return ['ok' => true, 'davka' => $davka, 'vysledky' => $out];
+}
+
+/* Vrácení dávky: jen karty, na kterých od dávky nikdo neměnil stejné pole.
+   Hodnoty se berou z historie (stara), takže se nekontrolují pravidly pro nové hodnoty. */
+function mat_vratit_davku(int $d, string $kdo): array {
+  if (!mat_ma_davku()) return ['ok' => false, 'error' => 'server: chybí migrace 091 (dávky)'];
+  $pdo = mat_pdo(); $Z = mat_t('mat_zmena'); $DV = mat_t('mat_davka');
+  $dv = $pdo->prepare("SELECT * FROM $DV WHERE id = ?"); $dv->execute([$d]); $dv = $dv->fetch();
+  if (!$dv) return ['ok' => false, 'error' => 'dávka neexistuje'];
+  if (!empty($dv['vraceno'])) return ['ok' => false, 'error' => 'dávka už byla vrácena'];
+  $st = $pdo->prepare("SELECT id, mat_id, pole, stara FROM $Z WHERE davka = ? ORDER BY id"); $st->execute([$d]);
+  $po = [];
+  foreach ($st->fetchAll() as $z) $po[(int) $z['mat_id']][$z['pole']] = ['id' => (int) $z['id'], 'stara' => $z['stara']];
+  $pdo->prepare("INSERT INTO $DV (cas, kdo, pole, karet, vraci) VALUES (?, ?, ?, 0, ?)")->execute([mat_now(), $kdo, $dv['pole'], $d]);
+  $nova = (int) $pdo->lastInsertId();
+  $later = $pdo->prepare("SELECT kdo, pole FROM $Z WHERE mat_id = ? AND id > ? AND pole IN (" . implode(',', array_fill(0, 12, '?')) . ") LIMIT 1");
+  $out = []; $sync = []; $n = 0;
+  foreach ($po as $id => $pp) {
+    $max = max(array_column($pp, 'id')); $pl = array_keys($pp);
+    $later->execute([$id, $max, ...array_pad($pl, 12, '')]);
+    if ($x = $later->fetch()) { $out[$id] = ['v' => 'přeskočeno', 'proc' => 'pole ' . $x['pole'] . ' mezitím změnil(a) ' . $x['kdo']]; continue; }
+    $w = [];
+    foreach ($pp as $k => $z) $w[$k] = in_array($k, ['jednotek', 'navyseni_pct'], true) ? mat_num($z['stara']) : ($k === 'trvanlivost_mes' ? ($z['stara'] === null ? null : (int) $z['stara']) : $z['stara']);
+    [$m2, $zm, $konf, $e2] = mat_apply($id, $w, $kdo, 'prohlizec', null, $nova);
+    if ($e2) { $out[$id] = ['v' => 'odmítnuto', 'proc' => $e2]; continue; }
+    if (!$zm) { $out[$id] = ['v' => 'beze změny', 'proc' => 'hodnota už je původní']; continue; }
+    $n++; $out[$id] = ['v' => 'vráceno', 'pole' => $zm, 'verze' => (int) $m2['verze']];
+    if (array_diff($zm, MAT_PROPIS_NE)) $sync[] = $id;
+  }
+  $pdo->prepare("UPDATE $DV SET karet = ? WHERE id = ?")->execute([$n, $nova]);
+  $pdo->prepare("UPDATE $DV SET vraceno = ?, vratil = ? WHERE id = ?")->execute([mat_now(), $kdo, $d]);
+  $pr = $sync ? mat_sync($sync) : [];
+  foreach ($sync as $id) $out[$id]['propis'] = ($pr[$id] ?? '') === 'hotovo' ? 'hotovo' : 'čeká';
+  mat_log($kdo, 'vrácení dávky ' . $d, $n . ' vráceno');
+  return ['ok' => true, 'davka' => $nova, 'vysledky' => $out];
+}
+
+function mat_davky(int $lim = 40): array {
+  if (!mat_ma_davku()) return [];
+  $q = mat_pdo()->query('SELECT id, DATE_FORMAT(cas, "%Y-%m-%d %H:%i") cas, kdo, pole, karet, vraci, DATE_FORMAT(vraceno, "%Y-%m-%d %H:%i") vraceno, vratil FROM '
+                        . mat_t('mat_davka') . ' ORDER BY id DESC LIMIT ' . (int) $lim);
+  return array_map(fn($r) => ['id' => (int) $r['id'], 'cas' => $r['cas'], 'kdo' => $r['kdo'], 'pole' => json_decode((string) $r['pole'], true) ?: [],
+                              'karet' => (int) $r['karet'], 'vraci' => $r['vraci'] === null ? null : (int) $r['vraci'], 'vraceno' => $r['vraceno'], 'vratil' => $r['vratil']], $q->fetchAll());
+}
+
