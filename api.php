@@ -11,6 +11,7 @@
    ========================================================= */
 require __DIR__ . '/prijem-auth.php';          // prijem_secret() – klíč pro Apps Script
 require __DIR__ . '/mat-lib.php';             // krok 5: karty MAT v SQL (přepínač autolab-mat.json)
+require __DIR__ . '/archiv-lib.php';          // krok 31: archiv vydaných prohlášení (přepínač autolab-archiv.json)
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -92,7 +93,7 @@ $plug  = (string) ($c['idPlugin'] ?? '');
 if (API_PLUGIN !== '' && !hash_equals(API_PLUGIN, $plug)) { api_log($actor, 'plugin ' . $plug, 'odmítnuto'); api_out(['ok' => false, 'error' => 'cizí Power-Up'], 403); }
 if (!in_array($actor, API_USERS, true)) { api_log($actor, 'člen', 'odmítnuto'); api_out(['ok' => false, 'error' => 'tento Trello účet nemá do EVIDENCE přístup'], 403); }
 
-function api_gas(string $url, ?string $post, string $actor, string $what, ?array $pridej = null): void {
+function api_gas(string $url, ?string $post, string $actor, string $what, ?array $pridej = null, ?callable $po = null): void {
   $ch = curl_init($url);
   curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 5,
@@ -108,6 +109,7 @@ function api_gas(string $url, ?string $post, string $actor, string $what, ?array
   if ($r === false || $code !== 200) { api_log($actor, $what, 'GAS HTTP ' . $code); api_out(['ok' => false, 'error' => 'Apps Script neodpověděl (HTTP ' . $code . ')'], 502); }
   if (json_decode($r) === null) { api_log($actor, $what, 'GAS neplatná odpověď'); api_out(['ok' => false, 'error' => 'Apps Script vrátil neplatnou odpověď'], 502); }
   api_log($actor, $what, 'ok');
+  if ($po) { $j = json_decode($r, true); if (is_array($j)) { echo json_encode($po($j), JSON_UNESCAPED_UNICODE); exit; } }
   if ($pridej) { $j = json_decode($r, true); if (is_array($j)) { foreach ($pridej as $k => $v) if (!isset($j[$k])) $j[$k] = $v; echo json_encode($j, JSON_UNESCAPED_UNICODE); exit; } }
   echo $r; exit;
 }
@@ -157,10 +159,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       api_out(['ok' => false, 'error' => 'databáze karet MAT neodpověděla – nic se neuložilo, zkus to znovu'], 502);
     }
   }
+  $po = null;
+  if ($a === 'compliancePdf') {                         // krok 31: Apps Script vrátí i originál PDF a data pro archiv
+    if (arch_on()) $b['archiv'] = true;
+    $po = function (array $j) use ($actor): array {
+      $x = $j['archiv'] ?? null;
+      unset($j['archiv']);                              // do prohlížeče archivní data nejdou
+      if (is_array($x) && !empty($j['ok']) && arch_on()) {
+        try { arch_vydani($x, $actor, isset($x['technik']) ? substr((string) $x['technik'], 0, 1) : null); }
+        catch (Throwable $e) { arch_log($actor, 'vydání ' . substr((string) ($x['tag'] ?? ''), 0, 40), 'CHYBA ' . substr($e->getMessage(), 0, 200)); }
+      }
+      return $j;                                        // chyba archivu prohlášení nikdy nezastaví
+    };
+  }
   $b['action'] = $a;
   $b['actor']  = $actor;                                // kdo skutečně zapisoval (pro audit)
   $b['key']    = $s['key'];
-  api_gas(API_GAS_URL, json_encode($b, JSON_UNESCAPED_UNICODE), $actor, 'POST ' . $a . (isset($b['memberId']) ? ' →' . $b['memberId'] : '') . $what0, $pridej ?? null);
+  api_gas(API_GAS_URL, json_encode($b, JSON_UNESCAPED_UNICODE), $actor, 'POST ' . $a . (isset($b['memberId']) ? ' →' . $b['memberId'] : '') . $what0, $pridej ?? null, $po);
 }
 
 api_out(['ok' => false, 'error' => 'nepovolená metoda'], 405);
