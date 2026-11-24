@@ -5,8 +5,9 @@
      X-Trello-JWT – stejně jako api.php. Z formuláře příjmu
      (tabulky.html?z=prijem) stačí platná cookie přihlášení k příjmu.
    - Pevný seznam tabulek a dotazů, prohlížeč neposílá žádné SQL.
-   - V E1 jen sklad a výrobky. Ceny a odměny se tudy nečtou. Výjimka: trasování
-     (?trace=) čte živě z EVIDENCE výkony zakázky (kód, datum, ordinace, pacient).
+   - V E1 jen sklad a výrobky. Ceny a odměny se tudy nečtou. Výjimky: trasování
+     (?trace=) čte živě z EVIDENCE výkony zakázky (kód, datum, ordinace, pacient);
+     cvičný ceník c1_cenik (krok 34) vidí jen editoři (TB_EDIT), technici ani příjem ne.
    - Přístup k databázi: autolab-db.cnf mimo web (práva 600).
    ========================================================= */
 header('Content-Type: application/json; charset=utf-8');
@@ -28,6 +29,9 @@ const TB_USERS = [
   '63ea51fbb262b19c0189e9b8', '686d1aa4bc747a96bb0fd585', '63e911bcb90ab76e81ad4e6a',
   '655329144f809c15a1896437', '6b00d5c2c5be2a396f89949e',
 ];
+
+/* Editoři – jen oni vidí záložky s 'editor' => true (cvičný ceník s náklady a odměnami) */
+const TB_EDIT = ['588fa9e7e5db691bfe653bce' => 'H', '6b00d5c2c5be2a396f89949e' => 'BRIGIT'];
 
 /* Tabulky: titulek, sloupce [klíč, popisek, typ], dotaz. Typy: t text, n číslo, d datum. */
 const TB_TABLES = [
@@ -76,6 +80,22 @@ const TB_TABLES = [
                 ['trvanlivost','Trvanlivost','t'],['poznamka','Poznámka','t'],['radek','Řádek','n']],
     'sql'   => "SELECT kod, nazev, ku, kat, kzp, hs, vzp, mat_hlavni, mat_pomoc, gmdn, udi_pi, trvanlivost, poznamka, radek
                   FROM s1_produkt ORDER BY radek",
+  ],
+  'cenik' => [
+    'title'  => 'Ceník (cvičný)',
+    'editor' => true,
+    'stav'   => 'c1_cenik_import',
+    'pozn'   => 'Cvičný ceník – kopie listu CEN k uvedenému času, jen ke čtení. Zápisy, ceny a odměny dál počítají Sheets.',
+    'cols'   => [['rocnik','Ročník','t'],['kod','Kód','t'],['nazev','Název','t'],['kontrola','Kontrola','t'],['ku','KU','t'],
+                 ['naklad_c','Nákl. C','n'],['cena_a','Standard (A)','n'],['cena_x','Premium (X)','n'],
+                 ['mzda_h','Mzd. poměr','n'],['odm_a','Odměna A','n'],['odm_x','Odměna X','n'],
+                 ['de_a','DE','n'],['de_x','XDE','n'],['mb_a','MB','n'],['mb_x','XMB','n'],
+                 ['cn_a','CN','n'],['cn_x','XCN','n'],['fn_a','FN','n'],['fn_x','XFN','n'],['vb','VB','n'],
+                 ['faze','Fáze DE/MB/CN/FN %','t'],['radek','Řádek CEN','n']],
+    'sql'    => "SELECT rocnik, kod, nazev, kontrola, ku, naklad_c, cena_a, cena_x, mzda_h, odm_a, odm_x,
+                        de_a, de_x, mb_a, mb_x, cn_a, cn_x, fn_a, fn_x, vb,
+                        CONCAT_WS(' / ', ROUND(de_pct*100), ROUND(mb_pct*100), ROUND(cn_pct*100), ROUND(fn_pct*100)) AS faze, radek
+                   FROM c1_cenik ORDER BY radek",
   ],
 ];
 
@@ -184,7 +204,9 @@ if (isset($_GET['trace'])) {
 $t = (string) ($_GET['t'] ?? '');
 try {
   $pdo = tb_pdo();
-  $st = $pdo->query("SELECT cas, sesit_verze FROM s1_import ORDER BY id DESC LIMIT 1")->fetch();
+  $smiEd = $actor === 'cli-test' || isset(TB_EDIT[$actor]);
+  $stTab = (isset(TB_TABLES[$t]['stav']) && $smiEd) ? TB_TABLES[$t]['stav'] : 's1_import';
+  $st = $pdo->query("SELECT cas, sesit_verze FROM $stTab ORDER BY id DESC LIMIT 1")->fetch();
   $stav = null;
   if ($st) {                                                // import ukládá UTC, ukazujeme pražský čas
     $dt = new DateTime($st[0], new DateTimeZone('UTC'));
@@ -194,17 +216,18 @@ try {
 
   if ($t === '') {                                          // seznam tabulek
     $list = [];
-    foreach (TB_TABLES as $k => $d) $list[] = ['id' => $k, 'title' => $d['title']];
+    foreach (TB_TABLES as $k => $d) if (empty($d['editor']) || $smiEd) $list[] = ['id' => $k, 'title' => $d['title']];
     tb_log($actor, 'tabulky seznam', 'ok');
     tb_out(['ok' => true, 'stav' => $stav, 'tables' => $list]);
   }
   if (!isset(TB_TABLES[$t])) tb_out(['ok' => false, 'error' => 'neznámá tabulka'], 400);
   $d = TB_TABLES[$t];
+  if (!empty($d['editor']) && !$smiEd) { tb_log($actor, 'tabulky ' . $t, 'odmítnuto: není editor'); tb_out(['ok' => false, 'error' => 'tuto záložku vidí jen editor'], 403); }
   $rows = $pdo->query($d['sql'])->fetchAll();
   tb_log($actor, 'tabulky ' . $t, 'ok ' . count($rows));
   tb_out(['ok' => true, 'stav' => $stav, 'id' => $t, 'title' => $d['title'],
           'cols' => array_map(fn($c) => ['k' => $c[0], 'label' => $c[1], 'type' => $c[2]], $d['cols']),
-          'rows' => $rows]);
+          'rows' => $rows, 'pozn' => $d['pozn'] ?? null]);
 } catch (Throwable $e) {
   tb_log($actor, 'tabulky ' . $t, 'chyba DB');
   tb_out(['ok' => false, 'error' => 'databáze neodpověděla'], 502);

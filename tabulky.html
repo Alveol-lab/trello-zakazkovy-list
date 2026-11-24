@@ -305,6 +305,7 @@ td.vy{color:var(--txt-strong)}
       if (dt) { var dd = (dt - new Date()) / 864e5; cls = dd < 0 ? 'exp-bad' : (dd < 60 ? 'exp-soon' : ''); }
       return '<td class="' + cls + '">' + esc(v) + '</td>';
     }
+    if (c.k === 'kontrola') return '<td class="lowc" title="' + esc(v) + '">' + esc(v) + '</td>';
     if (c.type === 'n') return '<td class="n">' + esc(fmtN(v)) + '</td>';
     if (c.type === 'd') return '<td>' + esc(fmtD(v)) + '</td>';
     var long = /^(mat_hlavni|mat_pomoc|poznamka|nazev)$/.test(c.k) && String(v).length > 60;
@@ -315,7 +316,7 @@ td.vy{color:var(--txt-strong)}
     var d = cache[cur]; if (!d) return;
     if (cur === 'mat' && d.zdroj === 'sql') return M.render(d);
     if (cur === 'vyrobky' && d.zdroj === 'sql') return V.render(d);
-    $('foottxt').textContent = 'Jen ke čtení. Data jsou kopie sešitu EVIDENCE k uvedenému času, ne živý stav.';
+    $('foottxt').textContent = d.pozn || 'Jen ke čtení. Data jsou kopie sešitu EVIDENCE k uvedenému času, ne živý stav.';
     var rows = rowsNow(), max = 1500;
     var h = '<table><thead><tr>' + d.cols.map(function(c, i){
       return '<th data-i="' + i + '">' + esc(c.label) + (sortK === i ? '<span class="ar">' + (sortDir > 0 ? '▲' : '▼') + '</span>' : '') + '</th>';
