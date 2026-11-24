@@ -266,6 +266,7 @@ td.more:hover{color:var(--txt-strong)}
       { k:'forma', l:'Forma', sel:['kus','balení'], req:1 }, { k:'jednotek', l:'Jedn. v bal.', n:1, req:1 },
       { k:'vyrobce', l:'Výrobce', dl:1, req:1 }, { k:'dodavatel', l:'Dodavatel', dl:1 },
       { k:'skupina', l:'Skupina', sk:1 }, { k:'odpis', l:'Odpis', sel:['auto','ruční'], req:1 },
+      { k:'trvanlivost_mes', l:'Trvanl. měs.', n:1 },
       { k:'cena_nakup', l:'Nákup Kč/jedn.', n:1, cena:1, det:1 }, { k:'navyseni_pct', l:'Navýšení %', n:1, cena:1, det:1 },
       { k:'otev', l:'Zásoba', ro:1, n:1 }, { k:'sarzi', l:'Balení celkem', ro:1, n:1 },
       { k:'zalozil', l:'Založil', ro:1 }, { k:'zalozeno', l:'Založeno', ro:1, d:1 }
@@ -404,6 +405,7 @@ td.more:hover{color:var(--txt-strong)}
     function check(o, k, v){
       if (k === 'nazev' && !v) return 'Název nesmí být prázdný.';
       if (k === 'odpis' && !v) return 'Odpis nejde vyprázdnit.';
+      if (k === 'trvanlivost_mes' && v !== null && v !== '' && !/^([1-9]\d?|1[01]\d|120)$/.test(String(v).trim())) return 'Trvanlivost: celý počet měsíců 1–120 (prázdné = 24).';
       if ((k === 'jednotek' || k === 'cena_nakup' || k === 'navyseni_pct') && v !== null) {
         var n = Number(String(v).replace(',', '.'));
         if (isNaN(n) || n < 0 || (k === 'jednotek' && n <= 0) || (k === 'navyseni_pct' && n > 100)) return 'Neplatné číslo.';
@@ -428,6 +430,7 @@ td.more:hover{color:var(--txt-strong)}
     function save(o, k, v, quiet, odlozit){
       var e = check(o, k, v); if (e) { toast(e, 1); return Promise.resolve(null); }
       if (v !== null && (k === 'jednotek' || k === 'cena_nakup' || k === 'navyseni_pct')) v = Number(String(v).replace(',', '.'));
+      if (k === 'trvanlivost_mes') v = (v === null || String(v).trim() === '') ? null : Number(v);
       var old = o[k], kdo = D.kdo || '?';
       o[k] = v; if (k === 'forma' && v === 'kus') o.jednotek = 1;
       if (k === 'cena_nakup') o.cena_datum = new Date().toISOString().slice(0, 10);
@@ -462,7 +465,7 @@ td.more:hover{color:var(--txt-strong)}
       side = id; var o = byId[id], x = document.getElementById('side');
       if (!x) { x = document.createElement('aside'); x.id = 'side'; x.className = 'side'; document.body.appendChild(x); }
       var hz = D.zmeny.filter(function(z){ return z[0] === id; }).slice().reverse();
-      var POPIS = { nazev:'název', kat:'kategorie', forma:'forma', jednotek:'jednotek', vyrobce:'výrobce', dodavatel:'dodavatel', skupina:'skupina', odpis:'odpis', cena_nakup:'nákupní cena', navyseni_pct:'navýšení', stav:'stav', ref:'REF' };
+      var POPIS = { nazev:'název', kat:'kategorie', forma:'forma', jednotek:'jednotek', vyrobce:'výrobce', dodavatel:'dodavatel', skupina:'skupina', odpis:'odpis', trvanlivost_mes:'trvanlivost', cena_nakup:'nákupní cena', navyseni_pct:'navýšení', stav:'stav', ref:'REF' };
       var ZDR = { 'import':'import ze sešitu', prohlizec:'prohlížeč', prijem:'příjem', trello:'zakázkový list' };
       var lastOk = hz.length && hz[0][3] !== 'import';
       var blok = o.otev > 0;

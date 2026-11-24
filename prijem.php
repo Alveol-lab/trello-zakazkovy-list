@@ -684,7 +684,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       if (/\s/.test(r.lot)) W.push('LOT obsahuje mezeru – opiš ho přesně jako na obalu.');
     }
     var ex = dParse(r.exp), t = today();
-    if (!r.exp) { if (!isMd) { W.push('Není vyplněná expirace – materiál bez expirace?'); mark($('exp'), 'warn'); } }
+    if (!r.exp) { /* bez varování: server doplní dnes + trvanlivost karty, souhrn ukáže datum */ }
     else if (!ex) { E.push('Expirace má neplatné datum.'); mark($('exp'), 'bad'); }
     else if (ex < t) { E.push('Expirace ' + dFmt(ex) + ' už uplynula – prošlý materiál se nezakládá.'); mark($('exp'), 'bad'); }
     else if (!isMd && (ex - t) / 864e5 < 90) { W.push('Expirace ' + dFmt(ex) + ' je za méně než 3 měsíce.'); mark($('exp'), 'warn'); }
@@ -699,6 +699,13 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       if (hit.length) r.warn.push('Šarže ' + r.lot + ' tohoto materiálu už je založená (' + hit.map(function(x){ return x.did + ' ' + String(x.status).toLowerCase(); }).join(', ') + '). Jde o novou dodávku, ne o opakované založení?');
     });
   }
+  /* trvanlivost karty MAT (SQL) – prázdná = 24 měsíců; stejný výpočet jako mat_exp_auto v mat-lib.php */
+  function trvMes(){ var t = S.mat ? parseInt(S.mat.trvanlivost_mes, 10) : 0; return t > 0 ? t : 24; }
+  function expAuto(){
+    var d = new Date(), m = trvMes(), t = new Date(d.getFullYear(), d.getMonth() + m, d.getDate());
+    if (t.getDate() !== d.getDate()) t = new Date(d.getFullYear(), d.getMonth() + m + 1, 0);
+    return t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2) + '-' + ('0' + t.getDate()).slice(-2);
+  }
   function review(r){
     var rows = [
       ['zakládá', (DATA.osoby.filter(function(o){ return o[0] === r.oper; })[0] || [r.oper, r.oper])[1]],
@@ -711,7 +718,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       rows.push(['skupina / odpis', (r.mn.skupina || 'samostatný') + ' / ' + (r.mn.odpis || '—')]);
     }
     rows.push(['LOT', r.lot || '—']);
-    rows.push(['expirace', r.exp ? dFmt(dParse(r.exp)) : 'bez expirace']);
+    rows.push(['expirace', r.exp ? dFmt(dParse(r.exp)) : dFmt(dParse(expAuto())) + ' – dopočteno, obal ji neuvádí (trvanlivost ' + trvMes() + ' měs.)']);
     rows.push(['založí se', r.q + ' × ' + (r.forma === 'ks' ? 'kus' : 'balení po ' + n2(r.jed) + ' ks') + ' = ' + r.q + ' DID']);
     $('sumt').innerHTML = rows.map(function(x){ return '<tr><td>' + esc(x[0]) + '</td><td>' + esc(x[1]) + '</td></tr>'; }).join('');
     $('msgs').innerHTML = r.err.map(function(m){ return '<div class="msg bad"><span class="x">!</span><span>' + esc(m) + '</span></div>'; }).join('')
@@ -746,8 +753,9 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       if (S.newMat && r.mn) DATA.karty.push([r.ref, r.mn.nazev, r.mn.skupina, r.mn.odpis]);
       if (r.matFill && S.mat) { S.mat.forma = r.forma === 'ks' ? 'kus' : 'balení'; S.mat.jednotek = r.jed; }
       var ds = (d.items || []).map(function(x){ return x.did; });
+      var ea = d.expAuto || {}, rexp = r.exp || ea[r.ref] || ea[Object.keys(ea)[0]] || '';   /* bez expirace: server doplnil dnes + trvanlivost karty */
       $('done').innerHTML = '<div class="t">Založeno na sklad – ' + ds.length + ' DID</div>'
-        + '<div class="s">' + esc(r.nazev) + ' · REF ' + esc(r.ref) + ' · LOT ' + esc(r.lot) + (r.exp ? ' · exp. ' + esc(dFmt(dParse(r.exp))) : '') + (d.matRow && S.newMat ? ' · karta MAT řádek ' + d.matRow : '') + '</div>'
+        + '<div class="s">' + esc(r.nazev) + ' · REF ' + esc(r.ref) + ' · LOT ' + esc(r.lot) + (rexp ? ' · exp. ' + esc(dFmt(dParse(rexp))) + (r.exp ? '' : ' (dopočteno)') : '') + (d.matRow && S.newMat ? ' · karta MAT řádek ' + d.matRow : '') + '</div>'
         + '<div class="dids">' + ds.map(function(x){ return '<b>' + esc(x) + '</b>'; }).join('') + '</div>'
         + '<div class="lblbar"><span class="lab">páska</span><div class="seg" id="tape">'
         + [9, 12, 24].map(function(w){ return '<button type="button" data-v="' + w + '" aria-pressed="' + (w === LBL.tape ? 'true' : 'false') + '">' + w + ' mm</button>'; }).join('')
@@ -755,10 +763,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
         + '<div class="lblprev" id="lblPrev"></div>'
         + '<div class="s">Štítek nalep na každé balení (kus). Čárový kód obsahuje DID.</div>'
         + '<div class="nacts"><button type="button" class="btn ghost" id="again">další šarže stejného materiálu</button><button type="button" class="btn pri" id="fresh">nový materiál</button></div>';
-      LBL.items = ds.map(function(x){ return { did:x, nazev:r.nazev, ref:r.ref, lot:r.lot, exp:r.exp ? dFmt(dParse(r.exp)) : '' }; });
+      LBL.items = ds.map(function(x){ return { did:x, nazev:r.nazev, ref:r.ref, lot:r.lot, exp:rexp ? dFmt(dParse(rexp)) : '' }; });
       var nowS = new Date(), zs = nowS.getDate() + '.' + (nowS.getMonth() + 1) + '.' + nowS.getFullYear() + ' ' + nowS.getHours() + ':' + ('0' + nowS.getMinutes()).slice(-2);
       (d.items || []).slice().reverse().forEach(function(x){
-        DATA.zapsane.unshift({ did:x.did, ref:r.ref, nazev:r.nazev, lot:r.lot, exp:r.exp || '', q:x.q, jed:r.forma === 'ks' ? 'ks' : 'bal', zal:zs, kdo:r.oper, lze:true, _new:true });
+        DATA.zapsane.unshift({ did:x.did, ref:r.ref, nazev:r.nazev, lot:r.lot, exp:rexp, q:x.q, jed:r.forma === 'ks' ? 'ks' : 'bal', zal:zs, kdo:r.oper, lze:true, _new:true });
       });
       zRender();
       lblPreview();
