@@ -607,14 +607,14 @@ ul.skl .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;colo
      ======================================================= */
   var V = (function(){
     var KAT = ['OR','FP','RP','DTO'], HS = ['A','B','C','D','M','Z'];
-    var RE_PT = /^[FROU][MST]( \| [FROU][MST])*$/;
+    var RE_KU = /^[FROU][MST]( \| [FROU][MST])*$/;
     var COLS = [
-      { k:'kod', l:'Kód', ro:1 }, { k:'nazev', l:'Název', req:1 }, { k:'pt', l:'KU', dl:1, req:1 }, { k:'kat', l:'KAT', sel:KAT, req:1 },
+      { k:'kod', l:'Kód', ro:1 }, { k:'nazev', l:'Název', req:1 }, { k:'ku', l:'KU', dl:1, req:1 }, { k:'kat', l:'KAT', sel:KAT, req:1 },
       { k:'kzp', l:'KZP', dl:1 }, { k:'hs', l:'HS', sel:HS }, { k:'vzp', l:'VZP' },
       { k:'skladba', l:'Skladba', sk:1 }, { k:'vykonu', l:'Výkonů', ro:1, n:1 }
     ];
     var DET = [['gmdn','GMDN'],['udi_pi','UDI-PI'],['trvanlivost','Trvanlivost (měs.)'],['eudamed','EUDAMED'],['stary_kod','Starý kód'],['poznamka','Poznámka']];
-    var POPIS = { nazev:'název', pt:'KU', kat:'KAT', kzp:'KZP', hs:'HS', vzp:'VZP', gmdn:'GMDN', udi_pi:'UDI-PI', trvanlivost:'trvanlivost',
+    var POPIS = { nazev:'název', ku:'KU', kat:'KAT', kzp:'KZP', hs:'HS', vzp:'VZP', gmdn:'GMDN', udi_pi:'UDI-PI', trvanlivost:'trvanlivost',
       eudamed:'EUDAMED', stary_kod:'starý kód', poznamka:'poznámka', skladba:'skladba', skladba_h:'hlavní materiál', skladba_i:'pomocný materiál', stav:'stav', vyrobek:'výrobek' };
     var ZDR = { 'import':'import ze sešitu', prohlizec:'katalog', prijem:'příjem', trello:'zakázkový list' };
     var D = null, R = [], byId = {}, sel = {}, rs = {}, edit = null, side = null, sortK = null, sortDir = 1, MATBY = {}, MATL = [], draft = null, tmpId = -1;
@@ -627,7 +627,7 @@ ul.skl .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;colo
       R = d.rows.map(function(r){ var o = {}; d.cols.forEach(function(c, i){ o[c] = r[i]; });
         o.skl = (d.skladba[o.id] || []).map(function(x){ return { role:x[0], ref:x[1] }; }); byId[o.id] = o; return o; });
       (d.cekaji || []).forEach(function(i){ rs[i] = { c:'wait', t:'uloženo v SQL, čeká na propis do listu PRODB' }; });
-      var h = ''; ['pt','kzp'].forEach(function(k){
+      var h = ''; ['ku','kzp'].forEach(function(k){
         var m = {}; R.forEach(function(o){ if (o[k]) m[o[k]] = 1; });
         h += '<datalist id="vdl-' + k + '">' + Object.keys(m).sort().map(function(v){ return '<option value="' + esc(v) + '">'; }).join('') + '</datalist>';
       });
@@ -650,7 +650,7 @@ ul.skl .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;colo
         if (fS === 'bez' && o.skl.length) return false;
         if (fS === 'chyba' && !chyby(o)) return false;
         if (!q) return true;
-        if (['kod','nazev','kzp','pt','stary_kod','poznamka'].some(function(k){ return o[k] && String(o[k]).toLowerCase().indexOf(q) >= 0; })) return true;
+        if (['kod','nazev','kzp','ku','stary_kod','poznamka'].some(function(k){ return o[k] && String(o[k]).toLowerCase().indexOf(q) >= 0; })) return true;
         return o.skl.some(function(s){ return s.ref.toLowerCase() === q; });   /* přesný REF = „kde se karta používá“ */
       });
       if (sortK) rows = rows.slice().sort(function(a, b){
@@ -707,7 +707,7 @@ ul.skl .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;colo
     }
     function bulk(n){
       var b = $('bulk'); b.hidden = !n; b.style.display = n ? '' : 'none'; if (!n) return;
-      var pole = [['kat','KAT'],['kzp','KZP'],['hs','HS'],['pt','KU'],['vzp','VZP']];
+      var pole = [['kat','KAT'],['kzp','KZP'],['hs','HS'],['ku','KU'],['vzp','VZP']];
       b.innerHTML = '<b>Vybráno ' + n + (n === 1 ? ' výrobek' : (n < 5 ? ' výrobky' : ' výrobků')) + '</b> · nastavit ' +
         '<select id="vbPole">' + pole.map(function(p){ return '<option value="' + p[0] + '">' + p[1] + '</option>'; }).join('') + '</select> na <span id="vbVal"></span>' +
         '<button class="btn prim" id="vbGo" type="button">Použít…</button><button class="btn" id="vbClr" type="button">Zrušit výběr</button>';
@@ -728,14 +728,14 @@ ul.skl .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;colo
     function norm(k, v){
       v = String(v === null || v === undefined ? '' : v).trim();
       if (k === 'kzp') v = v.toUpperCase();
-      if (k === 'pt') v = v.toUpperCase().split('|').map(function(x){ return x.trim(); }).filter(Boolean).join(' | ');
+      if (k === 'ku') v = v.toUpperCase().split('|').map(function(x){ return x.trim(); }).filter(Boolean).join(' | ');
       return v === '' ? null : v;
     }
     function check(k, v){
       if (k === 'nazev' && !v) return 'Název nesmí být prázdný.';
-      if (k === 'pt' && !v) return 'KU nejde vyprázdnit.';
+      if (k === 'ku' && !v) return 'KU nejde vyprázdnit.';
       if (k === 'kat' && !v) return 'KAT nejde vyprázdnit.';
-      if (k === 'pt' && !RE_PT.test(v)) return 'KU (kategorie určení) = dvojice písmen (F/R/O/U + M/S/T), víc oddělit „ | “, např. OS nebo UM | OM.';
+      if (k === 'ku' && !RE_KU.test(v)) return 'KU (kategorie určení) = dvojice písmen (F/R/O/U + M/S/T), víc oddělit „ | “, např. OS nebo UM | OM.';
       if (k === 'kzp' && v && !/^[A-Z]{3}$/.test(v)) return 'KZP jsou 3 písmena, např. ORR.';
       if (k === 'vzp' && v && !/^\d{4}$/.test(v)) return 'VZP jsou 4 číslice.';
       if (k === 'trvanlivost' && v && !(/^\d+$/.test(v) && +v >= 1 && +v <= 600)) return 'Trvanlivost = celé číslo měsíců (1–600).';
@@ -830,7 +830,7 @@ ul.skl .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;colo
       x.innerHTML = '<h3>' + esc(o.nazev || '(bez názvu)') + '</h3><div class="sub">Kód ' + esc(o.kod) + ' · ' + stv + '</div>' +
         '<div class="body"><dl>' +
         '<dt>Výkonů</dt><dd>' + (o.vykonu ? o.vykonu + ' řádků v listech techniků' : 'zatím žádný') + '</dd>' +
-        '<dt>KU · KAT · KZP</dt><dd>' + esc([o.pt || '–', o.kat || '–', o.kzp || '–'].join(' · ')) + (nesed ? ' <span class="bez">KZP nesedí s KAT</span>' : '') + '</dd>' +
+        '<dt>KU · KAT · KZP</dt><dd>' + esc([o.ku || '–', o.kat || '–', o.kzp || '–'].join(' · ')) + (nesed ? ' <span class="bez">KZP nesedí s KAT</span>' : '') + '</dd>' +
         DET.map(function(f){ return '<dt>' + f[1] + '</dt><dd>' + fieldIn(o, f[0], ed) + '</dd>'; }).join('') +
         '<dt>Verze</dt><dd>' + o.verze + '</dd></dl>' +
         '<h4>Skladba materiálu</h4>' + sklHtml(o, ed) +
@@ -924,7 +924,7 @@ ul.skl .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;colo
       if (a === 'undo') { var z = hz[0]; return save(o, z[4], z[5]); }
       if (a === 'ok') {
         var ch = chyby(o), chyb = [];
-        if (!o.nazev) chyb.push('název'); if (!o.pt) chyb.push('KU'); if (!o.kat) chyb.push('KAT');
+        if (!o.nazev) chyb.push('název'); if (!o.ku) chyb.push('KU'); if (!o.kat) chyb.push('KAT');
         if (chyb.length) return M.toast('Před schválením doplň: ' + chyb.join(', ') + '.', 1);
         return M.dlg('Schválit návrh ' + o.kod, '<div>Navrhl ' + esc(o.navrhl || '?') + '. Výrobek se zapíše na konec listu PRODB (se vzorcem J) a formulář ho začne nabízet.</div>' +
           (o.skl.length ? '' : '<div class="bez" style="margin-top:6px">Skladba je prázdná – AutoDID nebude mít z čeho vybírat.</div>') +
@@ -952,7 +952,7 @@ ul.skl .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;colo
       var x = document.createElement('div'); x.className = 'dlgbg';
       x.innerHTML = '<div class="dlg" role="dialog"><h3>' + (ed ? 'Nový výrobek' : 'Návrh nového výrobku') + '</h3><div class="body"><div class="frm">' +
         '<label>Kód<input id="nKod" maxlength="20" autocomplete="off"></label><label>Název<input id="nNaz"></label>' +
-        '<label>KU<input id="nPt" list="vdl-pt" placeholder="např. OS"></label><label>KAT' + sel_('nKat', KAT, 1) + '</label>' +
+        '<label>KU<input id="nKu" list="vdl-ku" placeholder="např. OS"></label><label>KAT' + sel_('nKat', KAT, 1) + '</label>' +
         '<label>KZP<input id="nKzp" list="vdl-kzp" maxlength="3"></label><label>HS' + sel_('nHs', HS) + '</label></div>' +
         '<div class="t" style="margin-top:8px">' + (ed ? 'Výrobek bude hned aktivní a zapíše se na konec listu PRODB. Skladbu doplníš v detailu.'
           : 'Návrh uvidí jen katalog. Do listu PRODB a do formuláře se dostane až po schválení (H). Skladbu můžeš doplnit v detailu.') + '</div></div>' +
@@ -961,10 +961,10 @@ ul.skl .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;colo
       x.addEventListener('click', function(e){
         var a = e.target.dataset.a; if (!a) return; if (a === 'no') return x.remove();
         var g = function(id){ return x.querySelector('#' + id).value; };
-        var kod = g('nKod').trim(), o = { kod:kod, nazev:norm('nazev', g('nNaz')), pt:norm('pt', g('nPt')), kat:norm('kat', g('nKat')), kzp:norm('kzp', g('nKzp')), hs:norm('hs', g('nHs')) };
+        var kod = g('nKod').trim(), o = { kod:kod, nazev:norm('nazev', g('nNaz')), ku:norm('ku', g('nKu')), kat:norm('kat', g('nKat')), kzp:norm('kzp', g('nKzp')), hs:norm('hs', g('nHs')) };
         if (!kod || /\s/.test(kod)) return M.toast('Kód je povinný a bez mezer.', 1);
         if (R.some(function(r){ return r.kod.toLowerCase() === kod.toLowerCase(); })) return M.toast('Kód ' + esc(kod) + ' už v katalogu je (i mezi vyřazenými / návrhy).', 1);
-        var e1 = ['nazev','pt','kat','kzp'].map(function(k){ return check(k, o[k]); }).filter(Boolean)[0]; if (e1) return M.toast(e1, 1);
+        var e1 = ['nazev','ku','kat','kzp'].map(function(k){ return check(k, o[k]); }).filter(Boolean)[0]; if (e1) return M.toast(e1, 1);
         x.remove();
         o.stav = ed ? 'aktivní' : 'návrh'; o.navrhl = ed ? null : D.kdo; o.navrzeno = ed ? null : stamp().slice(0, 10);
         o.zalozil = D.kdo; o.zalozeno = stamp().slice(0, 10);

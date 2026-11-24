@@ -3,7 +3,7 @@
    Záložka Výrobky v Katalogu – živá data ze SQL (etapa 2b, krok P3)
    GET                              → výrobky, skladba, karty MAT, historie, práva
    POST {id, verze, pole, hodnota}  → úprava jednoho pole / skladby / stavu
-   POST {novy: {kod, nazev, pt, kat, kzp, hs}} → nový výrobek (editor) nebo návrh (technik)
+   POST {novy: {kod, nazev, ku, kat, kzp, hs}} → nový výrobek (editor) nebo návrh (technik)
    Kdo volá: Trello JWT (zakázkový list) nebo cookie formuláře příjmu (jen čtení).
    Editoři: PR_EDIT v produkt-lib.php. Technici: jen vlastní návrhy.
    Přepínač autolab-prodb.json; bez něj odpoví „zatím vypnuto“ a Katalog vezme kopii sešitu.
@@ -75,7 +75,7 @@ $smiN = $cfg['zapis'] && $role !== 'cteni';
 try {
   $pdo = mat_pdo();
   if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    $cols = ['id', 'kod', 'nazev', 'pt', 'kat', 'kzp', 'hs', 'vzp', 'gmdn', 'udi_pi', 'trvanlivost', 'eudamed', 'stary_kod', 'poznamka',
+    $cols = ['id', 'kod', 'nazev', 'ku', 'kat', 'kzp', 'hs', 'vzp', 'gmdn', 'udi_pi', 'trvanlivost', 'eudamed', 'stary_kod', 'poznamka',
              'stav', 'navrhl', 'navrzeno', 'zalozil', 'zalozeno', 'verze', 'vykonu'];
     $vyk = [];                                       // počet výkonů podle kódu ze stínu s1_vykon (když chybí, 0)
     try { foreach ($pdo->query('SELECT kod, COUNT(*) AS n FROM s1_vykon GROUP BY kod') as $r) $vyk[mb_strtoupper(trim((string) $r['kod']))] = (int) $r['n']; }

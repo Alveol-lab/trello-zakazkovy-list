@@ -16,8 +16,8 @@ require_once __DIR__ . '/mat-lib.php';                // mat_pdo, mat_txt, mat_n
 
 const PR_CFG_FILE = __DIR__ . '/../../autolab-prodb.json';
 const PR_KAT  = ['OR', 'FP', 'RP', 'DTO'];
-const PR_POLE = ['nazev', 'pt', 'kat', 'kzp', 'hs', 'vzp', 'gmdn', 'udi_pi', 'trvanlivost', 'eudamed', 'stary_kod', 'poznamka'];
-const PR_DELKY = ['nazev' => 300, 'pt' => 20, 'gmdn' => 40, 'udi_pi' => 60, 'eudamed' => 60, 'stary_kod' => 200, 'poznamka' => 500];
+const PR_POLE = ['nazev', 'ku', 'kat', 'kzp', 'hs', 'vzp', 'gmdn', 'udi_pi', 'trvanlivost', 'eudamed', 'stary_kod', 'poznamka'];
+const PR_DELKY = ['nazev' => 300, 'ku' => 20, 'gmdn' => 40, 'udi_pi' => 60, 'eudamed' => 60, 'stary_kod' => 200, 'poznamka' => 500];
 /* Editoři výrobků (Trello účet → zkratka). Technici z MAT_TECHNIK smějí jen navrhovat. */
 const PR_EDIT = ['588fa9e7e5db691bfe653bce' => 'H', '6b00d5c2c5be2a396f89949e' => 'BRIGIT'];
 
@@ -68,14 +68,14 @@ function pr_karta(string $ref): ?array {
 function pr_check(string $k, $x): array {
   $v = is_string($x) || is_numeric($x) ? mat_txt($x) : '';
   if ($k === 'kzp') $v = mb_strtoupper($v);
-  if ($k === 'pt') $v = implode(' | ', array_filter(array_map('trim', explode('|', mb_strtoupper($v))), 'strlen'));
+  if ($k === 'ku') $v = implode(' | ', array_filter(array_map('trim', explode('|', mb_strtoupper($v))), 'strlen'));
   if ($k === 'kat' || $k === 'hs') $v = mb_strtoupper($v);
   if ($v === '') {
-    if (in_array($k, ['nazev', 'pt', 'kat'], true)) return [null, ['nazev' => 'název', 'pt' => 'KU', 'kat' => 'KAT'][$k] . ' nejde vyprázdnit'];
+    if (in_array($k, ['nazev', 'ku', 'kat'], true)) return [null, ['nazev' => 'název', 'ku' => 'KU', 'kat' => 'KAT'][$k] . ' nejde vyprázdnit'];
     return [null, ''];
   }
   if (isset(PR_DELKY[$k]) && mb_strlen($v) > PR_DELKY[$k]) return [null, 'text je delší než ' . PR_DELKY[$k] . ' znaků'];
-  if ($k === 'pt' && !preg_match('/^[FROU][MST]( \| [FROU][MST])*$/', $v)) return [null, 'KU = dvojice písmen (F/R/O/U + M/S/T), víc oddělit „ | “'];
+  if ($k === 'ku' && !preg_match('/^[FROU][MST]( \| [FROU][MST])*$/', $v)) return [null, 'KU = dvojice písmen (F/R/O/U + M/S/T), víc oddělit „ | “'];
   if ($k === 'kat' && !in_array($v, PR_KAT, true)) return [null, 'KAT musí být OR / FP / RP / DTO'];
   if ($k === 'kzp' && !preg_match('/^[A-Z]{3}$/', $v)) return [null, 'KZP jsou 3 písmena'];
   if ($k === 'hs' && !preg_match('/^[A-Z]$/', $v)) return [null, 'HS je jedno písmeno'];
@@ -155,7 +155,7 @@ function pr_apply(int $id, string $pole, $hodnota, string $kdo, string $role, ?i
         ? (($s === 'aktivní' && $v === 'neaktivní') || ($s === 'neaktivní' && $v === 'aktivní') || ($s === 'návrh' && in_array($v, ['aktivní', 'neaktivní'], true)))
         : ($s === 'návrh' && $v === 'neaktivní');
       if (!$ok) { $pdo->rollBack(); return [$p, [], null, 'tuto změnu stavu nelze provést']; }
-      if ($v === 'aktivní' && ($p['nazev'] === '' || $p['pt'] === null || $p['kat'] === null)) { $pdo->rollBack(); return [$p, [], null, 'před schválením doplň název, KU a KAT']; }
+      if ($v === 'aktivní' && ($p['nazev'] === '' || $p['ku'] === null || $p['kat'] === null)) { $pdo->rollBack(); return [$p, [], null, 'před schválením doplň název, KU a KAT']; }
       $zm['stav'] = $v;
       if ($s === 'návrh' && $v === 'aktivní') { $zm['schvalil'] = $kdo; $zm['schvaleno'] = $now; }
       $log[] = ['stav', $s, $v];
@@ -186,7 +186,7 @@ function pr_create(array $n, string $kdo, string $role): array {
   $kod = mat_txt($n['kod'] ?? '');
   if ($kod === '' || mb_strlen($kod) > 20 || preg_match('/[\s|]/u', $kod)) return [null, 'kód je povinný, max. 20 znaků, bez mezer a „|“'];
   $v = [];
-  foreach (['nazev', 'pt', 'kat', 'kzp', 'hs'] as $k) {
+  foreach (['nazev', 'ku', 'kat', 'kzp', 'hs'] as $k) {
     [$x, $err] = pr_check($k, $n[$k] ?? '');
     if ($err) return [null, $err];
     $v[$k] = $x;
@@ -196,9 +196,9 @@ function pr_create(array $n, string $kdo, string $role): array {
   try {
     $ex = pr_by_kod($kod);
     if ($ex) { $pdo->rollBack(); return [null, 'kód ' . $ex['kod'] . ' už v katalogu je' . ($ex['stav'] !== 'aktivní' ? ' (' . $ex['stav'] . ')' : '')]; }
-    $pdo->prepare('INSERT INTO t2p_produkt (kod, nazev, pt, kat, kzp, hs, stav, navrhl, navrzeno, zalozil, zalozeno, upravil, upraveno)
+    $pdo->prepare('INSERT INTO t2p_produkt (kod, nazev, ku, kat, kzp, hs, stav, navrhl, navrzeno, zalozil, zalozeno, upravil, upraveno)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        ->execute([$kod, $v['nazev'], $v['pt'], $v['kat'], $v['kzp'], $v['hs'], $navrh ? 'návrh' : 'aktivní',
+        ->execute([$kod, $v['nazev'], $v['ku'], $v['kat'], $v['kzp'], $v['hs'], $navrh ? 'návrh' : 'aktivní',
                    $navrh ? $kdo : null, $navrh ? $now : null, $kdo, substr($now, 0, 10), $kdo, $now]);
     $id = (int) $pdo->lastInsertId();
     $pdo->prepare("INSERT INTO t2p_produkt_zmena (produkt_id, cas, kdo, zdroj, pole, stara, nova) VALUES (?, ?, ?, 'prohlizec', 'vyrobek', NULL, ?)")
@@ -221,7 +221,7 @@ function pr_queue(array $ids): void {
 /* řádek SQL → řádek listu PRODB (A–P bez J, J nese vzorec v listu) */
 function pr_karta_sync(array $p, array $skl): array {
   return ['kod' => $p['kod'], 'radek' => $p['list_radek'] === null ? null : (int) $p['list_radek'], 'nazev' => $p['nazev'],
-          'pt' => $p['pt'], 'kat' => $p['kat'], 'kzp' => $p['kzp'], 'hs' => $p['hs'], 'vzp' => $p['vzp'],
+          'ku' => $p['ku'], 'kat' => $p['kat'], 'kzp' => $p['kzp'], 'hs' => $p['hs'], 'vzp' => $p['vzp'],
           'h' => pr_retezec($skl, 'hlavní'), 'i' => pr_retezec($skl, 'pomocný'), 'gmdn' => $p['gmdn'], 'udi_pi' => $p['udi_pi'],
           'trvanlivost' => $p['trvanlivost'] === null ? null : (int) $p['trvanlivost'], 'eudamed' => $p['eudamed'],
           'stary_kod' => $p['stary_kod'], 'poznamka' => $p['poznamka']];
