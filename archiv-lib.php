@@ -145,7 +145,8 @@ function arch_uplnost(?array $t): ?string {
 /* ---------- PDF ---------- */
 function arch_mpdf(string $format, string $titulek, string $uid): \Mpdf\Mpdf {
   require_once ARCH_VENDOR;
-  $tmp = sys_get_temp_dir() . '/mpdf-archiv';
+  $tmp = __DIR__ . '/../../tmp/mpdf-archiv';          // mimo web; /tmp může být za open_basedir nedostupné
+  if (!is_dir($tmp)) @mkdir($tmp, 0750, true);
   $p = new \Mpdf\Mpdf(['format' => $format, 'margin_left' => 12, 'margin_right' => 12, 'margin_top' => 12, 'margin_bottom' => 14,
     'PDFA' => true, 'PDFAauto' => true, 'default_font' => 'dejavusans', 'tempDir' => $tmp]);
   $p->SetTitle($titulek); $p->SetAuthor('Denteo v.o.s. – AutoLAB'); $p->SetCreator('AutoLAB archiv');
