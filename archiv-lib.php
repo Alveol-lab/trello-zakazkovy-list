@@ -65,7 +65,7 @@ function arch_soubor(PDO $db, int $pripad, string $uid, int $verze, string $typ,
                      string $nazev, ?string $zdroj = null): int {
   $ted = new DateTime('now', new DateTimeZone('Europe/Prague'));
   $ext = ['application/pdf' => 'pdf', 'application/json' => 'json', 'image/jpeg' => 'jpg', 'image/png' => 'png',
-          'image/heic' => 'heic', 'image/webp' => 'webp'][$mime] ?? (pathinfo($nazev, PATHINFO_EXTENSION) ?: 'bin');
+          'image/heic' => 'heic', 'image/webp' => 'webp', 'message/rfc822' => 'eml'][$mime] ?? (pathinfo($nazev, PATHINFO_EXTENSION) ?: 'bin');
   $sha = hash('sha256', $bytes);
   $rel = $ted->format('Y/m') . '/' . arch_nazev_bezpecny($uid) . '_v' . $verze . '_' . $typ . '_' . substr($sha, 0, 12) . '.' . strtolower($ext);
   $abs = ARCH_DIR . '/' . $rel;
@@ -288,7 +288,7 @@ function arch_karta(int $pripad): array {
   foreach ($karta['attachments'] ?? [] as $i => $a) {
     $mime = (string) ($a['mimeType'] ?? '');
     $jeFoto = str_starts_with($mime, 'image/');
-    $jePdf = $mime === 'application/pdf';
+    $jePdf = $mime === 'application/pdf' || $mime === 'message/rfc822';   // PDF a e-mail s objednávkou se ukládají jako originál
     if (empty($a['isUpload']) || (!$jeFoto && !$jePdf)) { $karta['attachments'][$i]['archiv'] = 'ne (odkaz nebo jiný typ)'; continue; }
     if ((int) ($a['bytes'] ?? 0) > ARCH_MAX_PRILOHA) { $karta['attachments'][$i]['archiv'] = 'ne (přes 30 MB)'; continue; }
     if (isset($mam[$a['id']])) { $bytes = null; $sha = $mam[$a['id']]['sha256']; $karta['attachments'][$i]['archiv'] = 'ano (dříve)';
