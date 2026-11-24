@@ -606,3 +606,99 @@ function mat_davky(int $lim = 40): array {
                               'karet' => (int) $r['karet'], 'vraci' => $r['vraci'] === null ? null : (int) $r['vraci'], 'vraceno' => $r['vraceno'], 'vratil' => $r['vratil']], $q->fetchAll());
 }
 
+
+/* ---------- Krok 36: číselník skupin (záložka Skupiny v Katalogu) ----------
+   Kód skupiny je identita v mat.skupina, t2p_produkt_mat.skupina (obojí FK RESTRICT) a v listu MAT!O.
+   Přejmenování = nový kód, karty se přeřadí přes mat_apply (historie + propis do MAT!O), skladby výrobků
+   se přepíšou, starý kód se smaže. Skupiny jmenovitě v Apps Scriptu (AUTODID.GRP_FULL_SK, verze 70)
+   se přejmenovat ani smazat nedají, dokud se nezmění i skript. */
+const MAT_SK_GAS = ['SK-MODEL-DIGITAL', 'SK-IZOLACE', 'SK-ORTO-AKRYLAT', 'SK-LZICE', 'SK-SILIKON-LAB'];
+
+function mat_sk_log(string $kdo, string $akce, string $kod, ?string $novy, ?string $pozn): void {
+  try {
+    mat_pdo()->prepare('INSERT INTO ' . mat_t('mat_skupina_zmena') . ' (cas, kdo, akce, kod, novy, pozn) VALUES (?, ?, ?, ?, ?, ?)')
+      ->execute([mat_now(), $kdo, $akce, $kod, $novy, $pozn === null ? null : mb_substr($pozn, 0, 250)]);
+  } catch (Throwable $e) {}                               // bez migrace 092 jen log souboru
+  mat_log($kdo, 'skupina ' . $akce . ' ' . $kod . ($novy ? ' → ' . $novy : ''), (string) $pozn);
+}
+function mat_sk_kod($k): string { return mb_strtoupper(trim((string) $k)); }
+function mat_sk_chyba_kodu(string $k): string {
+  if (!preg_match('/^SK-[A-Z0-9]+(-[A-Z0-9]+)*$/', $k)) return 'kód skupiny musí mít tvar SK-… (velká písmena bez diakritiky, číslice, pomlčky)';
+  if (strlen($k) > 40) return 'kód skupiny je delší než 40 znaků';
+  return '';
+}
+
+/* přehled pro záložku: popis, výrobky (přes REF i přímo skupinou), historie číselníku */
+function mat_skupiny_info(): array {
+  $pdo = mat_pdo(); $S = mat_t('mat_skupina'); $T = mat_t('mat');
+  $out = [];
+  foreach ($pdo->query("SELECT kod, popis FROM $S ORDER BY kod") as $r)
+    $out[$r['kod']] = ['kod' => $r['kod'], 'popis' => $r['popis'], 'gas' => in_array($r['kod'], MAT_SK_GAS, true), 'vyrobky' => []];
+  try {
+    $q = $pdo->query("SELECT DISTINCT COALESCE(pm.skupina, m.skupina) sk, p.kod FROM t2p_produkt_mat pm JOIN t2p_produkt p ON p.id = pm.produkt_id
+                      LEFT JOIN $T m ON m.ref = pm.ref WHERE COALESCE(pm.skupina, m.skupina) IS NOT NULL ORDER BY p.kod");
+    foreach ($q as $r) if (isset($out[$r['sk']])) $out[$r['sk']]['vyrobky'][] = $r['kod'];
+  } catch (Throwable $e) {}                               // bez tabulek výrobků jen bez seznamu
+  $hist = [];
+  try {
+    $hist = $pdo->query('SELECT DATE_FORMAT(cas, "%Y-%m-%d %H:%i") cas, kdo, akce, kod, novy, pozn FROM ' . mat_t('mat_skupina_zmena') . ' ORDER BY id DESC LIMIT 200')->fetchAll(PDO::FETCH_NUM);
+  } catch (Throwable $e) {}
+  return ['skupiny' => array_values($out), 'historie' => $hist];
+}
+
+function mat_skupina_nova(array $b, string $kdo): array {
+  $k = mat_sk_kod($b['kod'] ?? ''); $p = trim((string) ($b['popis'] ?? ''));
+  if ($e = mat_sk_chyba_kodu($k)) return ['ok' => false, 'error' => $e];
+  if (mat_skupina_ok($k)) return ['ok' => false, 'error' => 'skupina ' . $k . ' už existuje'];
+  mat_pdo()->prepare('INSERT INTO ' . mat_t('mat_skupina') . ' (kod, popis) VALUES (?, ?)')->execute([$k, $p === '' ? null : mb_substr($p, 0, 200)]);
+  mat_sk_log($kdo, 'nová', $k, null, $p);
+  return ['ok' => true, 'kod' => $k];
+}
+
+function mat_skupina_uprav(array $b, string $kdo): array {
+  $pdo = mat_pdo(); $S = mat_t('mat_skupina'); $T = mat_t('mat');
+  $k = mat_sk_kod($b['kod'] ?? '');
+  $st = $pdo->prepare("SELECT kod, popis, vyber FROM $S WHERE kod = ?"); $st->execute([$k]); $sk = $st->fetch();
+  if (!$sk) return ['ok' => false, 'error' => 'skupina ' . $k . ' neexistuje'];
+  if (array_key_exists('popis', $b)) {
+    $p = trim((string) $b['popis']); $p = $p === '' ? null : mb_substr($p, 0, 200);
+    if ($p !== $sk['popis']) { $pdo->prepare("UPDATE $S SET popis = ? WHERE kod = ?")->execute([$p, $k]); mat_sk_log($kdo, 'popis', $k, null, $p); }
+  }
+  $n = isset($b['novy_kod']) ? mat_sk_kod($b['novy_kod']) : $k;
+  if ($n === $k) return ['ok' => true, 'kod' => $k, 'karet' => 0];
+  if (in_array($k, MAT_SK_GAS, true)) return ['ok' => false, 'error' => $k . ' je jmenovitě v Apps Scriptu (AutoDID, celá skupina) – přejmenování nejdřív se změnou skriptu'];
+  if ($e = mat_sk_chyba_kodu($n)) return ['ok' => false, 'error' => $e];
+  if (mat_skupina_ok($n)) return ['ok' => false, 'error' => 'skupina ' . $n . ' už existuje – sloučení skupin dělej hromadnou úpravou v Materiálu'];
+
+  /* 1) nový kód, 2) karty přes editor (historie, verze, propis), 3) skladby výrobků, 4) smazat starý */
+  $pdo->prepare("INSERT INTO $S (kod, popis, vyber) VALUES (?, ?, ?)")->execute([$n, $b['popis'] ?? $sk['popis'], $sk['vyber']]);
+  $ids = $pdo->prepare("SELECT id FROM $T WHERE skupina = ? ORDER BY id"); $ids->execute([$k]); $ids = array_map('intval', $ids->fetchAll(PDO::FETCH_COLUMN));
+  $ok = []; $chyby = [];
+  foreach ($ids as $id) {
+    [$m, $zm, $konf, $e2] = mat_apply($id, ['skupina' => $n], $kdo, 'prohlizec');
+    if ($e2 || $konf) $chyby[$id] = $e2 ?: 'konflikt'; elseif ($zm) $ok[] = $id;
+  }
+  $vyr = 0;
+  try { $u = $pdo->prepare('UPDATE t2p_produkt_mat SET skupina = ? WHERE skupina = ?'); $u->execute([$n, $k]); $vyr = $u->rowCount(); } catch (Throwable $e) {}
+  $zbyva = $pdo->prepare("SELECT COUNT(*) FROM $T WHERE skupina = ?"); $zbyva->execute([$k]);
+  $smazano = false;
+  if (!(int) $zbyva->fetchColumn()) { try { $pdo->prepare("DELETE FROM $S WHERE kod = ?")->execute([$k]); $smazano = true; } catch (Throwable $e) {} }
+  $pr = $ok ? mat_sync($ok) : [];
+  $ceka = count(array_filter($ok, fn($i) => ($pr[$i] ?? '') !== 'hotovo'));
+  mat_sk_log($kdo, 'přejmenování', $k, $n, count($ok) . ' karet, ' . $vyr . ' položek skladby' . ($chyby ? ', ' . count($chyby) . ' chyb' : '') . ($smazano ? '' : ', starý kód zůstal'));
+  return ['ok' => !$chyby, 'kod' => $n, 'karet' => count($ok), 'skladba' => $vyr, 'propis_ceka' => $ceka, 'stary_smazan' => $smazano,
+          'chyby' => $chyby, 'error' => $chyby ? 'část karet se nepřeřadila – starý kód zůstal, oprav je a přejmenuj znovu' : null];
+}
+
+function mat_skupina_smaz(array $b, string $kdo): array {
+  $pdo = mat_pdo(); $k = mat_sk_kod($b['kod'] ?? '');
+  if (!mat_skupina_ok($k)) return ['ok' => false, 'error' => 'skupina ' . $k . ' neexistuje'];
+  if (in_array($k, MAT_SK_GAS, true)) return ['ok' => false, 'error' => $k . ' je jmenovitě v Apps Scriptu (AutoDID) – smazání nejdřív se změnou skriptu'];
+  $st = $pdo->prepare('SELECT COUNT(*) FROM ' . mat_t('mat') . ' WHERE skupina = ?'); $st->execute([$k]);
+  if ($n = (int) $st->fetchColumn()) return ['ok' => false, 'error' => 've skupině je ' . $n . ' karet (i vyřazených) – nejdřív je přeřaď hromadnou úpravou v Materiálu'];
+  try { $st = $pdo->prepare('SELECT COUNT(*) FROM t2p_produkt_mat WHERE skupina = ?'); $st->execute([$k]); $n = (int) $st->fetchColumn(); } catch (Throwable $e) { $n = 0; }
+  if ($n) return ['ok' => false, 'error' => 'skupinu má ve skladbě ' . $n . ' výrobků'];
+  $pdo->prepare('DELETE FROM ' . mat_t('mat_skupina') . ' WHERE kod = ?')->execute([$k]);
+  mat_sk_log($kdo, 'smazání', $k, null, null);
+  return ['ok' => true];
+}
