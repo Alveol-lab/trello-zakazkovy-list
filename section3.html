@@ -1295,10 +1295,12 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     else if (!on && mdExpAuto && ex.value === mdExpAuto) { ex.value = ''; mdExpAuto = ''; }
     var vyr = M.op === 'vyroba';
     $('ntuse').classList.toggle('off', !vyr);  /* typ spotřeby jen při nasazení; sklad a MD ho nemají */
-    $('nGo').textContent = (on ? 'založit MD' : (vyr ? 'nasadit' : 'založit')) + (newMat ? ' + karta' : '');
+    $('nGo').textContent = (on ? 'založit MD' : (vyr ? 'nasadit' : 'založit')) + (newMat && on ? ' + karta' : '');
     $('nGo').title = on ? 'založit jako MD k zakázce' : (vyr ? 'založit a rovnou nasadit do výroby' : 'založit na sklad');
+    if (newMat) { $('nMatRow').hidden = !on; $('nInfo').textContent = on ? 'nová karta MAT' : 'REF není v MAT'; resize(); }   /* varianta B: novou kartu MAT jen u MD k zakázce */
     $('nHint').className = 'hint' + ((on || newMat) ? ' warn' : '');
-    $('nHint').textContent = (newMat ? 'REF není v číselníku MAT – vyplň název, kategorii a výrobce; karta MAT se založí spolu s balením. ' : '')
+    $('nHint').textContent = (newMat && on ? 'REF není v číselníku MAT – vyplň název, kategorii a výrobce; karta MAT se založí spolu s balením. ' : '')
+      + (newMat && !on ? 'REF není v číselníku MAT. Napiš do názvu pár slov z obalu a vyber existující kartu. Novou kartu zakládá jen příjem materiálu – balení předej Majdě (MD k zakázce založíš úkonem MD). ' : '')
       + (isMdCard() ? 'Karta je MD – zakládá se jen k zakázce. ' : '')
       + (on ? 'MD: balení se založí rovnou jako spotřebované k této zakázce a připojí se k výkonu.' : '');
   }
@@ -1307,7 +1309,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   var newMat = false, matLists = null;
   function newMatOn(ref){
     newMat = true;
-    $('nMatRow').hidden = false;
+    $('nMatRow').hidden = M.op !== 'md';
     var n = $('nnam'); n.readOnly = false; n.tabIndex = 0; n.classList.remove('ro'); n.classList.add('hi', 'newm');
     n.placeholder = 'název materiálu – nová karta MAT';
     $('nref').classList.remove('bad'); $('nref').classList.add('newm');
@@ -1391,7 +1393,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     var k = sgKey(inp.value);
     var hit = PD.filter(function(c){ return !k || sgKey(c.nazev).indexOf(k) >= 0 || sgKey(c.ref).indexOf(k) >= 0; });
     SG.inp = inp; SG.pd = true; SG.list = hit; SG.idx = -1;
-    var h = '<div class="pd">' + (hit.length ? 'podobné karty v MAT – klikni, pokud jde o existující materiál' : 'žádná podobná karta – zakládáš novou') + '</div>', vyr = false;
+    var h = '<div class="pd">' + (hit.length ? 'podobné karty v MAT – klikni, pokud jde o existující materiál' : (M.op === 'md' ? 'žádná podobná karta – zakládáš novou' : 'žádná podobná karta – balení předej na příjem')) + '</div>', vyr = false;
     hit.forEach(function(c, i){
       if (c.vyr && !vyr) { vyr = true; h += '<div class="pd">další karty výrobce ' + esc(c.vyrobce) + '</div>'; }
       h += '<button type="button" data-i="' + i + '">' + sgHi(c.nazev, inp.value) + '<span class="pr">' + esc(c.ref) + (c.vyr ? '' : (c.vyrobce ? ' · ' + esc(c.vyrobce) : '')) + '</span></button>';
@@ -1438,6 +1440,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       $('nnam').classList.remove('wait');
       if (!d || d.nazev == null) { PD = (d && Array.isArray(d.podobne)) ? d.podobne : []; newMatOn(ref); pdOpen(); return; }
       newMatOff();
+      if (d.alias && d.alias.ref) $('nref').value = d.alias.ref;   /* kód z krabice → REF karty */
       nMat = d; mark($('nref'), true);
       $('nnam').value = d.nazev; $('nnam').classList.add('got');
       $('nInfo').textContent = [d.vyrobce, d.dodavatel].filter(Boolean).join(' / ') || 'výrobce / dodavatel neuveden';
@@ -1459,6 +1462,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     var poc = parseInt($('nq').value, 10) || 0;
     var ok = true;
     var mn = null;
+    if (newMat && !md) { mark($('nref'), false); $('nHint').className = 'hint bad'; $('nHint').textContent = 'Novou kartu materiálu zakládá jen příjem materiálu. Vyber existující kartu, nebo balení předej Majdě.'; return; }
     if (newMat) {
       sgCanon($('nvyr')); sgCanon($('ndod'));
       mn = { ref:ref, nazev:$('nnam').value.trim(), kat:segVal('nkat1') + segVal('nkat2'), vyrobce:$('nvyr').value.trim(),

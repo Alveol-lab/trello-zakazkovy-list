@@ -119,8 +119,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
   foreach (API_GET_OK as $k) if (isset($_GET[$k]) && is_string($_GET[$k])) $q[$k] = $_GET[$k];
   if (!$q) api_out(['ok' => false, 'error' => 'nepovolený dotaz'], 400);
   if (isset($q['matlists'])) $q['matlists'] = '1';      // úplný seznam karet MAT je jen pro formulář příjmu
+  $pridej = null;
+  if (isset($q['matref']) && mat_on()) { try {        // kód z krabice (EAN) navázaný v mat_alias → dotaz na skutečnou kartu
+    $m = mat_by_ref($q['matref']);
+    if (!$m || $m['stav'] === 'neaktivní') {
+      $al = mat_pdo()->prepare('SELECT m.ref FROM ' . mat_t('mat_alias') . ' a JOIN ' . mat_t('mat') . " m ON m.id = a.mat_id WHERE a.ref_alias = ? AND m.stav = 'aktivní' LIMIT 1");
+      $al->execute([mat_txt($q['matref'])]);
+      if ($x = $al->fetch()) { $pridej = ['alias' => ['kod' => mat_txt($q['matref']), 'ref' => $x['ref']]]; $q['matref'] = $x['ref']; }
+    }
+  } catch (Throwable $e) {} }
   $q['key'] = $s['key'];
-  api_gas(API_GAS_URL . '?' . http_build_query($q), null, $actor, 'GET ' . implode(',', array_diff(array_keys($q), ['key'])) . $what0);
+  api_gas(API_GAS_URL . '?' . http_build_query($q), null, $actor, 'GET ' . implode(',', array_diff(array_keys($q), ['key'])) . $what0, $pridej);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -136,6 +145,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset(MAT_TECHNIK[(string) ($b['memberId'] ?? '')])) {   // bez technika by kartu založil Apps Script jen v listu
       if (isset($b['matNew']) || isset($b['matFill'])) api_out(['ok' => false, 'error' => 'neznámý Trello účet']);
     } else try {
+      /* varianta B (24. 11. 2026): novou kartu MAT ze zakázkového listu jen pro MD k zakázce, sklad zakládá příjem */
+      if (isset($b['matNew']) && array_filter((array) ($b['items'] ?? []), fn($it) => is_array($it) && empty($it['md'])))
+        api_out(['ok' => false, 'error' => 'novou kartu materiálu zakládá jen příjem materiálu – vyber existující kartu, nebo balení předej na příjem']);
       $r = mat_pre_lot($b, MAT_TECHNIK[(string) $b['memberId']], 'trello');
       if (!$r['ok']) { api_log($actor, 'POST lotCreate', 'MAT: ' . $r['error']); api_out($r); }
       $b = $r['body'];
