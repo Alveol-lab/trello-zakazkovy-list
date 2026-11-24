@@ -33,6 +33,13 @@ První uživatelský prototyp pro evidenci výkonů na Trello kartě.
 4. V capabilities zapni **Card back section**.
 5. Přidej Power-Up na testovací board.
 
+## Archiv vydaných prohlášení (krok 31)
+
+- `archiv-lib.php` – uložení originálu prohlášení, dat sledovatelnosti a soupisu šarží (PDF/A) při vydání; snímek karty a fotky žádanky z Trella; týdenní manifest; kontrola řetězu otisků.
+- `archiv-tyden.php` – týdenní doplnění (Timer). Token: `php archiv-tyden.php token`, kontrola: `php archiv-tyden.php kontrola`.
+- Zapíná se souborem `home/autolab-archiv.json` (`{"zapis": true, "den": 7}`). Bez něj se nic neukládá a prohlášení funguje jako dřív.
+- Soubory leží mimo web v `home/archiv/`, knihovna mPDF v `home/vendor/` (`archiv-composer.json`), databázové schéma není součástí repozitáře.
+
 ## Poznámka
 
 Před ostrým provozem se v `section.html` nahradí demo pole `PRODUCTS` a `LOTS` bezpečným zdrojem z backendu/API. Teprve potom se naváže Evidence/SQL.

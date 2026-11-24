@@ -1,0 +1,6 @@
+{
+    "description": "Závislost archivu (krok 31). Instaluje se na serveru mimo web do home/vendor, do repozitáře se vendor nedává (mPDF je GPL-2.0).",
+    "require": {
+        "mpdf/mpdf": "8.3.1"
+    }
+}
