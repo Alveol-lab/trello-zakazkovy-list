@@ -205,7 +205,8 @@ function mat_apply(int $id, array $v, string $kdo, string $zdroj, ?int $verze = 
   } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
 }
 
-function mat_create(array $mn, string $ref, string $kdo, string $zdroj): array {
+function mat_create(array $mn, string $ref, string $kdo, string $zdroj, string $druh = 'sklad'): array {
+  $druh = $druh === 'MD' ? 'MD' : 'sklad';
   $pdo = mat_pdo(); $T = mat_t('mat');
   $mn = array_filter(array_intersect_key($mn, array_flip(['nazev', 'kat', 'forma', 'jednotek', 'vyrobce', 'dodavatel', 'skupina', 'odpis'])),
                      fn($x, $k) => !in_array($k, ['jednotek', 'forma', 'odpis'], true) || ($x !== null && $x !== ''), ARRAY_FILTER_USE_BOTH);
@@ -219,9 +220,9 @@ function mat_create(array $mn, string $ref, string $kdo, string $zdroj): array {
     if ($ex) { $pdo->commit(); return [$ex, '']; }      // mezitím ji někdo založil → existující karta
     $now = mat_now();
     $pdo->prepare("INSERT INTO $T (ref, nazev, kat, forma, jednotek, vyrobce, dodavatel, skupina, odpis, druh, zalozil, zalozeno, upravil, upraveno)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'sklad', ?, ?, ?, ?)")
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         ->execute([mat_txt($ref), $v['nazev'], $v['kat'] ?? null, $v['forma'], $v['jednotek'] ?? null, $v['vyrobce'] ?? null,
-                   $v['dodavatel'] ?? null, $v['skupina'] ?? null, $v['odpis'] ?? null, $kdo, substr($now, 0, 10), $kdo, $now]);
+                   $v['dodavatel'] ?? null, $v['skupina'] ?? null, $v['odpis'] ?? null, $druh, $kdo, substr($now, 0, 10), $kdo, $now]);
     $id = (int) $pdo->lastInsertId();
     $pdo->prepare('INSERT INTO ' . mat_t('mat_zmena') . ' (mat_id, cas, kdo, zdroj, pole, stara, nova) VALUES (?, ?, ?, ?, ?, NULL, ?)')
         ->execute([$id, $now, $kdo, $zdroj, 'karta', 'založena']);
@@ -413,7 +414,9 @@ function mat_pre_lot_(array $b, string $kdo, string $zdroj): array {
   if ($mn) {
     $err = mat_valid_new($mn, false);
     if ($err) return ['ok' => false, 'error' => 'nová karta MAT: ' . $err];
-    [$m, $e2] = mat_create($mn, $ref, $kdo, $zdroj);
+    /* karta založená úkonem MD k zakázce je MD (24. 11. 2026) – příjem ji pak na sklad nepustí */
+    $vseMd = !array_filter($items, fn($it) => empty($it['md']));
+    [$m, $e2] = mat_create($mn, $ref, $kdo, $zdroj, $vseMd ? 'MD' : 'sklad');
     if ($e2) return ['ok' => false, 'error' => 'nová karta MAT: ' . $e2];
     $id = (int) $m['id'];
   } elseif ($mf) {                                     // matFill_: jen karta bez formy, vyplněnou nepřepisuje
