@@ -15,10 +15,12 @@ window.TrelloPowerUp.initialize({
   'board-buttons': function (t) {
     return [{
       icon: {
-        dark:  'https://www.denteo.space/zakazkovy-list/logo-icon-gray.svg',
-        light: 'https://www.denteo.space/zakazkovy-list/logo-icon-gray.svg'
+        dark:  'https://www.denteo.space/zakazkovy-list/ikona-katalog-kniha.svg',
+        light: 'https://www.denteo.space/zakazkovy-list/ikona-katalog-kniha.svg'
       },
-      text: 'Katalog',
+      /* Jen piktogram otevřené knihy, bez nápisu (přání 25. 11. 2026).
+         Kdyby Trello tlačítko s prázdným textem nevykreslilo, vrátit 'Katalog'. */
+      text: '',
       callback: function (t) {
         var theme = 'dark';
         try { var ctx = t.getContext(); if (ctx && ctx.theme) theme = ctx.theme; } catch (e) {}
