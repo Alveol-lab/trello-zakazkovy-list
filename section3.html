@@ -431,6 +431,45 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 .sbtn #nabAcc,.sbtn #nabRej{width:56rem}
 .sbtn .btn.arm{box-shadow:inset 0 0 0 .6rem var(--blue)}
 .dc.nab{color:var(--txt-hi);font-size:6.25rem;letter-spacing:.3rem}
+/* krok 39: AutoDID po skupinách – formulář a lupa */
+.mgrp{margin-top:5rem;border-radius:3.2rem;background:var(--bg);box-shadow:inset 0 0 0 .6rem var(--bd-soft);padding:3rem}
+.mgrp.need0{box-shadow:inset 0 0 0 .8rem var(--warn)}
+.gh{display:grid;grid-template-columns:14rem 1fr auto 46rem;align-items:center;gap:4rem;height:20rem;padding:0 2rem 0 1rem;cursor:pointer}
+.gh .chev{font-size:9rem;color:var(--glyph);text-align:center}
+.gh .gn{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:7.4rem;font-weight:700;color:var(--txt-hi)}
+.gh .gn small{font-weight:400;font-size:6.6rem;color:var(--txt-dim);margin-left:4rem}
+.gh .gc{font-size:7.1rem;color:var(--txt-dim);white-space:nowrap}
+.gh .gc b{color:var(--txt-strong);font-weight:700}
+.gh .gc em{font-style:normal;color:var(--warn);font-weight:700;margin-right:4rem}
+.gseg{display:flex;height:16rem;border-radius:2.6rem;overflow:hidden;box-shadow:inset 0 0 0 .6rem var(--bd-soft)}
+.gseg button{flex:1;border:0;background:transparent;color:var(--txt-dim);font:inherit;font-size:6.6rem;cursor:pointer;padding:0}
+.gseg button[aria-pressed="true"]{background:var(--act);color:var(--act-txt)}
+.gf{display:flex;gap:4rem;margin:2rem 0 3rem}
+.gf .f{flex:1;height:16rem;line-height:16rem;font-size:7.083rem;padding:0 4rem}
+.mgrp .mrow{background:var(--chip)}
+.mgrp .mrow+.mrow{margin-top:2.4rem}
+.mrow.pick .btn.ck{font-size:9rem;font-weight:700;background:var(--btn);color:var(--txt-dim)}
+.mrow.pick.on .btn.ck{background:var(--ok);color:var(--ok-txt)}
+.mrow.pick:not(.on){opacity:.55}
+.mrow.pick:not(.on) .k1{font-weight:400}
+.gmore{font-size:6.8rem;color:var(--txt-dim);padding:3rem 4rem 1rem}
+.gmore b{color:var(--txt-hi);font-weight:400;text-decoration:underline;cursor:pointer}
+.lpq .qrow.hasg{margin-bottom:0}
+.lpg{margin:2.5rem 0 0 52rem;display:flex;flex-wrap:wrap;gap:3rem}
+.lpg .gchip{display:inline-flex;align-items:center;gap:3rem;height:15rem;padding:0 6rem;border-radius:7.5rem;font-size:6.6rem;color:var(--lp-txt);background:var(--lp-blk);box-shadow:inset 0 0 0 .6rem var(--warn)}
+.lpg .gchip.ok{box-shadow:inset 0 0 0 .6rem var(--good)}
+.lpg .gchip.vse{box-shadow:none;color:var(--txt-dim)}
+.lpgo{margin:3rem 0 2rem 52rem;padding:3rem;border-radius:2.6rem;background:var(--lp-blk)}
+.lpgo .o{cursor:pointer;display:flex;align-items:center;gap:4rem;font-size:6.8rem;color:var(--lp-txt);padding:1.5rem 2rem}
+.lpgo .o i{flex:none;width:9rem;height:9rem;border-radius:2rem;box-shadow:inset 0 0 0 .6rem var(--bd);font-style:normal;font-size:7rem;line-height:9rem;text-align:center}
+.lpgo .o.on i{background:var(--ok);box-shadow:none;color:#fff}
+.lpgo .o .d{flex:none;width:26rem;font-weight:700}
+.lpgo .f{width:100%;height:15rem;font-size:7rem;margin-bottom:2rem;background:var(--lp-bg);--c:var(--lp-bg)}
+.lpg .gchip{cursor:pointer}
+.lpg .gchip.vse{cursor:default}
+.gh .gseg{min-width:0}
+.gh+.mrow,.gf+.mrow{margin-top:0}
+.mgrp .gmore+.mrow{margin-top:2.4rem}
 </style>
 </head>
 <body>
@@ -1599,12 +1638,12 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   function renderMats(){
     var el = $('mlist');
     autoSchedule();
-    var aRows = autoRowsHtml() + autoMissHtml();
+    var aRows = autoRowsHtml() + autoMissHtml() + autoGroupsHtml();
     renderAutoNeed();
     if (!state.mats.length && !aRows) {
-      el.innerHTML = '<div class="mempty">' + (A.busy ? 'Hledám automatický materiál…' : 'K výkonu zatím není připojený materiál.') + '</div>'; resize(); return;
+      el.__h = null; el.innerHTML = '<div class="mempty">' + (A.busy ? 'Hledám automatický materiál…' : 'K výkonu zatím není připojený materiál.') + '</div>'; resize(); return;
     }
-    el.innerHTML = state.mats.map(function(m, i){
+    var html = state.mats.map(function(m, i){
       var note = m.md ? '<em>MD</em> ' : '';
       if (m.res && RES_TXT[m.res]) note += '<em>' + RES_TXT[m.res] + (m.newDid ? ' ' + esc(m.newDid) : '') + '</em> ';
       return '<div class="mrow"><div class="k1">' + esc(matDid(m)) + '</div><div class="k2">' + esc(m.q || m.qnl || '') + '</div>'
@@ -1612,6 +1651,9 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
            + '<div class="k4" title="' + esc(m.tuse || '') + '">' + (m.tuse === 'společné' ? 'SP' : '') + '</div>'
            + '<button class="btn" data-del="' + i + '" title="odebrat">−</button></div>';
     }).join('') + aRows;
+    /* stejný obsah nepřekreslovat – jinak se ztratí klik, který přijde hned po
+       opuštění pole (change → renderMats mezi mousedown a click)          */
+    if (el.__h !== html) { el.innerHTML = html; el.__h = html; }
     resize();
   }
   $('mlist').addEventListener('click', function(e){
@@ -1620,7 +1662,22 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     var n = e.target.closest('[data-anas]');
     if (n) { var r = n.getAttribute('data-anas'); A.nas = (A.nas === r) ? null : r; A.nasVal = ''; A.nasErr = ''; renderMats();
              if (A.nas) { var inp = $('mlist').querySelector('[data-nval]'); if (inp) inp.focus(); } return; }
-    if (e.target.closest('[data-amiss]')) { A.missOpen = !A.missOpen; if (!A.missOpen) A.nas = null; renderMats(); return; }
+    var ga = e.target.closest('[data-gall]');
+    if (ga) { var gk = ga.closest('[data-grp]').getAttribute('data-grp'), vse = ga.getAttribute('data-gall') === 'vse';
+              A.items.forEach(function(it){ if (it.skupina === gk) { if (vse) delete A.off[it.ref]; else A.off[it.ref] = true; } });
+              renderMats(); insSync(); return; }
+    var tg = e.target.closest('[data-atog]');
+    if (tg) { var tr = tg.getAttribute('data-atog'); if (A.off[tr]) delete A.off[tr]; else A.off[tr] = true; renderMats(); insSync(); return; }
+    var gm = e.target.closest('[data-gmore]');
+    if (gm) { A.gall[gm.getAttribute('data-gmore')] = true; renderMats(); return; }
+    var gh = e.target.closest('[data-gh]');
+    if (gh) { var hk = gh.getAttribute('data-gh'), gg = autoGroups().filter(function(x){ return x.kod === hk; })[0];
+              var o0 = A.gopen[hk] !== undefined ? A.gopen[hk] : !!(gg && gg.items.length); A.gopen[hk] = !o0; renderMats(); return; }
+    var am = e.target.closest('[data-amiss]');
+    if (am) { var mk = am.getAttribute('data-amiss');
+              if (mk === '1') { A.missOpen = !A.missOpen; if (!A.missOpen) A.nas = null; }
+              else { A.mopen[mk] = !A.mopen[mk]; if (!A.mopen[mk]) A.nas = null; }
+              renderMats(); return; }
     if (e.target.closest('[data-ano]')) { A.nas = null; A.nasVal = ''; A.nasErr = ''; renderMats(); return; }
     if (e.target.closest('[data-aok2]')) { autoNasad(); return; }
     var b = e.target.closest('[data-del]'); if (!b) return;
@@ -1634,8 +1691,9 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
        • tlačítko − u řádku = materiál na výrobku použit není (celý REF)
        • při zápisu jde výsledný seznam v autoDids, k ukončení v autoEnd
      ================================================================= */
-  var A = { key:'', seq:0, t:null, busy:false, ok:false, keep:false, items:[], chybi:[], nas:null, missOpen:false, nasVal:'', nasErr:'', nasBusy:false, off:{}, pick:{}, conf:{}, end:{} };
-  function autoReset(){ A.key = ''; A.seq++; clearTimeout(A.t); A.busy = false; A.ok = false; A.keep = false; A.items = []; A.chybi = []; A.nas = null; A.off = {}; A.pick = {}; A.conf = {}; A.end = {}; }
+  var A = { key:'', seq:0, t:null, busy:false, ok:false, keep:false, items:[], chybi:[], nas:null, missOpen:false, nasVal:'', nasErr:'', nasBusy:false, off:{}, pick:{}, conf:{}, end:{}, gopen:{}, gq:{}, gall:{}, mopen:{}, dfl:{} };
+  function autoGrpReset(){ A.gopen = {}; A.gq = {}; A.gall = {}; A.mopen = {}; A.dfl = {}; }
+  function autoReset(){ A.key = ''; A.seq++; clearTimeout(A.t); A.busy = false; A.ok = false; A.keep = false; A.items = []; A.chybi = []; A.nas = null; A.off = {}; A.pick = {}; A.conf = {}; A.end = {}; autoGrpReset(); }
   /* nabídka (krok 33): upravovaná položka si nese svůj příznak, nová
      položka se řídí zaškrtávátkem „nabídka“ na kartě                   */
   function nabNow(){
@@ -1654,14 +1712,14 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     var c = autoCtx(), key = autoKeyOf(c);
     if (key === A.key) return;
     var codeKey = function(k){ return String(k).split('~').slice(0, 4).join('~'); };
-    if (codeKey(key) !== codeKey(A.key)) { A.off = {}; A.pick = {}; A.conf = {}; A.end = {}; }
+    if (codeKey(key) !== codeKey(A.key)) { A.off = {}; A.pick = {}; A.conf = {}; A.end = {}; autoGrpReset(); }
     A.key = key; A.seq++;
     clearTimeout(A.t);
     if (!c) { A.busy = false; A.ok = false; A.items = []; A.chybi = []; A.nas = null; return; }
     A.busy = true; A.ok = false;
     var seq = A.seq;
     A.t = setTimeout(function(){
-      postSilent({ action:'autoDidPreview', memberId: MEMBERS[c.tid], anid:c.anid, ord:c.ord, ref:c.ref, x:c.x }).then(function(d){
+      postSilent({ action:'autoDidPreview', grp:1, memberId: MEMBERS[c.tid], anid:c.anid, ord:c.ord, ref:c.ref, x:c.x }).then(function(d){
         if (seq !== A.seq) return;
         A.busy = false;
         A.ok = !!(d && d.ok);
@@ -1673,6 +1731,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
           var still = (it.alts || []).some(function(x){ return x.did === A.pick[it.ref]; });
           if (!still) { A.pick[it.ref] = it.did; delete A.conf[it.ref]; }
         });
+        autoDefaults();
         renderMats();
       });
     }, 350);
@@ -1684,8 +1743,18 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   }
   function autoIsDup(it){ return !!(it.alts && it.alts.length > 1); }
   function autoOpen(){ return A.items.filter(function(it){ return !A.off[it.ref] && autoIsDup(it) && !A.conf[it.ref]; }); }
+  /* krok 39: výchozí stav jednou na REF – alternativy nezaškrtnuté, při editaci
+     zaškrtnuté jen to, co je zapsané v Z (on); dál rozhoduje technik       */
+  function autoDefaults(){
+    A.items.forEach(function(it){
+      if (A.dfl[it.ref]) return;
+      A.dfl[it.ref] = true;
+      if (it.on === true) { if (autoIsDup(it)) A.conf[it.ref] = true; return; }
+      if (it.on === false || it.volba) A.off[it.ref] = true;
+    });
+  }
   function autoRowsHtml(){
-    return A.items.filter(function(it){ return !A.off[it.ref] && !(autoIsDup(it) && !A.conf[it.ref]); }).map(function(it){
+    return A.items.filter(function(it){ return !it.skupina && !A.off[it.ref] && !(autoIsDup(it) && !A.conf[it.ref]); }).map(function(it){
       var d = autoDidOf(it), a = autoAlt(it, d);
       return '<div class="mrow auto"><div class="k1">' + esc(d) + '</div><div class="k2"></div>'
            + '<div class="k3" title="' + esc((it.nazev || '') + (a.lot ? ' · LOT ' + a.lot : '')) + '"><em>auto</em> ' + esc(it.nazev || it.ref || '') + '</div>'
@@ -1696,17 +1765,19 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   /* pilot 24. 11.: karty skupiny bez nasazeného balení – šedě, + = nasadit ze skladu.
      Technik balení ověří podle DID na štítku (opsat / naskenovat), server
      kontroluje, že DID patří ke stejnému REF a je ZALOŽENO (lotNasad). */
-  function autoMissHtml(){
+  function autoMissHtml(g){
     /* nasadit jde jen to, co je na skladě; zbytek skupiny jen jako počet.
-       Seznam je sbalený do jednoho řádku, ať formulář nezahltí. */
-    var all = A.chybi.filter(function(x){ return !A.off[x.ref]; });
+       Seznam je sbalený do jednoho řádku, ať formulář nezahltí.
+       g = skupina (krok 39, řádek uvnitř boxu skupiny); bez g karty mimo skupinu */
+    var all = A.chybi.filter(function(x){ return !A.off[x.ref] && (g ? x.skupina === g : !x.skupina || !autoGrpMode()); });
     if (!all.length) return '';
+    var mo = g ? !!A.mopen[g] : A.missOpen;
     var nas = all.filter(function(x){ return (x.sklad || []).length; }), bez = all.length - nas.length;
     var head = '<div class="mrow auto miss"><div class="k1">—</div><div class="k2"></div>'
              + '<div class="k3"><em>bez nasazeného balení</em> ' + all.length + ' karet · na skladě ' + nas.length + (bez ? ' · bez zásoby ' + bez : '') + '</div>'
              + '<div class="k4"></div>'
-             + '<button class="btn" data-amiss="1" title="' + (A.missOpen ? 'sbalit' : 'zobrazit, co jde nasadit') + '">' + (A.missOpen ? '▴' : '▾') + '</button></div>';
-    if (!A.missOpen) return head;
+             + '<button class="btn" data-amiss="' + esc(g || '1') + '" title="' + (mo ? 'sbalit' : 'zobrazit, co jde nasadit') + '">' + (mo ? '▴' : '▾') + '</button></div>';
+    if (!mo) return head;
     return head + nas.map(function(x){
       var open = A.nas === x.ref;
       var h = '<div class="mrow auto miss' + (open ? ' open' : '') + '"><div class="k1">—</div><div class="k2"></div>'
@@ -1727,6 +1798,52 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
         + '</div>';
     }).join('');
   }
+  /* =================================================================
+     krok 39: AutoDID po skupinách (náhled schválen 25. 11. 2026)
+       • složky – vše zaškrtnuté, nehodící se technik vyřadí
+       • alternativy – nic zaškrtnuté, technik vybere použité
+       • ✓ u řádku přepíná použito / nepoužito, vše / nic pro celou skupinu
+     ================================================================= */
+  function autoGrpMode(){ return A.items.some(function(it){ return it.skupina; }) || A.chybi.some(function(x){ return x.volba; }); }
+  function autoGroups(){
+    var G = [], by = {};
+    var add = function(k){ if (!by[k]) { by[k] = { kod:k, items:[], miss:[], volba:false }; G.push(by[k]); } return by[k]; };
+    A.items.forEach(function(it){ if (it.skupina) { var g = add(it.skupina); g.items.push(it); if (it.volba) g.volba = true; } });
+    if (autoGrpMode()) A.chybi.forEach(function(x){ if (x.skupina) { var g = add(x.skupina); g.miss.push(x); if (x.volba) g.volba = true; } });
+    return G;
+  }
+  function autoGrpName(k){ return String(k || '').replace(/^SK-/, ''); }
+  function autoGroupsHtml(){
+    return autoGroups().map(function(g){
+      var n = g.items.length, on = g.items.filter(function(it){ return !A.off[it.ref]; });
+      var miss = g.miss.filter(function(x){ return !A.off[x.ref]; }).length;
+      var open = A.gopen[g.kod] !== undefined ? A.gopen[g.kod] : n > 0;
+      var need = g.volba && n > 0 && !on.length;
+      var cnt = !n ? 'bez nasazeného balení · ' + miss + ' karet'
+              : need ? '<em>vyber</em><b>0</b> / ' + n : '<b>' + on.length + '</b> / ' + n + ' použito';
+      var seg = n ? '<div class="gseg"><button type="button" data-gall="vse" aria-pressed="' + (on.length === n) + '">vše</button><button type="button" data-gall="nic" aria-pressed="' + (!on.length) + '">nic</button></div>' : '<div></div>';
+      var h = '<div class="mgrp' + (need ? ' need0' : '') + '" data-grp="' + esc(g.kod) + '">'
+            + '<div class="gh" data-gh="' + esc(g.kod) + '" title="' + (open ? 'sbalit' : 'rozbalit') + '"><div class="chev">' + (open ? '▾' : '▸') + '</div>'
+            + '<div class="gn">' + esc(autoGrpName(g.kod)) + '<small>' + (g.volba ? 'alternativy' : 'složky') + '</small></div>'
+            + '<div class="gc">' + cnt + '</div>' + seg + '</div>';
+      if (!open) return h + '</div>';
+      var q = String(A.gq[g.kod] || '').trim().toLowerCase(), list = g.items;
+      if (n > 8) h += '<div class="gf"><input class="f" data-gq="' + esc(g.kod) + '" placeholder="hledat v nasazených – odstín, REF, DID" autocomplete="off" value="' + esc(A.gq[g.kod] || '') + '"></div>';
+      if (q) list = list.filter(function(it){ var a = autoAlt(it, autoDidOf(it)); return [autoDidOf(it), it.ref, it.nazev, a.lot].join(' ').toLowerCase().indexOf(q) >= 0; });
+      list = list.filter(function(it){ return !A.off[it.ref]; }).concat(list.filter(function(it){ return A.off[it.ref]; }));
+      var all = A.gall[g.kod] || q, shown = all ? list : list.slice(0, 6);
+      h += shown.map(function(it){
+        var u = !A.off[it.ref], d = autoDidOf(it), a = autoAlt(it, d), dup = u && autoIsDup(it) && !A.conf[it.ref];
+        return '<div class="mrow auto pick' + (u ? ' on' : '') + '"><div class="k1">' + esc(d) + '</div><div class="k2"></div>'
+             + '<div class="k3" title="' + esc((it.nazev || '') + ' · REF ' + it.ref + (a.lot ? ' · LOT ' + a.lot : '')) + '"><em>' + (dup ? 'potvrď balení' : 'auto') + '</em> ' + esc(it.nazev || it.ref || '') + '</div>'
+             + '<div class="k4"></div>'
+             + '<button type="button" class="btn ck" data-atog="' + esc(it.ref) + '" title="' + (u ? 'použito – kliknutím vyřadit' : 'nepoužito – kliknutím přidat') + '">' + (u ? '✓' : '') + '</button></div>';
+      }).join('');
+      if (!all && list.length > 6) h += '<div class="gmore">+ ' + (list.length - 6) + ' dalších nasazených · <b data-gmore="' + esc(g.kod) + '">zobrazit</b></div>';
+      if (q && !list.length) h += '<div class="gmore">nic neodpovídá hledání</div>';
+      return h + autoMissHtml(g.kod) + '</div>';
+    }).join('');
+  }
   function autoNasad(){
     var c = autoCtx(), ref = A.nas, did = String(A.nasVal || '').trim().toUpperCase();
     if (!c || !ref || A.nasBusy) return;
@@ -1741,7 +1858,14 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       renderMats();
     });
   }
-  $('mlist').addEventListener('input', function(e){ if (e.target.hasAttribute('data-nval')) A.nasVal = e.target.value; });
+  $('mlist').addEventListener('input', function(e){
+    if (e.target.hasAttribute('data-nval')) A.nasVal = e.target.value;
+    if (e.target.hasAttribute('data-gq')) {          /* hledání ve skupině – po překreslení vrátit kurzor */
+      var k = e.target.getAttribute('data-gq'), pos = e.target.selectionStart;
+      A.gq[k] = e.target.value; renderMats();
+      var f = $('mlist').querySelector('[data-gq="' + k.replace(/"/g, '') + '"]'); if (f) { f.focus(); try { f.setSelectionRange(pos, pos); } catch (x) {} }
+    }
+  });
   $('mlist').addEventListener('keydown', function(e){
     if (e.target.hasAttribute('data-nval') && e.key === 'Enter') { e.preventDefault(); autoNasad(); }
   });
@@ -2480,7 +2604,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   });
 
   /* -- okno lupy: 1. krok výběr bloku, 2. krok kontrola množství -- */
-  var lp = { bloky: [], blok: null, seq: 0 };
+  var lp = { bloky: [], blok: null, seq: 0, auto: {}, pend: 0, gopen: '', gq: {} };
   function lpStep(n){ $('lpS1').hidden = n !== 1; $('lpS2').hidden = n !== 2; resize(); }
   function lpOpen(){
     ftClose();
@@ -2540,26 +2664,91 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       var def = qaNorm($('qa').value); if (!qaValid(def)) def = '1';
       var ordNow = ordClean($('ord').value);
       $('lpQ').innerHTML = pol.map(function(p, k){
-        return '<div class="qrow"><span class="k">' + esc(p.kod) + '</span>'
+        return '<div class="lpi"><div class="qrow"><span class="k">' + esc(p.kod) + '</span>'
              + '<input class="f" data-k="' + k + '" inputmode="decimal" autocomplete="off" value="' + (k === 0 ? esc(def) : '0') + '">'
-             + '<span class="n">' + esc(p.nazev) + (zalohaOrd(p.kod, ordNow) !== ordNow ? ' → ' + esc(zalohaOrd(p.kod, ordNow)) : '') + '</span></div>';
+             + '<span class="n">' + esc(p.nazev) + (zalohaOrd(p.kod, ordNow) !== ordNow ? ' → ' + esc(zalohaOrd(p.kod, ordNow)) : '') + '</span></div>'
+             + '<div data-lw="' + k + '"></div></div>';
       }).join('');
       resize();
-      var first = $('lpQ').querySelector('input');
+      var first = $('lpQ').querySelector('input[data-k]');
       if (first) { first.focus(); first.select(); }
+      lpAutoLoad(pol, ordNow, seq);
     });
   }
-  function lpQInputs(){ return Array.prototype.slice.call($('lpQ').querySelectorAll('input')); }
+  /* krok 39: AutoDID u položek lupy – náhled pro každou položku, skupiny
+     alternativ se vybírají přímo tady (výchozí nic), složky jen informačně */
+  function lpAutoLoad(pol, ordNow, seq){
+    lp.auto = {}; lp.pend = 0; lp.gopen = ''; lp.gq = {};
+    var tid = $('tid').value; lp.tid = tid; lp.ord = ordNow;
+    if (nabNow() || !MEMBERS[tid]) return;
+    pol.forEach(function(p, k){
+      var anid = anidClean(p.kod); if (!anidValid(anid)) return;
+      lp.pend++; lpAutoRender(k);
+      postSilent({ action:'autoDidPreview', grp:1, memberId: MEMBERS[tid], anid: anid, ord: zalohaOrd(p.kod, ordNow), ref:'', x:'' }).then(function(d){
+        if (seq !== lp.seq) return;
+        var a = { ok: !!(d && d.ok), items: (d && d.ok && d.items) ? d.items : [], off: {} };
+        a.items.forEach(function(it){ if (it.volba) a.off[it.ref] = true; });
+        lp.auto[k] = a;
+      }).catch(function(){}).then(function(){
+        if (seq !== lp.seq) return;
+        lp.pend--; lpAutoRender(k);
+      });
+    });
+  }
+  function lpGroups(a){
+    var G = [], by = {};
+    (a && a.items || []).forEach(function(it){ if (!it.skupina) return; if (!by[it.skupina]) { by[it.skupina] = { kod: it.skupina, items: [], volba: false }; G.push(by[it.skupina]); } by[it.skupina].items.push(it); if (it.volba) by[it.skupina].volba = true; });
+    return G;
+  }
+  function lpAutoRender(k){
+    var w = $('lpQ').querySelector('[data-lw="' + k + '"]'); if (!w) return;
+    var a = lp.auto[k];
+    if (!a) { w.innerHTML = lp.pend ? '<div class="lpg"><span class="gchip vse">materiál…</span></div>' : ''; resize(); return; }
+    var G = lpGroups(a); if (!G.length) { w.innerHTML = ''; resize(); return; }
+    var h = '<div class="lpg">' + G.map(function(g){
+      var n = g.items.filter(function(it){ return !a.off[it.ref]; }).length, open = lp.gopen === k + '|' + g.kod;
+      if (!g.volba) return '<span class="gchip vse" title="složky – zapíše se vše nasazené">' + esc(autoGrpName(g.kod)) + ' · složky</span>';
+      return '<span class="gchip' + (n ? ' ok' : '') + '" data-lpc="' + esc(g.kod) + '" title="alternativy – vyber použité">' + esc(autoGrpName(g.kod)) + ' · ' + (n ? n + ' ' : 'vyber ') + (open ? '▴' : '▾') + '</span>';
+    }).join('') + '</div>';
+    var og = G.filter(function(g){ return lp.gopen === k + '|' + g.kod; })[0];
+    if (og) {
+      var q = String(lp.gq[og.kod] || '').trim().toLowerCase();
+      var list = og.items.filter(function(it){ return !q || [it.did, it.ref, it.nazev, it.lot].join(' ').toLowerCase().indexOf(q) >= 0; });
+      list = list.filter(function(it){ return !a.off[it.ref]; }).concat(list.filter(function(it){ return a.off[it.ref]; }));
+      h += '<div class="lpgo">' + (og.items.length > 8 ? '<input class="f" data-lpq="' + esc(og.kod) + '" placeholder="hledat odstín / REF / DID" autocomplete="off" value="' + esc(lp.gq[og.kod] || '') + '">' : '')
+         + list.map(function(it){ var u = !a.off[it.ref];
+             return '<div class="o' + (u ? ' on' : '') + '" data-lpt="' + esc(it.ref) + '" title="' + esc('REF ' + it.ref + (it.lot ? ' · LOT ' + it.lot : '')) + '"><i>' + (u ? '✓' : '') + '</i><span class="d">' + esc(it.did) + '</span>' + esc(it.nazev || it.ref) + '</div>'; }).join('')
+         + (q && !list.length ? '<div class="o">nic neodpovídá hledání</div>' : '') + '</div>';
+    }
+    w.innerHTML = h; resize();
+  }
+  $('lpQ').addEventListener('click', function(e){
+    var w = e.target.closest('[data-lw]'); if (!w) return;
+    var k = w.getAttribute('data-lw'), a = lp.auto[k]; if (!a) return;
+    var c = e.target.closest('[data-lpc]');
+    if (c) { var id = k + '|' + c.getAttribute('data-lpc'), prev = lp.gopen; lp.gopen = prev === id ? '' : id;
+             if (prev && prev.split('|')[0] !== k) lpAutoRender(prev.split('|')[0]); lpAutoRender(k); return; }
+    var t = e.target.closest('[data-lpt]');
+    if (t) { var r = t.getAttribute('data-lpt'); if (a.off[r]) delete a.off[r]; else a.off[r] = true; lpAutoRender(k); }
+  });
+  function lpQInputs(){ return Array.prototype.slice.call($('lpQ').querySelectorAll('input[data-k]')); }
   $('lpQ').addEventListener('input', function(e){
-    var el = e.target; if (!el.matches('input')) return;
+    var el = e.target;
+    if (el.hasAttribute && el.hasAttribute('data-lpq')) {
+      var w = el.closest('[data-lw]'), k = w.getAttribute('data-lw'), g = el.getAttribute('data-lpq'), pos = el.selectionStart;
+      lp.gq[g] = el.value; lpAutoRender(k);
+      var f = w.querySelector('[data-lpq]'); if (f) { f.focus(); try { f.setSelectionRange(pos, pos); } catch (x) {} }
+      return;
+    }
+    if (!el.matches('input[data-k]')) return;
     var c = qaClean(el.value); if (c !== el.value) el.value = c;
     el.classList.remove('bad');
   });
   $('lpQ').addEventListener('focusout', function(e){
-    var el = e.target; if (el.matches && el.matches('input') && el.value) el.value = qaNorm(el.value);
+    var el = e.target; if (el.matches && el.matches('input[data-k]') && el.value) el.value = qaNorm(el.value);
   });
   $('lpQ').addEventListener('keydown', function(e){
-    if (e.key !== 'Enter' || !e.target.matches('input')) return;
+    if (e.key !== 'Enter' || !e.target.matches('input[data-k]')) return;
     e.preventDefault();
     var all = lpQInputs(), k = all.indexOf(e.target);
     if (k < all.length - 1) { all[k + 1].focus(); all[k + 1].select(); } else lpConfirm();
@@ -2575,8 +2764,9 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (!ordValid(ord) || !tidValid(tid) || !cenyValid(ceny)) { wmsg('Vyplň ve formuláři ORD, TID a ročník ceníku.', 10); return; }
     if (state.editIndex != null) { wmsg('Dokonči nebo zruš rozpracovanou úpravu řádku.', 10); return; }
     if (!sheetAllowed(tid, 'Zápis')) return;
+    if (lp.pend > 0) { wmsg('Ještě načítám automatický materiál položek – chvilku.', 5); return; }
 
-    var items = b.polozky.map(function(p, k){ return { kod: anidClean(p.kod), nazev: p.nazev, qa: inputs[k].value }; })
+    var items = b.polozky.map(function(p, k){ return { kod: anidClean(p.kod), nazev: p.nazev, qa: inputs[k].value, k: k }; })
                  .filter(function(it){ return qaValid(it.qa); });               /* 0 ks = položka není obsažena */
     $('lpok').disabled = true;
     Promise.all(items.map(function(it){ return pricebookLookup(it.kod, ceny); })).then(function(hits){
@@ -2587,7 +2777,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
         var r = { qa: it.qa, anid: it.kod, anam: h ? h.anam : it.nazev, ord: zalohaOrd(it.kod, ord), outs: '', tid: tid, ceny: ceny,
                   cjed: numFmt(cj), ctot: numFmt(numParse(it.qa) * numParse(cj)),
                   odmj: numFmt(od), odmt: numFmt(numParse(it.qa) * numParse(od)), mats: [] };
-        var c = commitRow(r, null); if (c) commits.push(c);
+        var c = commitRow(r, null);
+        var a = lp.auto[it.k];                      /* krok 39: AutoDID podle výběru v lupě */
+        if (c && a && a.ok && tid === lp.tid && ord === lp.ord) c.auto = { dids: a.items.filter(function(x){ return !a.off[x.ref]; }).map(function(x){ return x.did; }), end: [] };
+        if (c) commits.push(c);
       });
       $('lpok').disabled = false;
       lpClose();

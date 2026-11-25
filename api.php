@@ -145,6 +145,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if (isset($b['memberId']) && !in_array((string) $b['memberId'], API_ACTORS, true)) api_out(['ok' => false, 'error' => 'neznámý technik'], 400);
   unset($b['op'], $b['src'], $b['operator']);           // operace formuláře příjmu tudy nejdou
   unset($b['pdfServer'], $b['pacient'], $b['archiv']);  // krok 32: PDF ze šablony a archiv doplňuje jen server, nikdy prohlížeč
+  unset($b['skVolba']);                                 // krok 39: skupiny „alternativy“ doplňuje jen server (SQL mat_skupina.vyber)
+  if (($a === 'writeEvidence' || ($a === 'autoDidPreview' && !empty($b['grp']))) && mat_on()) {
+    try { $b['skVolba'] = mat_sk_volba(); } catch (Throwable $e) { api_log($actor, 'POST ' . $a, 'skVolba ' . substr($e->getMessage(), 0, 120)); }
+  }
   if ($a === 'lotCreate' && mat_on()) {                 // krok 5: karta MAT do SQL, list dostane propis
     if (!isset(MAT_TECHNIK[(string) ($b['memberId'] ?? '')])) {   // bez technika by kartu založil Apps Script jen v listu
       if (isset($b['matNew']) || isset($b['matFill'])) api_out(['ok' => false, 'error' => 'neznámý Trello účet']);

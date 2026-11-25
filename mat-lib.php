@@ -639,6 +639,19 @@ function mat_davky(int $lim = 40): array {
    Přejmenování = nový kód, karty se přeřadí přes mat_apply (historie + propis do MAT!O), skladby výrobků
    se přepíšou, starý kód se smaže. Skupiny jmenovitě v Apps Scriptu (AUTODID.GRP_FULL_SK, verze 70)
    se přejmenovat ani smazat nedají, dokud se nezmění i skript. */
+/* krok 39: způsob výběru u ADID skupiny – složky (vše zaškrtnuté) / alternativy (technik vybírá) */
+const MAT_VYBER = ['vse' => 'složky', 'volba' => 'alternativy'];
+function mat_sk_vybery(bool $znovu = false): array {
+  static $v = null;
+  if ($v === null || $znovu) {
+    $v = [];
+    try { foreach (mat_pdo()->query('SELECT kod, vyber FROM ' . mat_t('mat_skupina') . ' WHERE vyber IS NOT NULL') as $r) if (isset(MAT_VYBER[$r['vyber']])) $v[$r['kod']] = $r['vyber']; }
+    catch (Throwable $e) { $v = []; }
+  }
+  return $v;
+}
+/* kódy skupin „alternativy“ pro Apps Script (AutoDID, body.skVolba) */
+function mat_sk_volba(): array { return array_keys(array_filter(mat_sk_vybery(), fn($x) => $x === 'volba')); }
 const MAT_SK_GAS = ['SK-MODEL-DIGITAL', 'SK-IZOLACE', 'SK-ORTO-AKRYLAT', 'SK-LZICE', 'SK-SILIKON-LAB'];
 
 function mat_sk_log(string $kdo, string $akce, string $kod, ?string $novy, ?string $pozn): void {
@@ -659,9 +672,9 @@ function mat_sk_chyba_kodu(string $k): string {
 function mat_skupiny_info(): array {
   $pdo = mat_pdo(); $S = mat_t('mat_skupina'); $T = mat_t('mat');
   $out = [];
-  $typy = mat_sk_typy(true);
+  $typy = mat_sk_typy(true); $vyb = mat_sk_vybery(true);
   foreach ($pdo->query("SELECT kod, popis FROM $S ORDER BY kod") as $r)
-    $out[$r['kod']] = ['kod' => $r['kod'], 'popis' => $r['popis'], 'typ' => $typy[$r['kod']] ?? null, 'gas' => in_array($r['kod'], MAT_SK_GAS, true), 'vyrobky' => []];
+    $out[$r['kod']] = ['kod' => $r['kod'], 'popis' => $r['popis'], 'typ' => $typy[$r['kod']] ?? null, 'vyber' => $vyb[$r['kod']] ?? null, 'gas' => in_array($r['kod'], MAT_SK_GAS, true), 'vyrobky' => []];
   try {
     $q = $pdo->query("SELECT DISTINCT COALESCE(pm.skupina, m.skupina) sk, p.kod FROM t2p_produkt_mat pm JOIN t2p_produkt p ON p.id = pm.produkt_id
                       LEFT JOIN $T m ON m.ref = pm.ref WHERE COALESCE(pm.skupina, m.skupina) IS NOT NULL ORDER BY p.kod");
@@ -683,7 +696,9 @@ function mat_skupina_nova(array $b, string $kdo): array {
   if (mat_ma_typ()) mat_pdo()->prepare('INSERT INTO ' . mat_t('mat_skupina') . ' (kod, popis, typ_sarze) VALUES (?, ?, ?)')->execute([$k, $p === '' ? null : mb_substr($p, 0, 200), $t]);
   else mat_pdo()->prepare('INSERT INTO ' . mat_t('mat_skupina') . ' (kod, popis) VALUES (?, ?)')->execute([$k, $p === '' ? null : mb_substr($p, 0, 200)]);
   mat_sk_typy(true);
-  mat_sk_log($kdo, 'nová', $k, null, trim(($t ? $t . ' ' : '') . $p));
+  $v = trim((string) ($b['vyber'] ?? ''));                     // krok 39: složky / alternativy u nové ADID skupiny
+  if ($v !== '' && isset(MAT_VYBER[$v]) && $t === 'ADID') { mat_pdo()->prepare('UPDATE ' . mat_t('mat_skupina') . ' SET vyber = ? WHERE kod = ?')->execute([$v, $k]); mat_sk_vybery(true); }
+  mat_sk_log($kdo, 'nová', $k, null, trim(($t ? $t . ' ' : '') . $p . ($v !== '' && isset(MAT_VYBER[$v]) && $t === 'ADID' ? ' · ' . MAT_VYBER[$v] : '')));
   return ['ok' => true, 'kod' => $k];
 }
 
@@ -704,6 +719,19 @@ function mat_skupina_uprav(array $b, string $kdo): array {
       if (in_array($k, MAT_SK_GAS, true) && $t !== 'ADID') return ['ok' => false, 'error' => $k . ' je v Apps Scriptu jako AutoDID celá skupina – na IDID ji změnit nejde bez změny skriptu'];
       $typ = mat_sk_typ_nastav($k, $t, $kdo);
       if (!$typ['ok']) return $typ;
+      if ($t !== 'ADID' && ($sk['vyber'] ?? null) !== null && !array_key_exists('vyber', $b)) {   // výběr patří jen k ADID
+        $pdo->prepare("UPDATE $S SET vyber = NULL WHERE kod = ?")->execute([$k]); mat_sk_vybery(true);
+        mat_sk_log($kdo, 'výběr', $k, null, '– (typ ' . $t . ')'); $sk['vyber'] = null;
+      }
+    }
+  }
+  if (array_key_exists('vyber', $b)) {                // krok 39: složky / alternativy (jen ADID)
+    $v = trim((string) $b['vyber']); $v = $v === '' ? null : $v; $v0 = $sk['vyber'] ?? null;
+    if ($v !== $v0) {
+      if ($v !== null && !isset(MAT_VYBER[$v])) return ['ok' => false, 'error' => 'výběr musí být vse (složky) nebo volba (alternativy)'];
+      if ($v !== null && (mat_sk_typy()[$k] ?? null) !== 'ADID') return ['ok' => false, 'error' => 'výběr složky / alternativy má smysl jen u ADID skupiny'];
+      $pdo->prepare("UPDATE $S SET vyber = ? WHERE kod = ?")->execute([$v, $k]); mat_sk_vybery(true);
+      mat_sk_log($kdo, 'výběr', $k, null, $v === null ? '–' : MAT_VYBER[$v]);
     }
   }
   $n = isset($b['novy_kod']) ? mat_sk_kod($b['novy_kod']) : $k;
