@@ -1671,8 +1671,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     var gm = e.target.closest('[data-gmore]');
     if (gm) { A.gall[gm.getAttribute('data-gmore')] = true; renderMats(); return; }
     var gh = e.target.closest('[data-gh]');
-    if (gh) { var hk = gh.getAttribute('data-gh'), gg = autoGroups().filter(function(x){ return x.kod === hk; })[0];
-              var o0 = A.gopen[hk] !== undefined ? A.gopen[hk] : !!(gg && gg.items.length); A.gopen[hk] = !o0; renderMats(); return; }
+    if (gh) { var hk = gh.getAttribute('data-gh'); A.gopen[hk] = !A.gopen[hk]; renderMats(); return; }
     var am = e.target.closest('[data-amiss]');
     if (am) { var mk = am.getAttribute('data-amiss');
               if (mk === '1') { A.missOpen = !A.missOpen; if (!A.missOpen) A.nas = null; }
@@ -1817,7 +1816,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     return autoGroups().map(function(g){
       var n = g.items.length, on = g.items.filter(function(it){ return !A.off[it.ref]; });
       var miss = g.miss.filter(function(x){ return !A.off[x.ref]; }).length;
-      var open = A.gopen[g.kod] !== undefined ? A.gopen[g.kod] : n > 0;
+      var open = !!A.gopen[g.kod];                   /* výchozí sbalené (25. 11.) */
       var need = g.volba && n > 0 && !on.length;
       var cnt = !n ? 'bez nasazeného balení · ' + miss + ' karet'
               : need ? '<em>vyber</em><b>0</b> / ' + n : '<b>' + on.length + '</b> / ' + n + ' použito';
