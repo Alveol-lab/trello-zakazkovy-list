@@ -2242,7 +2242,17 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     state.rows.splice(i, 1);
     if (state.editIndex === i) clearForm(); else if (state.editIndex > i) state.editIndex--;
     renderRows(); save();
-    clearInSheet(r).then(refreshOdmeny);
+    clearInSheet(r).then(function(resp){
+      /* zapsaná položka, jejíž výmaz v listu selhal, se vrátí na kartu –
+         jinak by v EVIDENCE zůstal řádek, o kterém karta neví            */
+      if (r._href && !(resp && resp.ok) && findIndexById(r.id) < 0) {
+        state.rows.splice(Math.min(i, state.rows.length), 0, r);
+        if (state.editIndex != null && state.editIndex >= i) state.editIndex++;
+        renderRows(); save();
+        wmsg('Výmaz v EVIDENCE se nepovedl – položka zůstává na kartě, zkus ji smazat znovu.', 15);
+      }
+      refreshOdmeny();
+    });
   }
 
   /* součty: cena celkem a zálohované komp. jen z výrobků (fáze nejsou
