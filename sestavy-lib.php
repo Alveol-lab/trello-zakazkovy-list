@@ -16,7 +16,7 @@ const SEST_FONTS = __DIR__ . '/../../vendor/fonts-sestavy';      // Liberation S
 const SEST_IMG   = __DIR__ . '/sestavy-img';
 const SEST_SROVNANI = __DIR__ . '/../../sestavy-srovnani';       // PDF ze šablony vedle PDF ze Sheets (jen režim srovnani)
 const SEST_LOG   = __DIR__ . '/../../autolab-sestavy.log';
-const SEST_VERZE = ['prohlaseni' => 'prohlaseni-1', 'nabidka' => 'nabidka-1', 'mzd' => 'mzd-1', 'pvf' => 'pvf-1'];
+const SEST_VERZE = ['prohlaseni' => 'prohlaseni-2', 'nabidka' => 'nabidka-1', 'mzd' => 'mzd-1', 'pvf' => 'pvf-1'];
 const SEST_FIRMA = 'Denteo v.o.s. | Koželská 209 / U Prádelny 851, 584 01 Ledeč nad Sázavou | IČ:06149928 | +420 721 066 100';
 
 function sest_cfg(): array { static $c = null; if ($c === null) { $c = is_file(SEST_CFG) ? (json_decode((string) file_get_contents(SEST_CFG), true) ?: []) : []; } return $c; }
@@ -28,9 +28,61 @@ function sest_log(string $kdo, string $co, string $vysledek): void {
 
 /* data sestavy – zatím z Apps Scriptu (listy EXP, STP, LOT) */
 function sest_data(string $typ, array $par): array {
+  if ($typ === 'prohlaseni') return sest_data_prohlaseni((string) ($par['tag'] ?? ''));
   $r = arch_gas(['action' => 'sestava', 'typ' => $typ] + $par, 90);
   if (empty($r['ok']) || !is_array($r['data'] ?? null)) return ['ok' => false, 'error' => (string) ($r['error'] ?? 'Apps Script nevrátil data')];
   return ['ok' => true, 'data' => $r['data']];
+}
+
+/* Prohlášení: data sestavy a trasování UID ↔ šarže (lotTrace, krok 29) se ptají Apps Scriptu souběžně. */
+function sest_data_prohlaseni(string $tag): array {
+  $s = function_exists('prijem_secret') ? prijem_secret() : null;
+  if (empty($s['key'])) return ['ok' => false, 'error' => 'server: chybí klíč pro Apps Script'];
+  $url = getenv('ARCH_GAS_URL') ?: ARCH_GAS_URL;
+  $o = [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 5, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 90];
+  $a = curl_init($url);
+  curl_setopt_array($a, $o + [CURLOPT_POST => true, CURLOPT_POSTREDIR => 0, CURLOPT_HTTPHEADER => ['Content-Type: text/plain;charset=utf-8'],
+    CURLOPT_POSTFIELDS => json_encode(['action' => 'sestava', 'typ' => 'prohlaseni', 'tag' => $tag, 'key' => $s['key']], JSON_UNESCAPED_UNICODE)]);
+  $t = curl_init($url . '?' . http_build_query(['trace' => $tag, 'key' => $s['key']]));
+  curl_setopt_array($t, $o);
+  $mh = curl_multi_init(); curl_multi_add_handle($mh, $a); curl_multi_add_handle($mh, $t);
+  do { $st = curl_multi_exec($mh, $bezi); if ($bezi) curl_multi_select($mh, 1.0); } while ($bezi && $st === CURLM_OK);
+  $vys = function ($h) { $j = (int) curl_getinfo($h, CURLINFO_HTTP_CODE) === 200 ? json_decode((string) curl_multi_getcontent($h), true) : null; return is_array($j) ? $j : null; };
+  $r = $vys($a); $tr = $vys($t);
+  foreach ([$a, $t] as $h) { curl_multi_remove_handle($mh, $h); curl_close($h); }
+  curl_multi_close($mh);
+  if (!$r) return ['ok' => false, 'error' => 'Apps Script neodpověděl'];
+  if (empty($r['ok']) || !is_array($r['data'] ?? null)) return ['ok' => false, 'error' => (string) ($r['error'] ?? 'Apps Script nevrátil data')];
+  $tr = $tr && !empty($tr['ok']) && is_array($tr['baleni'] ?? null) ? $tr : null;
+  $r['data']['protokol'] = sest_pro_protokol($tr, $r['data']['materialy'] ?? []);
+  return ['ok' => true, 'data' => $r['data']];
+}
+
+/* Krok 42 – protokol materiálů prohlášení (prohlaseni-2):
+   tisknou se IDID (skupina s typem IDID) a MDID (karta MD / balení s CASE = UIDN) s REF, LOT, exp.;
+   stejné REF + LOT se sloučí na „N ks“. ADID (AutoDID) se netiskne – jen počet v poznámce,
+   šarže vede laboratoř v dokumentaci zakázky (soupis šarží v archivu).
+   Zdroj: trasování (zachytí i MDID navázané jen přes CASE bez zápisu ve výkonu);
+   když trasování selže, použije se seznam ze sloupce AA, který poslal Apps Script. */
+function sest_pro_protokol(?array $tr, array $zAA): array {
+  $bal = [];
+  if ($tr) foreach ($tr['baleni'] as $did => $b) $bal[] = ['did' => (string) ($b['did'] ?? $did), 'ref' => (string) ($b['ref'] ?? ''), 'lot' => (string) ($b['lot'] ?? ''),
+    'material' => (string) ($b['popis'] ?? ''), 'exp' => (string) ($b['exp'] ?? ''), 'md' => trim((string) ($b['uid_md'] ?? '')) !== ''];
+  else foreach ($zAA as $m) $bal[] = ['did' => (string) ($m['did'] ?? ''), 'ref' => (string) ($m['ref'] ?? ''), 'lot' => (string) ($m['lot'] ?? ''),
+    'material' => (string) ($m['material'] ?? ''), 'exp' => (string) ($m['exp'] ?? ''), 'md' => false];
+  $typy = []; $karta = null;
+  try { $typy = mat_sk_typy(); $karta = mat_pdo()->prepare('SELECT nazev, vyrobce, skupina, druh FROM ' . mat_t('mat') . ' WHERE ref = ? LIMIT 1'); } catch (Throwable $e) {}
+  $tisk = []; $adid = 0;
+  foreach ($bal as $b) {
+    $k = null;
+    if ($karta && $b['ref'] !== '') { try { $karta->execute([$b['ref']]); $k = $karta->fetch() ?: null; } catch (Throwable $e) {} }
+    $typ = ($b['md'] || ($k['druh'] ?? '') === 'MD') ? 'MDID' : ($typy[$k['skupina'] ?? ''] ?? 'IDID');   // neznámé = tisknout (raději víc než míň)
+    if ($typ === 'ADID') { $adid++; continue; }
+    $kl = mb_strtolower($b['ref'] . '|' . $b['lot']);
+    if (!isset($tisk[$kl])) $tisk[$kl] = $b + ['typ' => $typ, 'vyrobce' => (string) ($k['vyrobce'] ?? ''), 'ks' => 0];
+    $tisk[$kl]['ks']++;
+  }
+  return ['zdroj' => $tr ? 'trace' : 'AA', 'polozky' => array_values($tisk), 'adid' => $adid];
 }
 
 function sest_mpdf(string $titulek, string $typ, string $id, bool $pdfa): \Mpdf\Mpdf {
@@ -121,11 +173,15 @@ function sest_prohlaseni_pdf(array $d): string {
   $V = '<table style="width:100%"><tr class="gh"><td>kód produktu</td><td>popis</td><td class="r">Q</td></tr>';
   foreach (($d['vykony'] ?? []) as $v) $V .= '<tr class="it"><td class="b" style="width:22mm">' . $e($v['kod'] ?? '') . '</td><td>' . $e($v['popis'] ?? '') . '</td><td class="r" style="width:8mm">' . $e($v['q'] ?? '') . '</td></tr>';
   $V .= '</table>';
-  $M = '<table style="width:100%"><tr class="gh"><td>materiál</td><td>REF</td><td>LOT</td><td>DID</td><td>exp.</td></tr>';
-  $MM = $d['materialy'] ?? [];
-  if (!$MM) $M .= '<tr class="it"><td colspan="5">bez evidovaných šarží</td></tr>';
-  foreach ($MM as $m) $M .= '<tr class="it"><td class="b">' . $e($m['material'] ?? '') . '</td><td style="font-size:6.5pt;padding-right:1.5mm;width:24mm">' . str_replace(['-', '_'], ['-&#8203;', '_&#8203;'], $e($m['ref'] ?? '')) . '</td><td class="b">' . $e($m['lot'] ?? '') . '</td><td>' . $e($m['did'] ?? '') . '</td><td style="white-space:nowrap">' . $e(sest_dat($m['exp'] ?? '')) . '</td></tr>';
-  $M .= '</table>';
+  $P = $d['protokol'] ?? ['polozky' => [], 'adid' => 0];
+  $M = '<table style="width:100%"><tr class="gh"><td>materiál</td><td>REF</td><td>LOT</td><td>exp.</td></tr>';
+  if (!$P['polozky']) $M .= '<tr class="it"><td colspan="4">bez individuálně evidovaných šarží</td></tr>';
+  foreach ($P['polozky'] as $m) $M .= '<tr class="it"><td><span class="b">' . $e($m['material']) . ($m['ks'] > 1 ? ' · ' . $m['ks'] . ' ks' : '') . '</span>'
+    . ($m['vyrobce'] !== '' ? '<br><span style="font-size:6.5pt;color:#444">' . $e($m['vyrobce']) . '</span>' : '') . '</td>'
+    . '<td style="font-size:6.5pt;padding-right:1.5mm;width:22mm">' . str_replace(['-', '_'], ['-&#8203;', '_&#8203;'], $e($m['ref'])) . '</td>'
+    . '<td class="b">' . $e($m['lot']) . '</td><td style="white-space:nowrap">' . $e(sest_dat($m['exp'])) . '</td></tr>';
+  $M .= '</table><div style="font-size:6pt;color:#555;margin-top:1.5mm">Uvedeny jsou individuálně sledované materiály a díly. Šarže ostatních použitých materiálů'
+    . ($P['adid'] ? ' (' . (int) $P['adid'] . ')' : '') . ' vede laboratoř v dokumentaci zakázky pod číslem UIDN.</div>';
   $h .= '<table style="width:100%;margin-top:4mm"><tr><td style="width:113mm;padding-right:3mm"><div class="sec">EVIDENCE PROCESŮ</div>' . $V . '</td>'
       . '<td style="padding-left:3mm"><div class="sec">PROTOKOL POUŽITÝCH MATERIÁLŮ</div>' . $M . '</td></tr></table>';
   /* látky */
