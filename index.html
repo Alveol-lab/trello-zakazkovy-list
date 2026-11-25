@@ -18,11 +18,11 @@ window.TrelloPowerUp.initialize({
         dark:  'https://www.denteo.space/zakazkovy-list/ikona-katalog-kniha.svg',
         light: 'https://www.denteo.space/zakazkovy-list/ikona-katalog-kniha.svg'
       },
-      /* Jen piktogram otevřené knihy, bez nápisu (přání 25. 11. 2026).
-         Prázdný text '' Trello zahodí i s tlačítkem, proto neviditelná
-         mezera nulové šířky (U+200B), kterou String.trim() neodstraní.
-         Kdyby ani ta neprošla, vrátit 'Katalog'.                        */
-      text: '\u200B',
+      /* Piktogram otevřené knihy a název velkými písmeny (25. 11. 2026).
+         Tlačítko je schované v nabídce Vylepšení (zástrčka); jestli je vidět
+         i v liště, řídí přepínač v té nabídce, ne kód.
+         Prázdný text Trello nevykreslí, proto název zůstává.             */
+      text: 'KATALOG',
       callback: function (t) {
         var theme = 'dark';
         try { var ctx = t.getContext(); if (ctx && ctx.theme) theme = ctx.theme; } catch (e) {}
