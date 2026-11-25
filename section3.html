@@ -2106,7 +2106,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   var IC_MAT = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5l6 2.7v7.6L8 14.5 2 11.8V4.2z" opacity=".35"/><path d="M8 7.2L2 4.2 8 1.5l6 2.7zM8 7.2v7.3l6-2.7V4.2z"/></svg>';
   function rowDids(r){ var l = matLotText(r.mats); return l ? l.split(' | ') : []; }
   function lotsHtml(r){
-    if (!r._href && !pending[r.id]) return '<button class="dc err" data-retry="' + esc(r.id) + '" title="položka je jen v kartě, do EVIDENCE se nezapsala – klik = zapsat znovu">nezapsáno ↻</button>';
+    if (!r._href && !zapisBezi[r.id]) return '<button class="dc err" data-retry="' + esc(r.id) + '" title="položka je jen v kartě, do EVIDENCE se nezapsala – klik = zapsat znovu">nezapsáno ↻</button>';
     if (r.nab) return '<span class="dc nab" title="nabídka – cena a odměna 0 do přijetí">NABÍDKA</span>';
     if (r.lotErr) return '<span class="dc err" title="řádek je zapsaný, ale odpis materiálu selhal – edituj a vlož znovu">odpis selhal</span>';
     var d = rowDids(r);
@@ -2117,7 +2117,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   /* zvýraznění vazby výkon ↔ DID */
   var hl = { dids: [], row: null };
   /* položky, jejichž zápis právě běží – štítek „nezapsáno“ se u nich neukáže */
-  var pending = {};
+  var zapisBezi = {};
   function rowHl(r){ if (!hl.dids.length) return false; var d = rowDids(r); return d.some(function(x){ return hl.dids.indexOf(x) >= 0; }); }
   var MFLAG = { close:'spotřebováno', correct:'korekce', enough:'vystačilo', split:'+ bal.', reopen:'vráceno' };
   function vykonLab(r){
@@ -2473,7 +2473,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   /* nezapsaná položka (odmítnutý zápis, výpadek spojení) – nový pokus */
   function retryRow(id){
     var r = state.rows[findIndexById(id)];
-    if (!r || r._href || pending[id]) return;
+    if (!r || r._href || zapisBezi[id]) return;
     if (!userOk()) { wrongAccount('Zápis'); return; }
     if (!sheetAllowed(r.tid, 'Zápis')) return;
     var c = { r: r, same: -1, old: null, target: r };
@@ -2481,7 +2481,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   }
   function postRow(c, card, refOver){
     var r = c.r, pid = c.target && c.target.id;
-    if (pid && !c.target._href) { pending[pid] = 1; renderRows(); }
+    if (pid && !c.target._href) { zapisBezi[pid] = 1; renderRows(); }
     if (c.same >= 0 && c.target && c.target._href) r = c.target;
     var ref = refOver || ((c.same >= 0) ? (c.target ? c.target._href || null : null) : (c.old ? c.old._href : null));
     return postToScript({
@@ -2495,7 +2495,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       autoEnd: (c.auto && c.auto.end.length) ? c.auto.end : undefined,
       nab: c.nabOff ? false : (r.nab ? true : undefined)
     }, c.nabOff ? 'Přijato do ' : 'Zapsáno do ', 'Zápis').then(function(resp){
-      if (pid && pending[pid]) { delete pending[pid]; if (!resp || !resp.ok) renderRows(); }
+      if (pid && zapisBezi[pid]) { delete zapisBezi[pid]; if (!resp || !resp.ok) renderRows(); }
       if (!resp) return;
       if (resp.ok && c.nabOff && c.target) { delete c.target.nab; save(); renderRows(); }
       if (resp.ok && c.auto) c.auto.end = [];
