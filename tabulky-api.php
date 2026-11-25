@@ -72,7 +72,9 @@ const TB_TABLES = [
     'sql'   => "SELECT datum, vykon, kod, ord, q, did, ref, jednotek, stav, technik, uzavrel, otevrel, radek
                   FROM s1_lotlog ORDER BY radek DESC",
   ],
-  'produkt' => [
+  /* Id musí být 'vyrobky': tabulky.html pod ním volá živé SQL (produkt-api.php, editor se skupinami)
+     a tato kopie listu je jen záloha, když SQL neodpoví. S id 'produkt' se SQL obcházelo (25. 11. 2026). */
+  'vyrobky' => [
     'title' => 'Výrobky (PRODB)',
     'cols'  => [['kod','Kód','t'],['nazev','Název','t'],['ku','KU','t'],['kat','Kat.','t'],['kzp','KZP','t'],
                 ['hs','HS','t'],['vzp','VZP','t'],['mat_hlavni','Hlavní materiál','t'],
