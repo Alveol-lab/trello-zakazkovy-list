@@ -18,7 +18,8 @@ require_once __DIR__ . '/mat-lib.php';                // mat_pdo, mat_txt, mat_n
 
 const PR_CFG_FILE = __DIR__ . '/../../autolab-prodb.json';
 const PR_KAT  = ['OR', 'FP', 'RP', 'DTO'];
-const PR_POLE = ['nazev', 'ku', 'kat', 'kzp', 'hs', 'vzp', 'gmdn', 'udi_pi', 'trvanlivost', 'eudamed', 'stary_kod', 'poznamka'];
+const PR_POLE = ['nazev', 'ku', 'kat', 'kzp', 'hs', 'vzp', 'gmdn', 'udi_pi', 'trvanlivost', 'eudamed', 'stary_kod', 'poznamka', 'technologie'];
+const PR_TECH = ['Frézování', '3D print', 'Press'];   // krok F2: výchozí technologie, do listu PRODB se nepropisuje
 const PR_DELKY = ['nazev' => 300, 'ku' => 20, 'gmdn' => 40, 'udi_pi' => 60, 'eudamed' => 60, 'stary_kod' => 200, 'poznamka' => 500];
 /* Editoři výrobků (Trello účet → zkratka). Technici z MAT_TECHNIK smějí jen navrhovat. */
 const PR_EDIT = ['588fa9e7e5db691bfe653bce' => 'H', '6b00d5c2c5be2a396f89949e' => 'BRIGIT'];
@@ -122,6 +123,7 @@ function pr_check(string $k, $x): array {
   if ($k === 'kzp' && !preg_match('/^[A-Z]{3}$/', $v)) return [null, 'KZP jsou 3 písmena'];
   if ($k === 'hs' && !preg_match('/^[A-Z]$/', $v)) return [null, 'HS je jedno písmeno'];
   if ($k === 'vzp' && !preg_match('/^[0-9]{4}$/', $v)) return [null, 'VZP jsou 4 číslice'];
+  if ($k === 'technologie' && !in_array($v, PR_TECH, true)) return [null, 'technologie: Frézování / 3D print / Press'];
   if ($k === 'trvanlivost') { if (!preg_match('/^[0-9]+$/', $v) || (int) $v < 1 || (int) $v > 600) return [null, 'trvanlivost = celé číslo měsíců 1–600']; $v = (int) $v; }
   return [$v, ''];
 }
@@ -243,7 +245,7 @@ function pr_apply(int $id, string $pole, $hodnota, string $kdo, string $role, ?i
       if ($err) { $pdo->rollBack(); return [$p, [], null, $err]; }
       if ((string) ($p[$pole] ?? '') !== (string) ($v ?? '')) {
         $zm[$pole] = $v; $log[] = [$pole, $p[$pole], $v];
-        $propis = $p['stav'] === 'aktivní';
+        if ($pole !== 'technologie') $propis = $p['stav'] === 'aktivní';   // technologie v listu PRODB není
       }
     }
     if (!$log) { $pdo->commit(); return [$p, [], null, '']; }

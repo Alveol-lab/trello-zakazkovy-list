@@ -1012,12 +1012,12 @@ td.vy{color:var(--txt-strong)}
     var RE_KU = /^[FROU][MST]( \| [FROU][MST])*$/;
     var COLS = [
       { k:'kod', l:'Kód', ro:1 }, { k:'nazev', l:'Název', req:1 }, { k:'ku', l:'KU', dl:1, req:1 }, { k:'kat', l:'KAT', sel:KAT, req:1 },
-      { k:'kzp', l:'KZP', dl:1 }, { k:'hs', l:'HS', sel:HS }, { k:'vzp', l:'VZP' },
+      { k:'kzp', l:'KZP', dl:1 }, { k:'hs', l:'HS', sel:HS }, { k:'vzp', l:'VZP' }, { k:'technologie', l:'Technologie', sel:['Frézování','3D print','Press'] },
       { k:'skladba', l:'Skladba', sk:1 }, { k:'vykonu', l:'Výkonů', ro:1, n:1 }
     ];
     var DET = [['gmdn','GMDN'],['udi_pi','UDI-PI'],['trvanlivost','Trvanlivost (měs.)'],['eudamed','EUDAMED'],['stary_kod','Starý kód'],['poznamka','Poznámka']];
     var POPIS = { nazev:'název', ku:'KU', kat:'KAT', kzp:'KZP', hs:'HS', vzp:'VZP', gmdn:'GMDN', udi_pi:'UDI-PI', trvanlivost:'trvanlivost',
-      eudamed:'EUDAMED', stary_kod:'starý kód', poznamka:'poznámka', skladba:'skladba', pravidla:'pravidla sledovatelnosti', skladba_h:'hlavní materiál', skladba_i:'pomocný materiál', stav:'stav', vyrobek:'výrobek' };
+      eudamed:'EUDAMED', stary_kod:'starý kód', poznamka:'poznámka', technologie:'technologie', skladba:'skladba', pravidla:'pravidla sledovatelnosti', skladba_h:'hlavní materiál', skladba_i:'pomocný materiál', stav:'stav', vyrobek:'výrobek' };
     var ZDR = { 'import':'import ze sešitu', prohlizec:'katalog', prijem:'příjem', trello:'zakázkový list' };
     var D = null, R = [], byId = {}, sel = {}, rs = {}, edit = null, side = null, sortK = null, sortDir = 1, MATBY = {}, MATL = [], SKUP = {}, draft = null, tmpId = -1;
     var POV = ['povinné','doporučené','volitelné'], ZPU = ['auto','ruční','MD'];

@@ -12,7 +12,8 @@
 require __DIR__ . '/prijem-auth.php';          // prijem_secret() – klíč pro Apps Script
 require __DIR__ . '/mat-lib.php';             // krok 5: karty MAT v SQL (přepínač autolab-mat.json)
 require __DIR__ . '/archiv-lib.php';          // krok 31: archiv vydaných prohlášení (přepínač autolab-archiv.json)
-require __DIR__ . '/sestavy-lib.php';         // krok 32: tiskové sestavy ze šablon (přepínač autolab-sestavy.json)
+require __DIR__ . '/sestavy-lib.php';
+require __DIR__ . '/frez-lib.php';             // krok F2: technologie výkonu a deník frézy (přepínač autolab-frez.json)         // krok 32: tiskové sestavy ze šablon (přepínač autolab-sestavy.json)
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -36,9 +37,9 @@ const API_ACTORS = [
 const API_USERS = [...API_ACTORS, '655329144f809c15a1896437', '6b00d5c2c5be2a396f89949e'];
 
 const API_POST_OK = ['writeEvidence', 'clearEvidence', 'rewardSum', 'compliancePdf',
-                     'autoDidPreview', 'lotCreate', 'lotCheck', 'lotEnd', 'lotNasad', 'nabidkaPdf'];
+                     'autoDidPreview', 'lotCreate', 'lotCheck', 'lotEnd', 'lotNasad', 'nabidkaPdf', 'techVolba'];
 const API_GET_OK  = ['code', 'ver', 'lot', 'lotq', 'matref', 'matlists',
-                     'suggest', 'search', 'typ', 'ord', 'limit_sady', 'limit_kody'];
+                     'suggest', 'search', 'typ', 'ord', 'limit_sady', 'limit_kody', 'tech', 'frez'];
 
 function api_out(array $o, int $code = 200): void { http_response_code($code); echo json_encode($o, JSON_UNESCAPED_UNICODE); exit; }
 
@@ -131,6 +132,24 @@ function api_gas(string $url, ?string $post, string $actor, string $what, ?array
 
 $what0 = API_PLUGIN === '' ? ' [plugin ' . $plug . ']' : '';   // dočasně: zjištění ID Power-Upu
 
+/* krok F2: technologie a fréza – jen SQL, Apps Script se neptá */
+function api_kdo(string $actor): string { return MAT_TECHNIK[$actor] ?? ($actor === '655329144f809c15a1896437' ? 'M' : ($actor === '6b00d5c2c5be2a396f89949e' ? 'BRIGIT' : '?')); }
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && (isset($_GET['tech']) || isset($_GET['frez']))) {
+  if (!tech_on()) api_out(['ok' => false, 'vypnuto' => true]);
+  try {
+    $o = ['ok' => true];
+    if (isset($_GET['tech'])) {                         // ?tech=kód,kód[&tag=🏷️] → výchozí + volby zakázky
+      $o['vychozi'] = (object) tech_vychozi(array_slice(explode(',', (string) $_GET['tech']), 0, 60));
+      $o['volby'] = (object) (isset($_GET['tag']) ? tech_zakazka((string) $_GET['tag']) : []);
+    }
+    if (isset($_GET['frez'])) $o['frez'] = frez_on() ? frez_zakazka((string) $_GET['frez']) : null;   // null = panel se neukáže
+    api_out($o);
+  } catch (Throwable $e) {
+    api_log($actor, 'GET tech/frez', 'DB ' . substr($e->getMessage(), 0, 150));
+    api_out(['ok' => false, 'error' => 'databáze neodpověděla'], 502);
+  }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
   $q = [];
   foreach (API_GET_OK as $k) if (isset($_GET[$k]) && is_string($_GET[$k])) $q[$k] = $_GET[$k];
@@ -178,6 +197,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       api_log($actor, 'POST lotCreate', 'MAT DB ' . substr($e->getMessage(), 0, 150));
       api_out(['ok' => false, 'error' => 'databáze karet MAT neodpověděla – nic se neuložilo, zkus to znovu'], 502);
     }
+  }
+  if ($a === 'techVolba') {                            // krok F2: volba technologie u výkonu, trend 3× → výchozí
+    if (!tech_on()) api_out(['ok' => false, 'vypnuto' => true]);
+    if (!isset(MAT_TECHNIK[$actor]) && $actor !== '6b00d5c2c5be2a396f89949e') api_out(['ok' => false, 'error' => 'technologii volí technik'], 403);
+    try { $r = tech_volba(trim((string) ($b['tag'] ?? '')), (string) ($b['kod'] ?? ''), (string) ($b['technologie'] ?? ''), api_kdo($actor)); }
+    catch (Throwable $e) { api_log($actor, 'POST techVolba', 'DB ' . substr($e->getMessage(), 0, 150)); api_out(['ok' => false, 'error' => 'databáze neodpověděla'], 502); }
+    api_log($actor, 'POST techVolba', $r['ok'] ? 'ok' . (!empty($r['zmena']) ? ' trend→' . $r['vychozi'] : '') : $r['error']);
+    api_out($r);
   }
   if ($a === 'nabidkaPdf') {                            // krok 32: kalkulace (F-NAB) ze šablony, jen čtení
     $tag = trim((string) ($b['tag'] ?? ''));
