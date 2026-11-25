@@ -78,6 +78,11 @@ function pr_retezec(array $skl, string $role): string {
   }
   return implode(' | ', $out);
 }
+/* zhuštěný zápis skladby pro historii: cíle tak, jak je editor zadal (REF nebo SK-…),
+   bez rozvinutí skupin – krátký a nezávislý na pozdějších změnách členství (krok 38/3) */
+function pr_cile(array $skl, string $role): string {
+  return implode(' | ', array_map('pr_cil', array_values(array_filter($skl, fn($s) => $s['role'] === $role))));
+}
 /* pravidla jedné položky jako krátký text do historie: „povinné · ruční · var. barvy“ */
 function pr_prav_txt(array $s): string {
   $p = array_filter([$s['povinnost'] ?? null, $s['zpusob'] ?? null, ($s['varianta'] ?? null) !== null ? 'var. ' . $s['varianta'] : null]);
@@ -189,7 +194,7 @@ function pr_apply(int $id, string $pole, $hodnota, string $kdo, string $role, ?i
       [$nova, $err] = pr_check_skladba($hodnota, $stara);
       if ($err) { $pdo->rollBack(); return [$p, [], null, $err]; }
       foreach (['hlavní' => 'skladba_h', 'pomocný' => 'skladba_i'] as $r => $k) {
-        $a = pr_retezec($stara, $r); $b = pr_retezec($nova, $r);
+        $a = pr_cile($stara, $r); $b = pr_cile($nova, $r);
         if ($a !== $b) $log[] = [$k, $a === '' ? null : $a, $b === '' ? null : $b];
       }
       if ($log) {
@@ -246,7 +251,7 @@ function pr_apply(int $id, string $pole, $hodnota, string $kdo, string $role, ?i
     $pdo->prepare('UPDATE t2p_produkt SET ' . ($set ? $set . ', ' : '') . 'upravil = ?, upraveno = ?, verze = verze + 1 WHERE id = ?')
         ->execute([...array_values($zm), $kdo, $now, $id]);
     $ins = $pdo->prepare("INSERT INTO t2p_produkt_zmena (produkt_id, cas, kdo, zdroj, pole, stara, nova) VALUES (?, ?, ?, 'prohlizec', ?, ?, ?)");
-    foreach ($log as [$k, $a, $b]) $ins->execute([$id, $now, $kdo, $k, $a === null ? null : mb_substr((string) $a, 0, 1000), $b === null ? null : mb_substr((string) $b, 0, 1000)]);
+    foreach ($log as [$k, $a, $b]) $ins->execute([$id, $now, $kdo, $k, $a === null ? null : (string) $a, $b === null ? null : (string) $b]);   // stara/nova = TEXT (krok 38/3)
     if ($propis) pr_queue([$id]);
     if ($snimek) pr_snimek($id, (int) $p['verze'] + 1, $kdo, $now);
     $pdo->commit();
