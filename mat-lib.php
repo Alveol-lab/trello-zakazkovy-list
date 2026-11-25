@@ -228,6 +228,7 @@ function mat_apply(int $id, array $v, string $kdo, string $zdroj, ?int $verze = 
       $ins->execute($r);
     }
     if (array_diff(array_keys($zm), ['cena_nakup', 'cena_datum', 'navyseni_pct', 'stav'])) mat_queue([$id]);  // ceny a stav list MAT nenese
+    if (array_intersect(array_keys($zm), ['skupina', 'stav', 'ref'])) mat_pr_dotcene([$m['skupina'], $zm['skupina'] ?? $m['skupina']]);   // členství ve skupině → PRODB H / I
     $pdo->commit();
     return [mat_by_id($id), array_values(array_diff(array_keys($zm), ['cena_datum'])), null, ''];
   } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
@@ -257,9 +258,29 @@ function mat_create(array $mn, string $ref, string $kdo, string $zdroj, string $
     $pdo->prepare('INSERT INTO ' . mat_t('mat_zmena') . ' (mat_id, cas, kdo, zdroj, pole, stara, nova) VALUES (?, ?, ?, ?, ?, NULL, ?)')
         ->execute([$id, $now, $kdo, $zdroj, 'karta', 'založena']);
     mat_queue([$id]);
+    if ($druh !== 'MD') mat_pr_dotcene([$v['skupina'] ?? null]);   // nový aktivní člen skupiny → PRODB H / I
     $pdo->commit();
     return [mat_by_id($id), ''];
   } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
+}
+
+/* Krok 38/5: výrobky, jejichž skladba míří na skupinu, nesou ve sloupci H / I
+   rozvinuté aktivní členy skupiny (pr_retezec). Změna členství karty
+   (skupina, stav, REF, nová karta) proto zařadí dotčené výrobky do fronty
+   propisu PRODB. Propis dočerpá Timer (produkt-propis.php); chyba fronty
+   úpravu karty nikdy nezastaví.                                           */
+function mat_pr_dotcene(array $sk): int {
+  $sk = array_values(array_unique(array_filter(array_map(fn($x) => $x === null ? '' : (string) $x, $sk), fn($x) => $x !== '')));
+  if (!$sk || mat_t('mat') !== 'mat') return 0;        // zkušební tabulky t2a_* výrobky nečtou
+  try {
+    $in = implode(',', array_fill(0, count($sk), '?'));
+    $st = mat_pdo()->prepare("INSERT INTO t2p_produkt_propis (produkt_id, cas, stav)
+        SELECT DISTINCT p.id, ?, 'čeká' FROM t2p_produkt p JOIN t2p_produkt_mat pm ON pm.produkt_id = p.id
+        WHERE pm.skupina IN ($in) AND (p.stav = 'aktivní' OR p.list_radek IS NOT NULL)
+          AND NOT EXISTS (SELECT 1 FROM t2p_produkt_propis q WHERE q.produkt_id = p.id AND q.stav IN ('čeká', 'chyba'))");
+    $st->execute([mat_now(), ...$sk]);
+    return $st->rowCount();
+  } catch (Throwable $e) { mat_log('SYSTEM', 'fronta PRODB ' . implode(',', $sk), 'CHYBA ' . substr($e->getMessage(), 0, 150)); return 0; }
 }
 
 /* otevřená balení podle stínu s1_baleni (obnova stínu je zatím ruční, viz doc 16) */
