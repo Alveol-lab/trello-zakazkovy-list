@@ -92,7 +92,21 @@ if (!$c) { api_log('-', 'jwt', 'odmítnuto: ' . $why); api_out(['ok' => false, '
 $actor = (string) ($c['idMember'] ?? '');
 $plug  = (string) ($c['idPlugin'] ?? '');
 if (API_PLUGIN !== '' && !hash_equals(API_PLUGIN, $plug)) { api_log($actor, 'plugin ' . $plug, 'odmítnuto'); api_out(['ok' => false, 'error' => 'cizí Power-Up'], 403); }
-if (!in_array($actor, API_USERS, true)) { api_log($actor, 'člen', 'odmítnuto'); api_out(['ok' => false, 'error' => 'tento Trello účet nemá do EVIDENCE přístup'], 403); }
+if (!in_array($actor, API_USERS, true)) {
+  /* i u odmítnutí zapsat, o jakou akci a zakázku šlo (jen kód 🏷️, bez obsahu zakázky) */
+  $co = $_SERVER['REQUEST_METHOD'];
+  if ($co === 'POST') {
+    $b0 = json_decode((string) file_get_contents('php://input'), true);
+    $a0 = is_array($b0) ? (string) ($b0['action'] ?? 'writeEvidence') : '?';
+    $co .= ' ' . (in_array($a0, API_POST_OK, true) ? $a0 : 'jiná');
+    $t0 = is_array($b0) ? trim((string) ($b0['tag'] ?? '')) : '';
+    if (preg_match('/^[A-Za-z0-9]{6,20}$/', $t0)) $co .= ' ' . $t0;
+  } else {
+    $co .= ' ' . implode(',', array_intersect(array_keys($_GET), API_GET_OK));
+  }
+  api_log($actor, 'člen ' . $co, 'odmítnuto');
+  api_out(['ok' => false, 'error' => 'tento Trello účet nemá do EVIDENCE přístup – přepni se na svůj účet'], 403);
+}
 
 function api_gas(string $url, ?string $post, string $actor, string $what, ?array $pridej = null, ?callable $po = null): void {
   $ch = curl_init($url);
