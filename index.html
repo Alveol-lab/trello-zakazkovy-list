@@ -36,12 +36,17 @@ window.TrelloPowerUp.initialize({
     }];
   },
   'card-back-section': function (t) {
-    var theme = 'dark', member = '';
+    var theme = 'dark', member = '', board = '';
     try {
       var ctx = t.getContext();
       if (ctx && ctx.theme) theme = ctx.theme;
       if (ctx && ctx.member) member = ctx.member;
+      if (ctx && ctx.board) board = ctx.board;
     } catch (e) {}
+    /* Majda (recepce) na nástěnce DTO_Provoz Zakázkový list nepotřebuje,
+       sekci jí tam neukazujeme (25. 11. 2026). Ostatním i jinde beze změny. */
+    var SKRYT = { '6729d465d1b26f09436d5d8b': ['655329144f809c15a1896437'] };
+    if (SKRYT[board] && SKRYT[board].indexOf(member) !== -1) return null;
     /* Formulář 3.1 používají všichni technici (H, J, Z, P, U, I).
        Starý formulář section.html zůstává v repozitáři jako záloha.    */
     var page = './section3.html';
