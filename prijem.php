@@ -1101,15 +1101,21 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     r.readOnly = ro; r.tabIndex = ro ? -1 : 0; r.classList.toggle('lk', ro); r.classList.toggle('hi', !ro);
     $('eTitle').textContent = mode === 'new' ? 'Nová karta materiálu' : 'Karta materiálu';
   }
-  function eOpen(ref){
+  function eOpen(ref, note){
     eShow('edit'); E.orig = null; E.busy = false;
     eFill({ ref:ref, nazev:'načítám kartu…' }); $('eState').textContent = ''; eHint('', ''); $('eSave').disabled = true;
     sSearch();
     getJSON('?matref=' + encodeURIComponent(ref)).then(function(d){
+      if (d && d.alias && d.alias.ref && refClean(d.alias.ref) !== refClean(ref)) {   /* zrušená duplicita / EAN z krabice → otevři skutečnou kartu */
+        $('sQ').value = d.alias.ref;
+        eOpen(d.alias.ref, 'Kód ' + esc(d.alias.kod) + ' není samostatná karta – patří ke kartě ' + esc(d.alias.ref) + '. Materiál zapisuj na ni.');
+        return;
+      }
       if (!d || d.nazev == null) { eHint('bad', 'Kartu se nepodařilo načíst.'); return; }
       E.orig = eNorm(d); eFill(E.orig); sSearch();
       $('eState').textContent = 'REF se nemění';
       eSync();
+      if (note) eHint('good', note);
       $('eBand').scrollIntoView({ behavior:'smooth', block:'nearest' });
     });
   }
