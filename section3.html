@@ -714,6 +714,17 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   /* formulář 3.1 se zatím testuje jen se zápisem do listu H;
      ostatní listy se zapnou doplněním písmene sem                      */
   var ACTIVE_SHEETS = ['H', 'J', 'Z', 'P', 'U', 'I'];
+  /* kdo smí do EVIDENCE zapisovat – stejné jako API_USERS v api.php
+     (technici + recepce + Brigit); jiný účet (např. Denteo - lab)
+     formulář vidí, ale nezapisuje                                     */
+  var API_USERS = Object.keys(MEMBERS).map(function(k){ return MEMBERS[k]; })
+    .concat(['655329144f809c15a1896437', '6b00d5c2c5be2a396f89949e']);
+  var myId = '', myName = '';
+  function userOk(){ return !myId || API_USERS.indexOf(myId) >= 0; }
+  function wrongAccount(op){
+    wmsg((op || 'Zápis') + ' neproběhl – jsi přihlášený jako ' + (myName || 'jiný účet')
+       + ', ten do EVIDENCE nezapisuje. Přepni se v Trellu na svůj účet.', 15);
+  }
   function letterOf(memberId){
     for (var k in MEMBERS) if (MEMBERS[k] === memberId) return k;
     return '';
@@ -824,6 +835,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       .then(function(r){
         if (r.ok) return r.json();
         return r.json().catch(function(){ return null; }).then(function(e){
+          if (r.status === 403 && !userOk()) { wrongAccount(opLabel); return null; }
           werr((e && e.error) || ('server odmítl požadavek (HTTP ' + r.status + ').'), opLabel); return null;
         });
       })
@@ -867,7 +879,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   /* smazání = vyprázdnění datových sloupců řádku, řádek se nemaže */
   function clearInSheet(row){
     var ref = row && row._href, letter = (row && row.tid) || '';
-    if (!ref) { wmsg('VÝMAZ NEPROBĚHL ! - nutno provést ručně v tabulce', 15); return Promise.resolve(null); }
+    if (!ref) { wmsg('Položka nebyla v EVIDENCE zapsaná – smazána jen z karty, v tabulce není co mazat.', 8); return Promise.resolve(null); }
     if (!letter) letter = String(ref).split('_')[0];
     if (!sheetAllowed(letter, 'Výmaz')) { wmsg('VÝMAZ NEPROBĚHL ! - nutno provést ručně v tabulce', 15); return Promise.resolve(null); }
     /* kód zakázky jde s výmazem – backend ověří, že řádek patří této zakázce */
@@ -2094,6 +2106,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   var IC_MAT = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5l6 2.7v7.6L8 14.5 2 11.8V4.2z" opacity=".35"/><path d="M8 7.2L2 4.2 8 1.5l6 2.7zM8 7.2v7.3l6-2.7V4.2z"/></svg>';
   function rowDids(r){ var l = matLotText(r.mats); return l ? l.split(' | ') : []; }
   function lotsHtml(r){
+    if (!r._href && !pending[r.id]) return '<button class="dc err" data-retry="' + esc(r.id) + '" title="položka je jen v kartě, do EVIDENCE se nezapsala – klik = zapsat znovu">nezapsáno ↻</button>';
     if (r.nab) return '<span class="dc nab" title="nabídka – cena a odměna 0 do přijetí">NABÍDKA</span>';
     if (r.lotErr) return '<span class="dc err" title="řádek je zapsaný, ale odpis materiálu selhal – edituj a vlož znovu">odpis selhal</span>';
     var d = rowDids(r);
@@ -2103,6 +2116,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   }
   /* zvýraznění vazby výkon ↔ DID */
   var hl = { dids: [], row: null };
+  /* položky, jejichž zápis právě běží – štítek „nezapsáno“ se u nich neukáže */
+  var pending = {};
   function rowHl(r){ if (!hl.dids.length) return false; var d = rowDids(r); return d.some(function(x){ return hl.dids.indexOf(x) >= 0; }); }
   var MFLAG = { close:'spotřebováno', correct:'korekce', enough:'vystačilo', split:'+ bal.', reopen:'vráceno' };
   function vykonLab(r){
@@ -2194,6 +2209,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   $('trows').addEventListener('click', function(e){
     var tog = e.target.closest('[data-tog]');
     if (tog) { var id = tog.getAttribute('data-tog'); state.open[id] = !state.open[id]; renderRows(); return; }
+    var rt = e.target.closest('[data-retry]');
+    if (rt) { e.stopPropagation(); retryRow(rt.getAttribute('data-retry')); return; }
     var m = e.target.closest('[data-menu]'); if (!m) return;
     e.stopPropagation();
     var i = parseInt(m.getAttribute('data-menu'), 10);
@@ -2217,6 +2234,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape') rmClose(); });
   function deleteRow(i){
     var r = state.rows[i]; if (!r) return;
+    if (r._href && !userOk()) { wrongAccount('Výmaz'); return; }   /* zapsaná položka se z karty nesmí ztratit bez výmazu v listu */
     if (!isPhase(r) && childrenOf(r).length) {
       wmsg('Výrobek má zapsané fáze – nejdřív smaž jeho fáze, potom výrobek.', 10);
       return;
@@ -2452,8 +2470,18 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   /* zápis do EVIDENCE – list podle TID. Sloučení přepíše zapsaný řádek
      cílové položky jejím novým celkovým množstvím a materiálem, takže jedna
      položka v kartě = jeden řádek v listu (smazání pak vymaže vše)        */
+  /* nezapsaná položka (odmítnutý zápis, výpadek spojení) – nový pokus */
+  function retryRow(id){
+    var r = state.rows[findIndexById(id)];
+    if (!r || r._href || pending[id]) return;
+    if (!userOk()) { wrongAccount('Zápis'); return; }
+    if (!sheetAllowed(r.tid, 'Zápis')) return;
+    var c = { r: r, same: -1, old: null, target: r };
+    cardInfo().then(function(card){ return postJob(function(){ return postRow(c, card); }); });
+  }
   function postRow(c, card, refOver){
-    var r = c.r;
+    var r = c.r, pid = c.target && c.target.id;
+    if (pid && !c.target._href) { pending[pid] = 1; renderRows(); }
     if (c.same >= 0 && c.target && c.target._href) r = c.target;
     var ref = refOver || ((c.same >= 0) ? (c.target ? c.target._href || null : null) : (c.old ? c.old._href : null));
     return postToScript({
@@ -2467,6 +2495,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       autoEnd: (c.auto && c.auto.end.length) ? c.auto.end : undefined,
       nab: c.nabOff ? false : (r.nab ? true : undefined)
     }, c.nabOff ? 'Přijato do ' : 'Zapsáno do ', 'Zápis').then(function(resp){
+      if (pid && pending[pid]) { delete pending[pid]; if (!resp || !resp.ok) renderRows(); }
       if (!resp) return;
       if (resp.ok && c.nabOff && c.target) { delete c.target.nab; save(); renderRows(); }
       if (resp.ok && c.auto) c.auto.end = [];
@@ -2599,6 +2628,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   setInterval(insSync, 400);                        /* hodnoty doplněné skriptem (ORD z karty, lupa, editace) */
   $('insert').addEventListener('click', function(){
     if (insBusy || !$('mNeed').hidden) return;
+    if (!userOk()) { wrongAccount('Zápis'); return; }
     if (autoOpen().length) { wmsg('Potvrď, ze kterého balení materiálu čerpáš.', 8); return; }
     $('qa').value = qaNorm($('qa').value);
     if (!formValid()) return;
@@ -2926,7 +2956,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   function load(){
     /* zjištění technika nesmí načtení seznamu zablokovat – nejvýš 2 s */
     var ready = t ? Promise.race([
-      currentMemberId().then(function(mid){ myLetter = letterOf(mid); }),
+      currentMemberId().then(function(mid){ myId = mid || ''; myLetter = letterOf(mid); }),
       new Promise(function(res){ setTimeout(res, 2000); })
     ]) : Promise.resolve();
     ready.then(function(){
@@ -2938,7 +2968,17 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       return t.get('card', 'shared', 'zakazkovyList').then(function(d){
         state.rows = (d && d.rows) || [];
         state.nab = !!(d && d.nab);
-      }).catch(function(){}).then(function(){ renderMats(); renderRows(); refreshOdmeny(); });
+      }).catch(function(){}).then(function(){
+        renderMats(); renderRows();
+        if (!userOk()) {                                  /* účet bez přístupu: bez dotazů na server, jen upozornění */
+          t.member('fullName').then(function(m){ myName = (m && m.fullName) || ''; }).catch(function(){})
+            .then(function(){ wmsg('Jsi přihlášený jako ' + (myName || 'jiný účet') + ' – ten do EVIDENCE nezapisuje. Pro zápis výkonů se přepni na svůj účet.', 12); });
+          return;
+        }
+        refreshOdmeny();
+        var nz = state.rows.filter(function(r){ return !r._href; }).length;
+        if (nz) wmsg('Na kartě ' + (nz === 1 ? 'je 1 položka' : (nz < 5 ? 'jsou ' + nz + ' položky' : 'je ' + nz + ' položek')) + ' nezapsaná do EVIDENCE – klikni na „nezapsáno ↻“.', 10);
+      });
     });
   }
   outSet('');
