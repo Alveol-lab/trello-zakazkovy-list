@@ -8,7 +8,7 @@
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
-require __DIR__ . '/frez-lib.php';
+require_once __DIR__ . '/frez-lib.php';
 
 function fa_out(array $o, int $code = 200): void { http_response_code($code); echo json_encode($o, JSON_UNESCAPED_UNICODE); exit; }
 

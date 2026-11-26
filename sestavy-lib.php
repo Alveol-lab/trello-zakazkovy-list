@@ -10,6 +10,7 @@
    - PDF vytváří mPDF (home/vendor, mimo veřejný repozitář).
    ========================================================= */
 require_once __DIR__ . '/archiv-lib.php';          // ARCH_VENDOR, arch_gas(), arch_e()
+require_once __DIR__ . '/frez-lib.php';            // CDID – puky z frézy
 
 const SEST_CFG   = __DIR__ . '/../../autolab-sestavy.json';      // {"prohlaseni": "sheets" | "srovnani" | "server"}
 const SEST_FONTS = __DIR__ . '/../../vendor/fonts-sestavy';      // Liberation Sans / Mono (SIL OFL)
@@ -54,8 +55,20 @@ function sest_data_prohlaseni(string $tag): array {
   if (!$r) return ['ok' => false, 'error' => 'Apps Script neodpověděl'];
   if (empty($r['ok']) || !is_array($r['data'] ?? null)) return ['ok' => false, 'error' => (string) ($r['error'] ?? 'Apps Script nevrátil data')];
   $tr = $tr && !empty($tr['ok']) && is_array($tr['baleni'] ?? null) ? $tr : null;
-  $r['data']['protokol'] = sest_pro_protokol($tr, $r['data']['materialy'] ?? []);
+  $r['data']['protokol'] = sest_pro_protokol($tr, $r['data']['materialy'] ?? [], $tag);
   return ['ok' => true, 'data' => $r['data']];
+}
+
+/* expirace balení z listu LOT (stín s1_baleni ji nemá) – pro CDID mimo trasování */
+function sest_lot_exp(string $did): string {
+  $s = function_exists('prijem_secret') ? prijem_secret() : null;
+  if (empty($s['key']) || $did === '') return '';
+  $c = curl_init((getenv('ARCH_GAS_URL') ?: ARCH_GAS_URL) . '?' . http_build_query(['lotq' => $did, 'key' => $s['key']]));
+  curl_setopt_array($c, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 5, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 30]);
+  $j = json_decode((string) curl_exec($c), true); curl_close($c);
+  foreach (($j['items'] ?? []) as $i) if (strtoupper((string) ($i['did'] ?? '')) === strtoupper($did))
+    return preg_replace('/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/', '$1. $2. $3', trim((string) ($i['exp'] ?? '')));   // jako v trasování
+  return '';
 }
 
 /* Krok 42 – protokol materiálů prohlášení (prohlaseni-2):
@@ -64,7 +77,7 @@ function sest_data_prohlaseni(string $tag): array {
    šarže vede laboratoř v dokumentaci zakázky (soupis šarží v archivu).
    Zdroj: trasování (zachytí i MDID navázané jen přes CASE bez zápisu ve výkonu);
    když trasování selže, použije se seznam ze sloupce AA, který poslal Apps Script. */
-function sest_pro_protokol(?array $tr, array $zAA): array {
+function sest_pro_protokol(?array $tr, array $zAA, string $tag = ''): array {
   $bal = [];
   if ($tr) foreach ($tr['baleni'] as $did => $b) $bal[] = ['did' => (string) ($b['did'] ?? $did), 'ref' => (string) ($b['ref'] ?? ''), 'lot' => (string) ($b['lot'] ?? ''),
     'material' => (string) ($b['popis'] ?? ''), 'exp' => (string) ($b['exp'] ?? ''), 'md' => trim((string) ($b['uid_md'] ?? '')) !== ''];
@@ -72,6 +85,19 @@ function sest_pro_protokol(?array $tr, array $zAA): array {
     'material' => (string) ($m['material'] ?? ''), 'exp' => (string) ($m['exp'] ?? ''), 'md' => false];
   $typy = []; $karta = null;
   try { $typy = mat_sk_typy(); $karta = mat_pdo()->prepare('SELECT nazev, vyrobce, skupina, druh FROM ' . mat_t('mat') . ' WHERE ref = ? LIMIT 1'); } catch (Throwable $e) {}
+  /* CDID: co prošlo frézou, platí. Ručně zapsaný puk stejné skupiny, který fréza nepoužila, se netiskne. */
+  $cd = []; try { $cd = frez_cdid_baleni($tag); } catch (Throwable $e) {}
+  if ($cd) {
+    $sk = array_flip(array_filter(array_column($cd, 'skupina'))); $dids = array_flip(array_column($cd, 'did'));
+    $bal = array_values(array_filter($bal, function ($b) use ($karta, $sk, $dids) {
+      if (isset($dids[$b['did']]) || !$karta || $b['ref'] === '') return true;
+      try { $karta->execute([$b['ref']]); $k = $karta->fetch() ?: null; } catch (Throwable $e) { return true; }
+      return !isset($sk[$k['skupina'] ?? '']);
+    }));
+    $ma = array_flip(array_column($bal, 'did'));
+    foreach ($cd as $c) if (!isset($ma[$c['did']])) $bal[] = ['did' => (string) $c['did'], 'ref' => (string) $c['ref'], 'lot' => (string) ($c['lot'] ?? ''),
+      'material' => (string) ($c['nazev'] ?? ''), 'exp' => (string) ($c['expirace'] ?? '') ?: sest_lot_exp((string) $c['did']), 'md' => false];
+  }
   $tisk = []; $adid = 0;
   foreach ($bal as $b) {
     $k = null;
