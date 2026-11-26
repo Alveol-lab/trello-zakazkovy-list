@@ -135,10 +135,11 @@ $what0 = API_PLUGIN === '' ? ' [plugin ' . $plug . ']' : '';   // dočasně: zji
 /* krok F2: technologie a fréza – jen SQL, Apps Script se neptá */
 function api_kdo(string $actor): string { return MAT_TECHNIK[$actor] ?? ($actor === '655329144f809c15a1896437' ? 'M' : ($actor === '6b00d5c2c5be2a396f89949e' ? 'BRIGIT' : '?')); }
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && (isset($_GET['tech']) || isset($_GET['frez']))) {
-  if (!tech_on()) api_out(['ok' => false, 'vypnuto' => true]);
+  $chceTech = isset($_GET['tech']) && tech_on();      // technologie a panel Z frézy mají každý svůj přepínač
+  if (!$chceTech && !isset($_GET['frez'])) api_out(['ok' => false, 'vypnuto' => true]);
   try {
     $o = ['ok' => true];
-    if (isset($_GET['tech'])) {                         // ?tech=kód,kód[&tag=🏷️] → výchozí + volby zakázky
+    if ($chceTech) {                         // ?tech=kód,kód[&tag=🏷️] → výchozí + volby zakázky
       $o['vychozi'] = (object) tech_vychozi(array_slice(explode(',', (string) $_GET['tech']), 0, 60));
       $o['volby'] = (object) (isset($_GET['tag']) ? tech_zakazka((string) $_GET['tag']) : []);
     }
