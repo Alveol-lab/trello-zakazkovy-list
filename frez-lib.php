@@ -227,10 +227,10 @@ function frez_kontrola(): void {
   }
 }
 
-/* panel „Z frézy“ v zakázkovém listu – bez jména */
+/* zápisy z frézy ke kartě pro zakázkový list (OUT = CN) – bez jména */
 function frez_zakazka(string $tag): array {
   if (!frez_tag_ok($tag)) return [];
-  $st = mat_pdo()->prepare("SELECT c.did, c.mat, c.bem, c.zuby, c.typ_obj, DATE_FORMAT(c.toc, '%Y-%m-%d %H:%i') AS toc,
+  $st = mat_pdo()->prepare("SELECT c.did, c.mat, c.bem, c.zuby, c.typ_obj, c.bbox_um AS bbox, DATE_FORMAT(c.toc, '%Y-%m-%d %H:%i') AS toc,
                                    DATE_FORMAT(n.konec, '%Y-%m-%d %H:%i') AS konec, c.stav, c.kontrola
                             FROM frez_calc c LEFT JOIN frez_cnc n ON n.cnc_id = c.cnc_id WHERE c.tag = ? ORDER BY c.toc");
   $st->execute([$tag]);
