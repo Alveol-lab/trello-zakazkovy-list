@@ -19,7 +19,7 @@ if (PHP_SAPI !== 'cli') {
   $h = (string) ($_SERVER['HTTP_X_FREZ_KEY'] ?? '');
   if (strlen($k) < 32 || !hash_equals($k, $h)) { frez_log($ip, 'sber', 'odmítnuto: klíč'); fa_out(['ok' => false, 'error' => 'neověřený přístup'], 401); }
 }
-if (!frez_on()) fa_out(['ok' => false, 'error' => 'příjem z frézy je vypnutý'], 503);
+if (!frez_sber_on()) fa_out(['ok' => false, 'error' => 'příjem z frézy je vypnutý'], 503);
 $raw = (string) file_get_contents(PHP_SAPI === 'cli' ? 'php://stdin' : 'php://input');
 if (strlen($raw) > 4_000_000) fa_out(['ok' => false, 'error' => 'příliš velký požadavek'], 413);
 $b = json_decode($raw, true);

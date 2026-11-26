@@ -6,7 +6,7 @@
    - fréza: výpočty z DentalCAM (frez_calc) a obrábění z DentalCNC (frez_cnc),
      posílá je sběrač z PC frézy přes frez-api.php
    Přepínač a klíče: autolab-frez.json mimo web
-     {"tech": true, "frez": true, "klic_sber": "…", "klic_aes": "base64 32 B", "klic_hmac": "…"}
+     {"tech": true, "frez": true, "sber": true, "klic_sber": "…", "klic_aes": "base64 32 B", "klic_hmac": "…"}
    Jméno pacienta: jen šifrovaně (AES-256-GCM) + HMAC otisk pro párování,
    do prohlížeče ani do logu nejde.
    ========================================================= */
@@ -30,11 +30,13 @@ function frez_cfg(): array {
     $c = is_array($j) ? $j : [];
     $c['tech'] = ($c['tech'] ?? false) === true;
     $c['frez'] = ($c['frez'] ?? false) === true;
+    $c['sber'] = ($c['sber'] ?? false) === true || $c['frez'];   // příjem ze sběrače; zapnutá fréza ho zahrnuje
   }
   return $c;
 }
 function tech_on(): bool { return frez_cfg()['tech']; }
-function frez_on(): bool { return frez_cfg()['frez']; }
+function frez_on(): bool { return frez_cfg()['frez']; }      // zelený rámeček ve formuláři
+function frez_sber_on(): bool { return frez_cfg()['sber']; }  // jen příjem dat (zkušební sběr)
 function frez_log(string $kdo, string $co, string $vysl): void {
   @file_put_contents(FREZ_LOG, date('c') . "\t" . $kdo . "\t" . $co . "\t" . $vysl . "\n", FILE_APPEND | LOCK_EX);
 }
