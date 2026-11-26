@@ -77,7 +77,7 @@ try {
   $pdo = mat_pdo();
   if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $cols = ['id', 'kod', 'nazev', 'ku', 'kat', 'kzp', 'hs', 'vzp', 'gmdn', 'udi_pi', 'trvanlivost', 'eudamed', 'stary_kod', 'poznamka',
-             'stav', 'navrhl', 'navrzeno', 'zalozil', 'zalozeno', 'verze', 'vykonu'];
+             'stav', 'navrhl', 'navrzeno', 'zalozil', 'zalozeno', 'verze', 'vykonu', 'technologie'];
     $vyk = [];                                       // počet výkonů podle kódu ze stínu s1_vykon (když chybí, 0)
     try { foreach ($pdo->query('SELECT kod, COUNT(*) AS n FROM s1_vykon GROUP BY kod') as $r) $vyk[mb_strtoupper(trim((string) $r['kod']))] = (int) $r['n']; }
     catch (Throwable $e) {}

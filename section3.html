@@ -122,6 +122,8 @@ input[type=date].f::-webkit-calendar-picker-indicator{opacity:.6;cursor:pointer;
 .r1 #anid{width:66rem}
 .r1 #qa{width:30rem}
 .r1 #lupa{width:21rem}
+/* krok F2: technologie výrobku a panel frézy (vzhled dodá Honza) */
+.r1 #tech{width:44rem;padding:0 2rem;font-size:7.083rem}
 .lupa-ic{width:14rem;height:14rem;display:block}
 .r2{margin-top:4rem}
 .r2 .outwrap{width:66rem}
@@ -260,6 +262,22 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 .sugg button .pr{margin-left:4rem;font-size:6.7rem;color:var(--txt-dim)}
 .hint{padding:3rem 5rem 0 75rem;font-size:7.1rem;line-height:8rem;color:var(--txt-dim);min-height:8rem}
 .hint.warn{color:var(--warn)}
+.frezl{margin:3rem 5rem 0;padding:2rem 3rem 2.5rem;border-radius:3rem;box-shadow:inset 0 0 0 .6rem var(--good)}
+.frezl .fh{font-size:6.6rem;color:var(--good);letter-spacing:.2rem;padding:0 1rem 1rem}
+.frezl .fr{display:grid;grid-template-columns:29rem 1fr 28rem 17rem 18rem 44rem 22rem 11rem;align-items:center;min-height:16rem;padding:0 1rem;font-size:7rem;color:var(--txt)}
+.frezl .fr+.fr{border-top:.5rem solid var(--bd-soft)}
+.frezl .fr>div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.frezl .d{font-family:ui-monospace,monospace;color:var(--txt-hi)}
+.frezl .ok{color:var(--good)} .frezl .bad{color:var(--bad)}
+.frezl .fr.had{opacity:.55}
+.frezl .b{display:flex;justify-content:flex-end}
+.frezl .c{text-align:center}
+.frezl .p{display:flex;justify-content:center}
+.frezl .p svg{width:14rem;height:14rem}
+.frezl .fr.hd{min-height:9rem;font-size:5.8rem;color:var(--txt-dim);letter-spacing:.2rem}
+.frezl .fr.hd+.fr{border-top:0}
+.frezl .fplus{width:10rem;height:10rem;border:0;border-radius:2.5rem;background:none;color:var(--good);font-size:9rem;line-height:9rem;cursor:pointer;padding:0}
+.frezl .fplus:hover{background:var(--btn)}
 .hint.bad{color:var(--bad)}
 
 /* našeptávač a výsledky hledání v LOT */
@@ -485,6 +503,9 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     <input class="f" id="anid" placeholder="kód produktu" autocomplete="off">
     <input class="f ctr" id="qa" placeholder="Q" autocomplete="off" inputmode="decimal" title="množství">
     <input class="f soft grow" id="anam" placeholder="popis výrobku – text + Enter hledá" autocomplete="off">
+    <select class="f soft" id="tech" title="technologie výroby – výchozí z katalogu, mění se po 3 shodných volbách" hidden>
+      <option value="">techn.</option><option value="Frézování">Fréza</option><option value="3D print">3D print</option><option value="Press">Press</option>
+    </select>
     <button type="button" class="btn" id="lupa" title="sady a vyhledávání výrobků">
       <svg class="lupa-ic" viewBox="78 76 186 186">
         <defs><mask id="lupaMask"><rect x="0" y="0" width="400" height="400" fill="#fff"/><rect x="76" y="146" width="91" height="91" fill="#000"/></mask></defs>
@@ -549,6 +570,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       </div>
       <div class="hint" id="mHint"></div>
       <div class="lres" id="didList"></div>
+      <div class="frezl" id="frezL" hidden></div>
     </div>
 
     <!-- hledání balení v LOT -->
@@ -700,7 +722,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   var state = { mats: [], rows: [], editIndex: null, open: {}, nab: false };
 
   /* pole formuláře, která se ukládají do řádku seznamu */
-  var FIELDS = ['qa','anid','anam','ord','outs','tid','ceny','cjed','ctot','odmj','odmt'];
+  var FIELDS = ['qa','anid','anam','ord','outs','tid','ceny','cjed','ctot','odmj','odmt','tech'];
 
   /* ---- technici: písmeno = název listu v EVIDENCE = Trello účet ------ */
   var MEMBERS = {
@@ -974,13 +996,14 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     Array.prototype.forEach.call($('outMenu').querySelectorAll('button'), function(b){
       b.classList.toggle('sel', b.getAttribute('data-v') === (v || ''));
     });
+    if (v !== 'CN') frezListOff();
   }
   function outMenu(open){ $('outMenu').hidden = !open; resize(); }
   $('outBtn').addEventListener('click', function(e){ e.stopPropagation(); outMenu($('outMenu').hidden); });
   $('outMenu').addEventListener('click', function(e){
     e.stopPropagation();
     var b = e.target.closest('button'); if (!b) return;
-    outSet(b.getAttribute('data-v')); outMenu(false); renderMats();
+    outSet(b.getAttribute('data-v')); outMenu(false); renderMats(); frezList();
   });
   document.addEventListener('click', function(){ outMenu(false); });
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape') outMenu(false); });
@@ -993,6 +1016,44 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     return a && b && c && d && e;
   }
 
+  /* krok F2: technologie výrobku (Frézování / 3D print / Press).
+     Výchozí hodnota = poslední volba u kódu na této zakázce, jinak katalog
+     (t2p_produkt.technologie, mění se po 3 shodných volbách). Ruční volba
+     technika se nepřepíše. Když server funkci nemá zapnutou, pole se neukáže. */
+  var techSeq = 0, techMan = false, techKod = '';
+  function techDefault(code){
+    if (code !== techKod) { techKod = code; techMan = false; }
+    if (techMan || $('tech').value && state.editIndex != null) return;
+    var seq = ++techSeq;
+    tagFromCustomField().then(function(tag){
+      return apiFetch(SCRIPT_URL + '?tech=' + encodeURIComponent(code) + '&tag=' + encodeURIComponent(tag || ''), { cache:'no-store' });
+    }).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+      if (seq !== techSeq || !d || !d.ok) return;
+      $('tech').hidden = false;
+      if (techMan) return;
+      var v = (d.volby && d.volby[code]) || (d.vychozi && d.vychozi[code]) || '';
+      $('tech').value = v;
+    }).catch(function(){});
+  }
+  $('tech').addEventListener('change', function(){ techMan = true; });
+  function techUlozit(r, tag){
+    if (!r || isPhase(r) || !r.tech || !tag) return;
+    postSilent({ action:'techVolba', tag: tag, kod: r.anid, technologie: r.tech }).then(function(d){
+      if (d && d.ok && d.zmena) wmsg('Výchozí technologie ' + r.anid + ' je nově ' + d.vychozi + ' (3× po sobě).', 6);
+    });
+  }
+  /* panel „Z frézy“: puky, které fréza K5 na této zakázce použila (jen čtení,
+     „převzít“ vloží DID do pole materiálu) */
+  var frezData = null;
+  /* data z frézy ke kartě (podle tagu); null = fréza vypnutá nebo karta bez tagu */
+  function frezLoad(){
+    return tagFromCustomField().then(function(tag){
+      if (!tag) return null;
+      return apiFetch(SCRIPT_URL + '?frez=' + encodeURIComponent(tag), { cache:'no-store' }).then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){ frezData = (d && d.ok && Array.isArray(d.frez)) ? d.frez : null; return d; });
+    });
+  }
+
   /* popis výrobku + ceny z ceníku (kód + ročník) */
   var pbSeq = 0, lastHit = null;
   function refreshAnam(){
@@ -1000,6 +1061,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (!code || !cenyValid(ver)) { el.classList.remove('wait'); el.value = ''; applyPrice(null); return; }
     var seq = ++pbSeq;
     el.classList.add('wait');
+    techDefault(code);
     pricebookLookup(code, ver).then(function(hit){
       if (seq !== pbSeq) return;
       el.classList.remove('wait');
@@ -1331,6 +1393,54 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   });
   function clearRes(m){ ['res','val','newDid','res2','val2','newDid2'].forEach(function(k){ delete m[k]; }); }
   $('addMat').addEventListener('click', addMaterial);
+  /* Z frézy (F2): po volbě OUT = CN ukáže v materiálu zelený rámeček – co akce frézy ke kartě, to řádek.
+     Technik vybere správný zápis decentním „+“ (výrobek může jít přes frézu víckrát). Nic se nezapisuje samo. */
+  var frezLSeq = 0;
+  function frezKey(x){ return x.did + '|' + (x.toc || ''); }
+  function frezZubu(x){ return String(x.zuby || '').split(/[^0-9]+/).filter(String).length; }
+  /* pozice dílu na puku: obdélník MiX,MaX,MiY,MaY (µm od středu, Ø 98,5 mm) jako malá ikonka */
+  function frezPuk(b){
+    var v = String(b || '').split(',').map(Number);
+    if (v.length !== 4 || v.some(isNaN)) return '';
+    var R = 49250, k = 9 / R, x = 10 + v[0] * k, w = Math.max(1.2, (v[1] - v[0]) * k), y = 10 - v[3] * k, h = Math.max(1.2, (v[3] - v[2]) * k);
+    return '<svg viewBox="0 0 20 20" aria-hidden="true"><title>pozice na puku</title><circle cx="10" cy="10" r="9" fill="none" stroke="currentColor" stroke-width="1" opacity=".55"/>'
+         + '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" rx=".6" fill="var(--good)"/></svg>';
+  }
+  function frezListOff(){ frezLSeq++; var el = $('frezL'); if (el.hidden) return; el.hidden = true; el.innerHTML = ''; resize(); }
+  function frezList(){
+    if ($('outs').value !== 'CN') { frezListOff(); return; }
+    var seq = ++frezLSeq;
+    frezLoad().then(function(){ if (seq === frezLSeq && $('outs').value === 'CN') frezListRender(); }).catch(function(){});
+  }
+  function frezListRender(){
+    var el = $('frezL'), L = (frezData || []).filter(function(x){ return x.did; });
+    if ($('outs').value !== 'CN' || !L.length) { el.hidden = true; el.innerHTML = ''; resize(); return; }
+    var ST = { spocitano:'spočítáno', vyfrezovano:'vyfrézováno', preruseno:'přerušeno' };
+    el.innerHTML = '<div class="fh">z frézy ke kartě · vyber zápis</div>'
+      + '<div class="fr hd"><div>DID</div><div>puk</div><div>pozice</div><div class="c">členů</div><div class="c">místo</div><div>konec</div><div>stav</div><div></div></div>' + L.map(function(x, i){
+      var k = frezKey(x), had = state.mats.some(function(m){ return m.fk === k; });
+      var kt = x.kontrola === '' ? '<span class="ok">OK</span>' : (x.kontrola ? '<span class="bad" title="' + esc(x.kontrola) + '">' + esc(x.kontrola) + '</span>' : '<span title="kontrola puku proběhne po spárování">čeká</span>');
+      var t = String(x.konec || x.toc || '').replace(/^\d{4}-(\d{2})-(\d{2}) /, function(_, m, d){ return (+d) + '. ' + (+m) + '. '; });
+      return '<div class="fr' + (had ? ' had' : '') + '"><div class="d">' + esc(x.did) + '</div><div class="n">' + esc(x.bem || x.mat || '') + '</div>'
+           + '<div title="pozice (zuby)">' + esc(String(x.zuby || '–').replace(/-/g, ', ')) + '</div>'
+           + '<div class="c" title="počet členů">' + (frezZubu(x) || '–') + '</div>'
+           + '<div class="p">' + frezPuk(x.bbox) + '</div><div>' + esc(t) + '</div><div>' + (x.stav === 'vyfrezovano' ? kt : '<span class="bad">' + esc(ST[x.stav] || x.stav || '') + '</span>') + '</div>'
+           + '<div class="b">' + (had ? '<span class="ok">✓</span>' : '<button type="button" class="fplus" data-frez="' + i + '" title="přidat tento zápis k CN">+</button>') + '</div></div>';
+    }).join('');
+    el.hidden = false; resize();
+  }
+  $('frezL').addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('[data-frez]'); if (!b) return;
+    var x = (frezData || []).filter(function(y){ return y.did; })[+b.getAttribute('data-frez')]; if (!x) return;
+    var n = frezZubu(x), k = frezKey(x);
+    b.disabled = true;
+    lotQuery(x.did).then(function(list){
+      var it = null; (list || []).forEach(function(y){ if (y.did === x.did) it = y; });
+      if (!n || !it) { b.disabled = false; $('did').value = x.did; didResolve(); $('mq').focus(); return; }   /* bez počtu zubů nebo neznámé balení → do polí, technik doplní */
+      state.mats.push({ did:x.did, q:qaNorm(String(n)), mnam:String(it.popis || it.ref || '').slice(0, 40), lot:String(it.lot || ''), fk:k });
+      renderMats();
+    });
+  });
 
   /* ---- hledání v LOT (lupa materiálu) ---- */
   var findT = null;
@@ -1676,6 +1786,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   function matDid(m){ return m.did || m.mnlot || ''; }
   function renderMats(){
     var el = $('mlist');
+    if (!$('frezL').hidden) frezListRender();
     autoSchedule();
     var aRows = autoRowsHtml() + autoMissHtml() + autoGroupsHtml();
     renderAutoNeed();
@@ -2396,7 +2507,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     FIELDS.forEach(function(f){ $(f).value = (o && o[f]) || ''; });
     /* starší řádek mohl mít v OUT víc fází – do pole se vezme první */
     outSet(String($('outs').value).split(', ')[0] || '');
-    lastHit = null;
+    lastHit = null; techMan = !!(o && o.tech); techKod = (o && o.anid) || '';
     state.mats = (o && o.mats) ? o.mats.map(function(m){ return JSON.parse(JSON.stringify(m)); }) : [];
     renderMats();
   }
@@ -2511,6 +2622,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       if (resp.ok && c.auto) c.auto.end = [];
       if (resp.autoEndErr && resp.autoEndErr.length) wmsg('Balení se nepodařilo ukončit: ' + resp.autoEndErr.join(', '), 15);
       if (resp.ok && resp.odm && r.tid === myLetter) odmShow(resp.odm);
+      if (resp.ok && c.same < 0) techUlozit(r, card[1]);
       /* automatická DID ze zápisu (obsah Z) – do karty jen kompaktně */
       if (resp.ok && c.target && typeof resp.autoDid === 'string') {
         var za = resp.autoDid.replace(/ /g, '');
