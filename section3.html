@@ -996,14 +996,13 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     Array.prototype.forEach.call($('outMenu').querySelectorAll('button'), function(b){
       b.classList.toggle('sel', b.getAttribute('data-v') === (v || ''));
     });
-    if (v !== 'CN') frezListOff();
   }
   function outMenu(open){ $('outMenu').hidden = !open; resize(); }
   $('outBtn').addEventListener('click', function(e){ e.stopPropagation(); outMenu($('outMenu').hidden); });
   $('outMenu').addEventListener('click', function(e){
     e.stopPropagation();
     var b = e.target.closest('button'); if (!b) return;
-    outSet(b.getAttribute('data-v')); outMenu(false); renderMats(); frezList();
+    outSet(b.getAttribute('data-v')); outMenu(false); renderMats();
   });
   document.addEventListener('click', function(){ outMenu(false); });
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape') outMenu(false); });
@@ -1393,7 +1392,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   });
   function clearRes(m){ ['res','val','newDid','res2','val2','newDid2'].forEach(function(k){ delete m[k]; }); }
   $('addMat').addEventListener('click', addMaterial);
-  /* Z frézy (F2): po volbě OUT = CN ukáže v materiálu zelený rámeček – co akce frézy ke kartě, to řádek.
+  /* Z frézy (F2): v materiálu zelený rámeček hned při otevření zakázky (bez vazby na OUT = CN, 26. 11.) –
+     je vidět, že zakázka už prošla frézou; co akce frézy ke kartě, to řádek.
      Technik vybere správný zápis decentním „+“ (výrobek může jít přes frézu víckrát). Nic se nezapisuje samo. */
   var frezLSeq = 0;
   function frezKey(x){ return x.did + '|' + (x.toc || ''); }
@@ -1408,13 +1408,12 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   }
   function frezListOff(){ frezLSeq++; var el = $('frezL'); if (el.hidden) return; el.hidden = true; el.innerHTML = ''; resize(); }
   function frezList(){
-    if ($('outs').value !== 'CN') { frezListOff(); return; }
     var seq = ++frezLSeq;
-    frezLoad().then(function(){ if (seq === frezLSeq && $('outs').value === 'CN') frezListRender(); }).catch(function(){});
+    frezLoad().then(function(){ if (seq === frezLSeq) frezListRender(); }).catch(function(){});
   }
   function frezListRender(){
     var el = $('frezL'), L = (frezData || []).filter(function(x){ return x.did; });
-    if ($('outs').value !== 'CN' || !L.length) { el.hidden = true; el.innerHTML = ''; resize(); return; }
+    if (!L.length) { el.hidden = true; el.innerHTML = ''; resize(); return; }
     var ST = { spocitano:'spočítáno', vyfrezovano:'vyfrézováno', preruseno:'přerušeno' };
     el.innerHTML = '<div class="fh">z frézy ke kartě · vyber zápis</div>'
       + '<div class="fr hd"><div>DID</div><div>puk</div><div>pozice</div><div class="c">členů</div><div class="c">místo</div><div>konec</div><div>stav</div><div></div></div>' + L.map(function(x, i){
@@ -1425,7 +1424,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
            + '<div title="pozice (zuby)">' + esc(String(x.zuby || '–').replace(/-/g, ', ')) + '</div>'
            + '<div class="c" title="počet členů">' + (frezZubu(x) || '–') + '</div>'
            + '<div class="p">' + frezPuk(x.bbox) + '</div><div>' + esc(t) + '</div><div>' + (x.stav === 'vyfrezovano' ? kt : '<span class="bad">' + esc(ST[x.stav] || x.stav || '') + '</span>') + '</div>'
-           + '<div class="b">' + (had ? '<span class="ok">✓</span>' : '<button type="button" class="fplus" data-frez="' + i + '" title="přidat tento zápis k CN">+</button>') + '</div></div>';
+           + '<div class="b">' + (had ? '<span class="ok">✓</span>' : '<button type="button" class="fplus" data-frez="' + i + '" title="přidat tento zápis k výkonu">+</button>') + '</div></div>';
     }).join('');
     el.hidden = false; resize();
   }
@@ -3104,6 +3103,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     });
   }
   outSet('');
+  frezList();                                     /* Z frézy: rámeček hned po otevření zakázky */
   setMode('use');
   renderMats();
   load();
