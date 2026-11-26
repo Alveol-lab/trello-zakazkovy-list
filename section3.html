@@ -124,11 +124,6 @@ input[type=date].f::-webkit-calendar-picker-indicator{opacity:.6;cursor:pointer;
 .r1 #lupa{width:21rem}
 /* krok F2: technologie výrobku a panel frézy (vzhled dodá Honza) */
 .r1 #tech{width:44rem;padding:0 2rem;font-size:7.083rem}
-.frez{margin:4rem 5rem 0;font-size:7.083rem;color:var(--txt-dim)}
-.frez .fh{display:flex;gap:4rem;align-items:center}
-.frez table{width:100%;border-collapse:collapse;margin-top:2rem}
-.frez td{padding:1rem 2rem;border-top:.6rem solid var(--bd-soft);white-space:nowrap}
-.frez td.ok{color:var(--ok)} .frez td.bad{color:var(--bad)}
 .lupa-ic{width:14rem;height:14rem;display:block}
 .r2{margin-top:4rem}
 .r2 .outwrap{width:66rem}
@@ -518,10 +513,6 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     <input class="f bare" id="cjed" placeholder="JEDN. CENA" readonly tabindex="-1">
     <input class="f bare" id="ctot" placeholder="CELKOVÁ CENA" readonly tabindex="-1">
     <input type="hidden" id="odmj"><input type="hidden" id="odmt">
-  </div>
-  <div class="frez" id="frezBox" hidden>
-    <div class="fh"><b>Z frézy</b><span id="frezInfo"></span><button type="button" class="btn" id="frezObn" title="načíst znovu">↻</button></div>
-    <table id="frezTab"></table>
   </div>
 
   <!-- ================= MATERIÁL ================= -->
@@ -1025,10 +1016,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       $('tech').hidden = false;
       if (techMan) return;
       var v = (d.volby && d.volby[code]) || (d.vychozi && d.vychozi[code]) || '';
-      $('tech').value = v; frezShow();
+      $('tech').value = v;
     }).catch(function(){});
   }
-  $('tech').addEventListener('change', function(){ techMan = true; frezShow(); });
+  $('tech').addEventListener('change', function(){ techMan = true; });
   function techUlozit(r, tag){
     if (!r || isPhase(r) || !r.tech || !tag) return;
     postSilent({ action:'techVolba', tag: tag, kod: r.anid, technologie: r.tech }).then(function(d){
@@ -1037,43 +1028,15 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   }
   /* panel „Z frézy“: puky, které fréza K5 na této zakázce použila (jen čtení,
      „převzít“ vloží DID do pole materiálu) */
-  var frezSeq = 0, frezTag = null, frezData = null;
-  function frezNeed(){ return $('tech').value === 'Frézování' || state.rows.some(function(r){ return r.tech === 'Frézování'; }); }
+  var frezData = null;
   /* data z frézy ke kartě (podle tagu); null = fréza vypnutá nebo karta bez tagu */
   function frezLoad(){
     return tagFromCustomField().then(function(tag){
       if (!tag) return null;
       return apiFetch(SCRIPT_URL + '?frez=' + encodeURIComponent(tag), { cache:'no-store' }).then(function(r){ return r.ok ? r.json() : null; })
-        .then(function(d){ frezTag = tag; frezData = (d && d.ok && Array.isArray(d.frez)) ? d.frez : null; return d; });
+        .then(function(d){ frezData = (d && d.ok && Array.isArray(d.frez)) ? d.frez : null; return d; });
     });
   }
-  function frezShow(force){
-    if (!frezNeed()) { $('frezBox').hidden = true; return; }
-    var seq = ++frezSeq;
-    tagFromCustomField().then(function(tag){
-      if (!tag) return null;
-      if (!force && tag === frezTag && !$('frezBox').hidden) return null;
-      return frezLoad();
-    }).then(function(d){
-      if (seq !== frezSeq || !d) return;
-      if (!d.ok || !Array.isArray(d.frez)) { $('frezBox').hidden = true; return; }
-      var L = d.frez || [];
-      $('frezInfo').textContent = L.length ? L.length + '× puk' : 'fréza zatím nic nehlásí';
-      $('frezTab').innerHTML = L.map(function(x){
-        var k = x.kontrola === '' ? 'ok' : (x.kontrola ? 'bad' : ''), kt = x.kontrola === '' ? 'OK' : (x.kontrola || 'čeká');
-        var st = { spocitano:'spočítáno', vyfrezovano:'vyfrézováno', preruseno:'přerušeno' }[x.stav] || x.stav || '';
-        return '<tr><td>' + esc(x.did || '–') + '</td><td>' + esc(x.mat || '') + '</td><td>' + esc(x.bem || '') + '</td><td>' + esc(x.zuby || '') +
-          '</td><td>' + esc(x.konec || x.toc || '') + '</td><td>' + esc(st) + '</td><td class="' + k + '">' + esc(kt) +
-          '</td><td>' + (x.did ? '<button type="button" class="btn" data-frezdid="' + esc(x.did) + '">převzít</button>' : '') + '</td></tr>';
-      }).join('');
-      $('frezBox').hidden = false; resize();
-    }).catch(function(){});
-  }
-  $('frezObn').addEventListener('click', function(){ frezShow(true); });
-  $('frezTab').addEventListener('click', function(e){
-    var b = e.target.closest && e.target.closest('[data-frezdid]'); if (!b) return;
-    var el = $('did'); el.value = b.getAttribute('data-frezdid'); el.dispatchEvent(new Event('input', { bubbles:true })); el.dispatchEvent(new Event('change', { bubbles:true })); el.focus();
-  });
 
   /* popis výrobku + ceny z ceníku (kód + ročník) */
   var pbSeq = 0, lastHit = null;
@@ -1323,7 +1286,6 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     $('mq').classList.remove('warn');
     if (wizHint(h, true)) return;                 /* průvodce (krok 43): odmítnutí „+“ a výrobek až za materiálem mají přednost */
     mqHintBody(h, q, it);
-    if (!h.textContent && frezN) frezNabHint(h);
     if (!h.textContent) wizHint(h, false);
   }
   function mqHintBody(h, q, it){
@@ -1433,18 +1395,12 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (state.mats.some(function(m){ return matDid(m) === did; })) return true;
     return state.rows.some(function(r){ return r.outs === 'CN' && r.anid === anid && rowDids(r).indexOf(did) >= 0; });
   }
-  function frezNabHint(h){
-    var f = frezN, k = f.kontrola;
-    h.className = 'hint' + (k ? ' warn' : '');
-    h.textContent = 'Z frézy ' + (f.konec || f.toc || '') + (f.bem ? ' · ' + f.bem : '') + (f.zuby ? ' · zub ' + f.zuby : '')
-      + (k === '' ? ' · kontrola puku OK' : (k ? ' · pozor: ' + k : ' · kontrola puku čeká'));
-  }
   function frezNab(){
     if ($('outs').value !== 'CN' || frezN || didOf($('did').value)) return;   /* rozepsaný materiál nepřepisuje */
     var seq = ++frezNSeq, anid = anidClean($('anid').value);
     frezLoad().then(function(){
       if (seq !== frezNSeq || $('outs').value !== 'CN' || didOf($('did').value) || !frezData) return;
-      var f = frezData.filter(function(x){ return x.did && x.stav === 'vyfrezovano' && !frezUsed(x.did, anid); })[0];
+      var f = frezData.filter(function(x){ return x.did && x.stav === 'vyfrezovano' && !x.kontrola && !frezUsed(x.did, anid);   /* puk s nálezem kontroly se nenabízí */ })[0];
       if (!f) return;
       frezN = f; setMode('use');
       $('did').value = f.did; didResolve();
@@ -2315,7 +2271,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     return s + '</div></div>';
   }
   function renderRows(){
-    ensureIds(); frezShow();
+    ensureIds();
     var html = '', used = {};
     state.rows.forEach(function(r){
       if (isPhase(r)) return;
