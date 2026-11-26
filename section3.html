@@ -1396,6 +1396,30 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
      je vidět, že zakázka už prošla frézou; co akce frézy ke kartě, to řádek.
      Technik vybere správný zápis decentním „+“ (výrobek může jít přes frézu víckrát). Nic se nezapisuje samo. */
   var frezLSeq = 0;
+  /* zápis z frézy jde k výkonu sám (jakmile je vyplněný kód výkonu); technik ho jen vypne,
+     když jde o zmetek. F.off = vypnuté zápisy, F.wait = právě se dohledává balení */
+  var F = { off:{}, wait:{} };
+  function frezZapsano(k){ return (state.rows || []).some(function(r){ return (r.mats || []).some(function(m){ return m.fk === k; }); }); }
+  function frezAdd(x, manual){
+    var n = frezZubu(x), k = frezKey(x);
+    if (F.wait[k]) return; F.wait[k] = true;
+    lotQuery(x.did).then(function(list){
+      delete F.wait[k];
+      if (state.mats.some(function(m){ return m.fk === k; })) return;
+      var it = null; (list || []).forEach(function(y){ if (y.did === x.did) it = y; });
+      if (!n || !it) { if (manual) { $('did').value = x.did; didResolve(); $('mq').focus(); } else F.off[k] = 'ruc'; frezListRender(); return; }   /* bez počtu zubů nebo neznámé balení → technik doplní ručně */
+      state.mats.push({ did:x.did, q:qaNorm(String(n)), mnam:String(it.popis || it.ref || '').slice(0, 40), lot:String(it.lot || ''), fk:k });
+      renderMats();
+    }, function(){ delete F.wait[k]; });
+  }
+  function frezAuto(L){
+    if (!anidClean($('anid').value)) return;
+    L.forEach(function(x){
+      var k = frezKey(x);
+      if (x.stav !== 'vyfrezovano' || F.off[k] || F.wait[k] || frezZapsano(k) || state.mats.some(function(m){ return m.fk === k; })) return;
+      frezAdd(x, false);
+    });
+  }
   function frezKey(x){ return x.did + '|' + (x.toc || ''); }
   function frezZubu(x){ return String(x.zuby || '').split(/[^0-9]+/).filter(String).length; }
   /* pozice dílu na puku: obdélník MiX,MaX,MiY,MaY (µm od středu, Ø 98,5 mm) jako malá ikonka */
@@ -1406,39 +1430,40 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     return '<svg viewBox="0 0 20 20" aria-hidden="true"><title>pozice na puku</title><circle cx="10" cy="10" r="9" fill="none" stroke="currentColor" stroke-width="1" opacity=".55"/>'
          + '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" rx=".6" fill="var(--good)"/></svg>';
   }
-  function frezListOff(){ frezLSeq++; var el = $('frezL'); if (el.hidden) return; el.hidden = true; el.innerHTML = ''; resize(); }
+  function frezListOff(){ frezLSeq++; var el = $('frezL'); if (el.hidden) return; el.hidden = true; el.innerHTML = ''; el.__h = null; resize(); }
   function frezList(){
     var seq = ++frezLSeq;
     frezLoad().then(function(){ if (seq === frezLSeq) frezListRender(); }).catch(function(){});
   }
   function frezListRender(){
     var el = $('frezL'), L = (frezData || []).filter(function(x){ return x.did; });
-    if (!L.length) { el.hidden = true; el.innerHTML = ''; resize(); return; }
+    if (!L.length) { el.hidden = true; el.innerHTML = ''; el.__h = null; resize(); return; }
+    frezAuto(L);
     var ST = { spocitano:'spočítáno', vyfrezovano:'vyfrézováno', preruseno:'přerušeno' };
-    el.innerHTML = '<div class="fh">z frézy ke kartě · vyber zápis</div>'
+    var html = '<div class="fh">z frézy ke kartě · zapisuje se s výkonem, zmetek vypni</div>'
       + '<div class="fr hd"><div>DID</div><div>puk</div><div>pozice</div><div class="c">členů</div><div class="c">místo</div><div>konec</div><div>stav</div><div></div></div>' + L.map(function(x, i){
-      var k = frezKey(x), had = state.mats.some(function(m){ return m.fk === k; });
+      var k = frezKey(x), had = state.mats.some(function(m){ return m.fk === k; }), zap = !had && frezZapsano(k), off = !had && !zap && !!F.off[k];
       var kt = x.kontrola === '' ? '<span class="ok">OK</span>' : (x.kontrola ? '<span class="bad" title="' + esc(x.kontrola) + '">' + esc(x.kontrola) + '</span>' : '<span title="kontrola puku proběhne po spárování">čeká</span>');
       var t = String(x.konec || x.toc || '').replace(/^\d{4}-(\d{2})-(\d{2}) /, function(_, m, d){ return (+d) + '. ' + (+m) + '. '; });
-      return '<div class="fr' + (had ? ' had' : '') + '"><div class="d">' + esc(x.did) + '</div><div class="n">' + esc(x.bem || x.mat || '') + '</div>'
+      return '<div class="fr' + (off || zap ? ' had' : '') + '"><div class="d">' + esc(x.did) + '</div><div class="n">' + esc(x.bem || x.mat || '') + '</div>'
            + '<div title="pozice (zuby)">' + esc(String(x.zuby || '–').replace(/-/g, ', ')) + '</div>'
            + '<div class="c" title="počet členů">' + (frezZubu(x) || '–') + '</div>'
            + '<div class="p">' + frezPuk(x.bbox) + '</div><div>' + esc(t) + '</div><div>' + (x.stav === 'vyfrezovano' ? kt : '<span class="bad">' + esc(ST[x.stav] || x.stav || '') + '</span>') + '</div>'
-           + '<div class="b">' + (had ? '<span class="ok">✓</span>' : '<button type="button" class="fplus" data-frez="' + i + '" title="přidat tento zápis k výkonu">+</button>') + '</div></div>';
+           + '<div class="b">' + (zap ? '<span class="ok" title="už zapsáno u jiného výkonu">✓</span>'
+               : had ? '<button type="button" class="fplus" data-frez="' + i + '" data-fon="1" title="zapisuje se s výkonem – klikni, pokud je to zmetek">✓</button>'
+               : '<button type="button" class="fplus" data-frez="' + i + '" title="' + (F.off[k] === 'ruc' ? 'balení se nedohledalo – doplň ručně' : 'vypnuto – klikni pro vrácení k výkonu') + '">+</button>') + '</div></div>';
     }).join('');
+    if (el.__h !== html) { el.innerHTML = html; el.__h = html; }   /* stejný obsah nepřekreslovat – jinak se ztratí klik (viz renderMats) */
     el.hidden = false; resize();
   }
   $('frezL').addEventListener('click', function(e){
     var b = e.target.closest && e.target.closest('[data-frez]'); if (!b) return;
     var x = (frezData || []).filter(function(y){ return y.did; })[+b.getAttribute('data-frez')]; if (!x) return;
-    var n = frezZubu(x), k = frezKey(x);
-    b.disabled = true;
-    lotQuery(x.did).then(function(list){
-      var it = null; (list || []).forEach(function(y){ if (y.did === x.did) it = y; });
-      if (!n || !it) { b.disabled = false; $('did').value = x.did; didResolve(); $('mq').focus(); return; }   /* bez počtu zubů nebo neznámé balení → do polí, technik doplní */
-      state.mats.push({ did:x.did, q:qaNorm(String(n)), mnam:String(it.popis || it.ref || '').slice(0, 40), lot:String(it.lot || ''), fk:k });
-      renderMats();
-    });
+    var k = frezKey(x);
+    if (b.getAttribute('data-fon')) {                   /* ✓ → zmetek: z výkonu pryč a sám se nevrátí */
+      F.off[k] = true; state.mats = state.mats.filter(function(m){ return m.fk !== k; }); renderMats(); return;
+    }
+    delete F.off[k]; b.disabled = true; frezAdd(x, true);
   });
 
   /* ---- hledání v LOT (lupa materiálu) ---- */
@@ -1829,6 +1854,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (e.target.closest('[data-ano]')) { A.nas = null; A.nasVal = ''; A.nasErr = ''; renderMats(); return; }
     if (e.target.closest('[data-aok2]')) { autoNasad(); return; }
     var b = e.target.closest('[data-del]'); if (!b) return;
+    var dm = state.mats[parseInt(b.getAttribute('data-del'), 10)]; if (dm && dm.fk) F.off[dm.fk] = true;   /* odebraný zápis z frézy se sám nevrací */
     state.mats.splice(parseInt(b.getAttribute('data-del'), 10), 1); renderMats();
   });
   /* =================================================================
