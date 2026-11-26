@@ -93,6 +93,7 @@ function arch_vydani(array $a, string $actor, ?string $technik = null): array {
   if ($uid === '' || mb_strlen($uid) > 40) throw new InvalidArgumentException('archiv: chybí kód zakázky');
   if ($pdf === false || strncmp($pdf, '%PDF', 4) !== 0) throw new InvalidArgumentException('archiv: chybí PDF prohlášení');
   $trace = is_array($a['trace'] ?? null) && !empty($a['trace']['ok']) ? $a['trace'] : null;
+  if ($trace && function_exists('frez_cdid_trace')) $trace = frez_cdid_trace($trace);   // puky z frézy (CDID), mimo transakci
   $vydano = mat_now();
   if (!empty($a['vydano'])) try {                    // ISO z Apps Scriptu (UTC) → čas v Praze
     $vydano = (new DateTime((string) $a['vydano']))->setTimezone(new DateTimeZone('Europe/Prague'))->format('Y-m-d H:i:s');
@@ -167,6 +168,7 @@ function arch_e($s): string {
 function arch_soupis_pdf(array $d, string $uid, int $verze, string $vydano): string {
   $ZP = ['auto' => 'AutoDID', 'ruční' => 'ruční', 'MD' => 'MD', 'lotlog' => 'odpis LOTLOG'];
   $B = $d['baleni'] ?? []; $V = $d['vykony'] ?? []; $v0 = $V[0] ?? [];
+  $nahr = []; foreach (($d['cdid'] ?? []) as $c) foreach (($c['nahrazuje'] ?? []) as $x) $nahr[$x] = $c['did'];
   $tit = 'Soupis materiálů a šarží zakázky ' . $uid;
   $h = '<h1>' . arch_e($tit) . '</h1><div class="sub">Denteo v.o.s. · AutoLAB archiv · vydáno ' . arch_e(date('j. n. Y H:i', strtotime($vydano)))
      . ' · verze ' . $verze . ' · příloha k prohlášení výrobce (nenahrazuje ho)</div>';
@@ -179,6 +181,7 @@ function arch_soupis_pdf(array $d, string $uid, int $verze, string $vydano): str
       $h .= '<tr>' . ($i ? '<td></td><td></td><td></td><td></td>' : '<td>' . arch_e($v['datum'] ?? '') . '</td><td>' . arch_e($v['kod'] ?? '') . '</td><td>' . arch_e($v['popis'] ?? '') . '</td><td class="n">' . arch_e($v['q'] ?? '') . '</td>');
       $b = $m && !empty($m['did']) ? ($B[$m['did']] ?? null) : null;
       $zp = $m ? ($ZP[$m['zdroj'] ?? ''] ?? ($m['zdroj'] ?? '')) : '';
+      if ($m && !empty($m['did']) && isset($nahr[$m['did']])) $zp .= ' · fréza použila ' . $nahr[$m['did']];
       if (!$m) $h .= '<td colspan="7" class="ro">bez materiálu se šarží</td>';
       elseif ($b) $h .= '<td>' . arch_e($b['popis'] ?? '') . (($m['zdroj'] ?? '') === 'MD' ? ' <span class="md">MD</span>' : '') . '</td><td>' . arch_e($b['ref'] ?? '') . '</td><td>' . arch_e($b['vyrobce'] ?? '') . '</td><td>' . arch_e($b['lot'] ?? '') . '</td><td>' . arch_e($b['did'] ?? '') . '</td><td>' . arch_e($b['exp'] ?? '') . '</td><td>' . arch_e($zp) . '</td>';
       else $h .= '<td colspan="3" class="lowc">šarže bez DID (text ze zápisu)</td><td>' . arch_e($m['text'] ?? $m['did'] ?? '') . '</td><td></td><td></td><td>' . arch_e($zp) . '</td>';
@@ -186,11 +189,30 @@ function arch_soupis_pdf(array $d, string $uid, int $verze, string $vydano): str
     }
   }
   $h .= '</tbody></table>';
+  $h .= arch_soupis_cdid($d);
   $snap = json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
   $h .= '<div class="foot">Otisk dat SHA-256: ' . hash('sha256', $snap) . ' · data ze zápisů EVIDENCE v okamžiku vydání prohlášení</div>';
   $p = arch_mpdf('A4-L', $tit, $uid);
   $p->WriteHTML($h, \Mpdf\HTMLParserMode::HTML_BODY);
   return $p->Output('', 'S');
+}
+
+/* puky z frézy (CDID) – co skutečně prošlo frézou; přednost před ručním zápisem stejné skupiny */
+function arch_soupis_cdid(array $d): string {
+  $C = $d['cdid'] ?? []; if (!$C) return '';
+  $B = $d['baleni'] ?? [];
+  $h = '<div class="sec">Puky z frézy (CDID)</div><table><thead><tr><th>Materiál</th><th>REF</th><th>Výrobce</th><th>Šarže (LOT)</th><th>DID</th><th>Exp.</th><th>Zuby</th><th>Frézováno</th><th>Poznámka</th></tr></thead><tbody>';
+  foreach ($C as $c) {
+    $kdy = arch_e($c['prvni'] ?? '') . (($c['posledni'] ?? '') !== ($c['prvni'] ?? '') ? ' – ' . arch_e($c['posledni']) : '');
+    if (($c['stav'] ?? '') === 'nepřiřazeno') {
+      $h .= '<tr><td colspan="4" class="lowc">fréza: puk ' . arch_e($c['did_frez'] ?? '') . ' nejde přiřadit k balení</td><td></td><td></td><td>' . arch_e($c['zuby'] ?? '') . '</td><td>' . $kdy . '</td><td class="lowc">' . arch_e($c['duvod'] ?? '') . '</td></tr>';
+      continue;
+    }
+    $b = $B[$c['did']] ?? [];
+    $po = $c['nahrazuje'] ? 'místo ručně zapsaného ' . implode(', ', $c['nahrazuje']) : '';
+    $h .= '<tr><td>' . arch_e($b['nazev'] ?? $b['popis'] ?? '') . '</td><td>' . arch_e($b['ref'] ?? $c['ref'] ?? '') . '</td><td>' . arch_e($b['vyrobce'] ?? '') . '</td><td>' . arch_e($b['lot'] ?? '') . '</td><td>' . arch_e($c['did']) . '</td><td>' . arch_e($b['exp'] ?? '') . '</td><td>' . arch_e($c['zuby'] ?? '') . '</td><td>' . $kdy . '</td><td>' . arch_e($po) . '</td></tr>';
+  }
+  return $h . '</tbody></table>';
 }
 
 /* fotka žádanky → JPEG pro PDF: orientace podle EXIF, delší hrana 2480 px, q85 */

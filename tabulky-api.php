@@ -188,6 +188,9 @@ if (isset($_GET['trace'])) {
   $r = curl_exec($c); $code = (int) curl_getinfo($c, CURLINFO_HTTP_CODE);
   $d = is_string($r) ? json_decode($r, true) : null;
   if ($code !== 200 || !is_array($d)) { tb_log($actor, 'trace', 'GAS ' . $code); tb_out(['ok' => false, 'error' => 'evidence neodpověděla (HTTP ' . $code . ')'], 502); }
+  if (!empty($d['ok'])) {                                  // puky z frézy (CDID) – fréza do EVIDENCE nezapisuje
+    try { require_once __DIR__ . '/frez-lib.php'; $d = frez_cdid_trace($d); } catch (Throwable $e) {}
+  }
   if (!empty($d['ok']) && !empty($d['baleni'])) {
     try {                                                  // výrobce, název a druh karty ze SQL (zdroj pravdy MAT)
       $refs = array_values(array_unique(array_filter(array_map(fn($b) => (string) ($b['ref'] ?? ''), $d['baleni']))));

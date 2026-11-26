@@ -1529,7 +1529,7 @@ td.vy{color:var(--txt-strong)}
       req(API + '?trace=' + encodeURIComponent(q)).then(function(d){
         last = d; if (cur !== 'trace') return;
         $('trOut').innerHTML = html(d, false); $('trPdf').disabled = false; $('trDl').disabled = false;
-        $('count').textContent = d.rezim === 'uid' ? (d.vykony.length + ' výkonů · ' + Object.keys(d.baleni).length + ' balení') : (d.uidy.length + ' výkonů · ' + uniq(d.uidy.map(function(u){ return u.uid; })).length + ' zakázek');
+        $('count').textContent = d.rezim === 'uid' ? (d.vykony.length + ' výkonů · ' + Object.keys(d.baleni).length + ' balení') : (d.uidy.length + ' výkonů · ' + uniq(d.uidy.map(function(u){ return u.uid; }).concat((d.cdid_uidy || []).map(function(u){ return u.uid; }).filter(String))).length + ' zakázek');
       }).catch(function(e){ $('trOut').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
     }
     function uniq(a){ var m = {}; return a.filter(function(x){ return m[x] ? false : (m[x] = 1); }); }
@@ -1540,7 +1540,8 @@ td.vy{color:var(--txt-strong)}
       return d.rezim === 'uid' ? htmlUid(d, pr) : htmlSarze(d, pr);
     }
     function htmlUid(d, pr){
-      var V = d.vykony, B = d.baleni;
+      var V = d.vykony, B = d.baleni, C = d.cdid || [], NH = {};
+      C.forEach(function(c){ (c.nahrazuje || []).forEach(function(x){ NH[x] = c.did; }); });
       if (!V.length && !d.md_bez_vykonu.length) return '<div class="msg">Zakázka ' + esc(d.dotaz) + ' v evidenci nemá žádný výkon.</div>';
       var ords = uniq(V.map(function(v){ return v.ord; }).filter(String)), labs = uniq(V.map(function(v){ return v.lab; }).filter(String));
       var pac = uniq(V.map(function(v){ return v.pacient; }).filter(String)), dat = uniq(V.map(function(v){ return v.datum; }).filter(String));
@@ -1551,16 +1552,26 @@ td.vy{color:var(--txt-strong)}
       V.forEach(function(v){
         var M_ = v.mat.length ? v.mat : [null];
         M_.forEach(function(m, i){
-          var b = m && m.did ? B[m.did] : null;
+          var b = m && m.did ? B[m.did] : null, zp = m ? esc(ZP[m.zdroj] || m.zdroj) + (m.did && NH[m.did] ? ' <span class="lowc">· fréza použila ' + esc(NH[m.did]) + '</span>' : '') : '';
           h += '<tr>' + (i ? '<td></td><td></td><td></td><td></td>' : '<td>' + esc(v.datum) + '</td><td class="vy">' + esc(v.kod) + '</td><td title="' + esc(v.popis) + '">' + esc(v.popis) + '</td><td class="n">' + esc(fmtN(v.q)) + '</td>');
           if (!m) h += '<td colspan="7" class="ro">bez materiálu se šarží</td>';
-          else if (b) h += '<td title="' + esc(matName(b)) + '">' + esc(matName(b)) + mdTag(b) + '</td><td>' + esc(b.ref) + '</td><td>' + esc(b.vyrobce || '') + '</td><td>' + lnk(b.lot, pr) + '</td><td>' + lnk(b.did, pr) + '</td><td>' + esc(b.exp) + '</td><td>' + esc(ZP[m.zdroj] || m.zdroj) + '</td>';
+          else if (b) h += '<td title="' + esc(matName(b)) + '">' + esc(matName(b)) + mdTag(b) + '</td><td>' + esc(b.ref) + '</td><td>' + esc(b.vyrobce || '') + '</td><td>' + lnk(b.lot, pr) + '</td><td>' + lnk(b.did, pr) + '</td><td>' + esc(b.exp) + '</td><td>' + zp + '</td>';
           else if (m.did) h += '<td colspan="4" class="lowc">DID ' + esc(m.did) + ' není v knize balení</td><td>' + esc(m.did) + '</td><td></td><td>' + esc(ZP[m.zdroj] || m.zdroj) + '</td>';
           else h += '<td colspan="3" class="lowc">šarže bez DID (text ze zápisu)</td><td>' + lnk(m.text, pr) + '</td><td></td><td></td><td>' + esc(ZP[m.zdroj] || m.zdroj) + '</td>';
           h += '</tr>';
         });
       });
       h += '</tbody></table>';
+      if (C.length) {
+        h += '<div class="trsec">Puky z frézy (CDID)</div><table><thead><tr><th>Materiál</th><th>REF</th><th>Výrobce</th><th>Šarže (LOT)</th><th>DID</th><th>Exp.</th><th>Zuby</th><th>Frézováno</th><th>Poznámka</th></tr></thead><tbody>'
+          + C.map(function(c){
+              var kdy = esc(c.prvni) + (c.posledni && c.posledni !== c.prvni ? ' – ' + esc(c.posledni) : '');
+              if (c.stav === 'nepřiřazeno') return '<tr><td colspan="4" class="lowc">fréza: puk ' + esc(c.did_frez || '') + ' nejde přiřadit k balení</td><td></td><td></td><td>' + esc(c.zuby || '') + '</td><td>' + kdy + '</td><td class="lowc" title="' + esc(c.duvod) + '">' + esc(c.duvod) + '</td></tr>';
+              var b = B[c.did] || {};
+              return '<tr><td title="' + esc(matName(b)) + '">' + esc(matName(b)) + '</td><td>' + esc(b.ref || c.ref || '') + '</td><td>' + esc(b.vyrobce || '') + '</td><td>' + (b.lot ? lnk(b.lot, pr) : '') + '</td><td>' + lnk(c.did, pr) + '</td><td>' + esc(b.exp || '') + '</td><td>' + esc(c.zuby || '') + '</td><td>' + kdy + '</td><td>' + (c.nahrazuje.length ? 'místo ručně zapsaného ' + esc(c.nahrazuje.join(', ')) : '') + '</td></tr>';
+            }).join('')
+          + '</tbody></table>';
+      }
       if (d.md_bez_vykonu.length) {
         h += '<div class="trsec">MD k zakázce bez připojeného výkonu</div><table><thead><tr><th>Materiál</th><th>REF</th><th>Výrobce</th><th>Šarže (LOT)</th><th>DID</th><th>Exp.</th></tr></thead><tbody>'
           + d.md_bez_vykonu.map(function(x){ var b = B[x] || {}; return '<tr><td>' + esc(matName(b)) + ' <span class="md">MD</span></td><td>' + esc(b.ref || '') + '</td><td>' + esc(b.vyrobce || '') + '</td><td>' + esc(b.lot || '') + '</td><td>' + lnk(x, pr) + '</td><td>' + esc(b.exp || '') + '</td></tr>'; }).join('')
@@ -1569,19 +1580,20 @@ td.vy{color:var(--txt-strong)}
       return h;
     }
     function htmlSarze(d, pr){
-      var B = d.baleni, K = Object.keys(B), U = d.uidy;
+      var B = d.baleni, K = Object.keys(B), U = d.uidy, CU = d.cdid_uidy || [];
       var h = '<div class="trsec">Balení odpovídající dotazu „' + esc(d.dotaz) + '“</div>';
       if (K.length) {
         h += '<table><thead><tr><th>DID</th><th>Materiál</th><th>REF</th><th>Výrobce</th><th>Šarže (LOT)</th><th>Exp.</th><th>Stav</th><th>Založeno</th><th>Nasazeno</th><th>Spotřebováno</th><th>Zakázka MD</th></tr></thead><tbody>'
           + K.map(function(k){ var b = B[k]; return '<tr><td>' + esc(b.did) + '</td><td>' + esc(matName(b)) + mdTag(b) + '</td><td>' + esc(b.ref) + '</td><td>' + esc(b.vyrobce || '') + '</td><td>' + esc(b.lot) + '</td><td>' + esc(b.exp) + '</td><td><span class="st st-' + esc(b.stav) + '">' + esc(b.stav) + '</span></td><td>' + esc(b.zal) + '</td><td>' + esc(b.nas) + '</td><td>' + esc(b.spo) + '</td><td>' + (b.uid_md ? lnk(b.uid_md, pr) : '') + '</td></tr>'; }).join('')
           + '</tbody></table>';
       } else h += '<div class="msg">Žádné balení s tímto DID ani šarží v knize balení. Níže jen textové shody ze zápisů.</div>';
-      var zak = uniq(U.map(function(u){ return u.uid; }));
+      var zak = uniq(U.map(function(u){ return u.uid; }).concat(CU.map(function(u){ return u.uid; }).filter(String)));
       h += '<div class="trsec">Zakázky (' + zak.length + ') a výkony (' + U.length + '), kde byla balení použita</div>';
-      if (!U.length && !d.md_bez_vykonu.length) return h + '<div class="msg">Žádný výkon.</div>';
+      if (!U.length && !d.md_bez_vykonu.length && !CU.length) return h + '<div class="msg">Žádný výkon.</div>';
       h += '<table><thead><tr><th>UID zakázky</th><th>Datum</th><th>Ordinace</th><th>Pacient</th><th>Technik</th><th>Výkon</th><th>Popis</th><th>Přes</th><th>Jistota</th></tr></thead><tbody>'
         + U.map(function(u){ return '<tr><td>' + lnk(u.uid, pr) + '</td><td>' + esc(u.datum) + '</td><td>' + esc(u.ord) + '</td><td>' + esc(u.pacient) + '</td><td>' + esc(u.lab) + '</td><td class="vy">' + esc(u.kod) + '</td><td title="' + esc(u.popis) + '">' + esc(u.popis) + '</td><td>' + esc(u.pres.join(', ')) + '</td><td' + (u.jistota === 'text' ? ' class="lowc"' : '') + '>' + (u.jistota === 'text' ? 'text' : 'DID') + '</td></tr>'; }).join('')
         + d.md_bez_vykonu.map(function(x){ return '<tr><td>' + lnk(x.uid, pr) + '</td><td colspan="6">MD k zakázce bez připojeného výkonu <span class="md">MD</span></td><td>' + esc(x.did) + '</td><td>DID</td></tr>'; }).join('')
+        + CU.map(function(x){ return '<tr><td>' + (x.uid ? lnk(x.uid, pr) : '<span class="lowc">nerozpoznaná</span>') + '</td><td>' + esc(x.prvni) + '</td><td></td><td></td><td></td><td></td><td>frézováno' + (x.zuby ? ', zuby ' + esc(x.zuby) : '') + '</td><td>' + esc(x.did) + '</td><td>fréza</td></tr>'; }).join('')
         + '</tbody></table>';
       return h;
     }
@@ -1611,7 +1623,7 @@ td.vy{color:var(--txt-strong)}
         + '<h1>' + esc(tit) + '</h1><div class="sub">Denteo v.o.s. · Katalog AutoLAB · vygenerováno ' + esc(kdy) + ' ze živé evidence'
         + (d.rezim === 'uid' ? ' · příloha k prohlášení výrobce (nenahrazuje ho)' : '') + '</div>'
         + html(d, true)
-        + '<div class="foot">Způsob: AutoDID = balení vybrané automaticky podle výrobku; ruční = DID zapsané technikem; MD = materiál dodaný k zakázce; odpis LOTLOG = ruční odpis z deníku. Jistota „text“ = šarže zapsaná textem bez DID (výkony zhruba před červnem 2026).</div>'
+        + '<div class="foot">Způsob: AutoDID = balení vybrané automaticky podle výrobku; ruční = DID zapsané technikem; MD = materiál dodaný k zakázce; odpis LOTLOG = ruční odpis z deníku. CDID = puk zjištěný z frézy, má přednost před ručním zápisem stejné skupiny. Jistota „text“ = šarže zapsaná textem bez DID (výkony zhruba před červnem 2026).</div>'
         + '<scr' + 'ipt>window.onload=function(){if(!window.frameElement)setTimeout(function(){window.print();},300);};</scr' + 'ipt>'
         + '</body></html>';
       return { doc:doc, tit:tit };

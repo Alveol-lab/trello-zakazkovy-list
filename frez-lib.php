@@ -396,3 +396,83 @@ function frez_cdid_baleni(string $tag): array {
   $st->execute([$tag]);
   return $st->fetchAll();
 }
+
+/* ---------------------------------------------------------------------
+   Trasování: puky z frézy (CDID) do dat trasování – Katalog (tabulky-api)
+   i archiv vydaného prohlášení (archiv-lib). Jen ostrý běh.
+   rezim uid:   d.cdid = puky frézy k zakázce (+ nepřiřazené „hlásit“),
+                chybějící balení se doplní do d.baleni, u každého puku
+                „nahrazuje“ = ručně zapsané puky stejné skupiny, které fréza nepoužila
+   rezim sarze: d.cdid_uidy = zakázky, kde fréza dané balení použila
+   Do EVIDENCE se nic nezapisuje; chyba trasování nikdy nezastaví.
+   --------------------------------------------------------------------- */
+function frez_cdid_trace(array $d): array {
+  if (!frez_cdid_ostre() || empty($d['ok'])) return $d;
+  try {
+    if (($d['rezim'] ?? '') === 'uid') return frez_cdid_trace_uid($d);
+    if (($d['rezim'] ?? '') === 'sarze') return frez_cdid_trace_sarze($d);
+  } catch (Throwable $e) { frez_log('cdid', 'trace', 'CHYBA ' . substr($e->getMessage(), 0, 200)); }
+  return $d;
+}
+function frez_cdid_dat($s): string { $t = strtotime((string) $s); return $t ? date('j. n. Y', $t) : ''; }
+/* balení z knihy LOT (trasování podle DID) – stejný tvar jako d.baleni z Apps Scriptu */
+function frez_cdid_gas_baleni(string $did): ?array {
+  require_once __DIR__ . '/prijem-auth.php';
+  $s = prijem_secret(); if (empty($s['key'])) return null;
+  $c = curl_init(MAT_GAS_URL . '?' . http_build_query(['trace' => $did, 'key' => $s['key']]));
+  curl_setopt_array($c, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 5, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 60]);
+  $j = json_decode((string) curl_exec($c), true); curl_close($c);
+  foreach (($j['baleni'] ?? []) as $k => $b) if (strtoupper((string) ($b['did'] ?? $k)) === strtoupper($did)) return $b;
+  return null;
+}
+function frez_cdid_trace_uid(array $d): array {
+  $tag = (string) ($d['dotaz'] ?? '');
+  if (!frez_tag_ok($tag)) return $d;
+  $pdo = mat_pdo();
+  $st = $pdo->prepare("SELECT f.did, f.did_frez, COALESCE(b.ref, f.ref) AS ref, f.zuby, f.objektu, f.prvni, f.posledni, f.vysledek, f.duvod, m.skupina
+                       FROM frez_cdid f LEFT JOIN s1_baleni b ON b.did = f.did LEFT JOIN mat m ON m.ref = COALESCE(b.ref, f.ref)
+                       WHERE f.tag = ? ORDER BY f.prvni");
+  $st->execute([$tag]);
+  $R = $st->fetchAll();
+  if (!$R) return $d;
+  $B = is_array($d['baleni'] ?? null) ? $d['baleni'] : [];
+  $cd = [];
+  foreach ($R as $r) if ($r['did'] && $r['vysledek'] !== 'hlasit') $cd[$r['did']] = $r;
+  foreach (array_keys($cd) as $did) if (!isset($B[$did])) { $b = frez_cdid_gas_baleni($did); if ($b) $B[$did] = $b; }
+  /* ručně zapsaná balení stejné skupiny, která fréza nepoužila */
+  $sk = [];
+  $refs = array_values(array_unique(array_filter(array_map(fn($b) => (string) ($b['ref'] ?? ''), $B))));
+  if ($refs) {
+    $q = $pdo->prepare('SELECT ref, skupina FROM mat WHERE ref IN (' . implode(',', array_fill(0, count($refs), '?')) . ')');
+    $q->execute($refs);
+    foreach ($q->fetchAll() as $x) $sk[mb_strtoupper((string) $x['ref'])] = (string) $x['skupina'];
+  }
+  $zapsane = [];
+  foreach (($d['vykony'] ?? []) as $v) foreach (($v['mat'] ?? []) as $m) if (!empty($m['did'])) $zapsane[$m['did']] = 1;
+  $out = [];
+  foreach ($R as $r) {
+    $x = ['did' => $r['did'], 'did_frez' => $r['did_frez'], 'ref' => $r['ref'], 'zuby' => $r['zuby'], 'objektu' => (int) $r['objektu'],
+          'prvni' => frez_cdid_dat($r['prvni']), 'posledni' => frez_cdid_dat($r['posledni']),
+          'stav' => $r['vysledek'] === 'hlasit' ? 'nepřiřazeno' : 'CDID', 'duvod' => (string) $r['duvod'], 'nahrazuje' => []];
+    if ($r['vysledek'] !== 'hlasit' && $r['skupina']) foreach (array_keys($zapsane) as $did) {
+      if (isset($cd[$did]) || !isset($B[$did])) continue;
+      if (($sk[mb_strtoupper((string) ($B[$did]['ref'] ?? ''))] ?? '') === $r['skupina']) $x['nahrazuje'][] = $did;
+    }
+    $out[] = $x;
+  }
+  $d['baleni'] = $B;
+  $d['cdid'] = $out;
+  return $d;
+}
+function frez_cdid_trace_sarze(array $d): array {
+  $K = array_keys(is_array($d['baleni'] ?? null) ? $d['baleni'] : []);
+  if (!$K) return $d;
+  $st = mat_pdo()->prepare("SELECT tag, did, zuby, prvni, posledni FROM frez_cdid
+                            WHERE vysledek IN ('cdid', 'nasadit') AND did IN (" . implode(',', array_fill(0, count($K), '?')) . ') ORDER BY prvni');
+  $st->execute($K);
+  $out = [];
+  foreach ($st->fetchAll() as $r) $out[] = ['uid' => $r['tag'], 'did' => $r['did'], 'zuby' => $r['zuby'],
+                                            'prvni' => frez_cdid_dat($r['prvni']), 'posledni' => frez_cdid_dat($r['posledni'])];
+  if ($out) $d['cdid_uidy'] = $out;
+  return $d;
+}
