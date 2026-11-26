@@ -16,7 +16,8 @@ const FREZ_CFG_FILE = __DIR__ . '/../../autolab-frez.json';
 const FREZ_LOG      = __DIR__ . '/../../autolab-frez.log';
 const TECH_HODNOTY  = ['Frézování', '3D print', 'Press'];
 const TECH_TREND    = 3;          // kolik posledních shodných voleb přepíše výchozí hodnotu
-const FREZ_OKNO_S   = 180;        // obrábění začne do 3 min po výpočtu (vzorky: 5–70 s)
+const FREZ_ZPET_S   = 16 * 3600;  // výpočet nejvýš 16 h před startem (reálně 3 min – přes noc)
+const FREZ_PRED_S   = 300;        // DentalCAM soubor výpočtu občas přepíše i po startu (−2 min)
 const FREZ_SKUPINA  = [            // materiál v DentalCAM → přípustné skupiny karty MAT
   'zirconia' => ['SK-ZR-BLOK'], 'cercon' => ['SK-ZR-BLOK'],
   'pmma'     => ['SK-PMMA-BLOK', 'SK-PROTEZ-DISK'],   // Ivotion Dent Multi (Ivoclar, BEM „ID-…“) je v SK-PROTEZ-DISK
@@ -190,18 +191,46 @@ function frez_prijem(array $calc, array $cnc): array {
   return $n;
 }
 
-/* výpočet ↔ obrábění: start do FREZ_OKNO_S po TOC, stejný materiál, nejbližší */
+/* výpočet ↔ obrábění
+   Výpočet = skupina objektů se stejným TOC a materiálem (jeden nesting).
+   Každé obrábění (chronologicky) dostane nejbližší předchozí výpočet:
+   stejný materiál, TOC v okně −16 h … +5 min, výpočet ještě bez úspěšného
+   obrábění (po přerušení se smí opakovat); přednost má
+     1) shoda výšky puku (komentář × fréza; komentář bývá chybný, proto jen přednost),
+     2) nejpozdější TOC.
+   Výpočet si drží poslední obrábění – po přerušení a dojetí platí to dojeté.
+   Přerušeno = kód chyby ≠ 0 a běh kratší než 90 % odhadu (−1 se objevuje i u dojetých běhů). */
 function frez_sparuj(): int {
   $pdo = mat_pdo();
-  $q = $pdo->query("SELECT c.id, (SELECT n.cnc_id FROM frez_cnc n WHERE n.material = c.mat AND n.start BETWEEN c.toc AND c.toc + INTERVAL " . FREZ_OKNO_S . " SECOND
-                                  ORDER BY n.start LIMIT 1) AS cnc
-                    FROM frez_calc c WHERE c.cnc_id IS NULL AND c.toc > NOW() - INTERVAL 60 DAY");
-  $up = $pdo->prepare("UPDATE frez_calc c JOIN frez_cnc n ON n.cnc_id = ? SET c.cnc_id = n.cnc_id,
-                         c.stav = IF(n.fehlercode = 0, 'vyfrezovano', 'preruseno') WHERE c.id = ?");
+  $sk = [];
+  foreach ($pdo->query("SELECT toc, mat, MAX(vyska_mm) AS vyska, GROUP_CONCAT(id) AS ids, MAX(cnc_id) AS cnc
+                        FROM frez_calc WHERE toc > NOW() - INTERVAL 60 DAY GROUP BY toc, mat ORDER BY toc") as $r)
+    $sk[] = ['t' => strtotime($r['toc']), 'mat' => $r['mat'], 'v' => $r['vyska'], 'ids' => array_map('intval', explode(',', $r['ids'])),
+             'cnc' => null, 'ok' => false, 'stav' => 'spocitano', 'puv' => $r['cnc']];
+  $cnc = $pdo->query("SELECT cnc_id, start, material, vyska, fehlercode, dauer_s, calc_s FROM frez_cnc
+                      WHERE start > NOW() - INTERVAL 60 DAY ORDER BY start, cnc_id")->fetchAll();
+  foreach ($cnc as $n) {
+    $st = strtotime($n['start']); $best = null; $bs = null;
+    foreach ($sk as $i => $g) {
+      if ($g['ok'] || $g['mat'] !== $n['material'] || $g['t'] > $st + FREZ_PRED_S || $g['t'] < $st - FREZ_ZPET_S) continue;
+      $v = ($g['v'] !== null && $n['vyska'] !== null && abs((float) $g['v'] - (float) $n['vyska']) <= 0.5) ? 1 : 0;
+      $score = [$v, $g['t']];
+      if ($bs === null || $score > $bs) { $bs = $score; $best = $i; }
+    }
+    if ($best === null) continue;
+    $prer = (int) $n['fehlercode'] !== 0 && !((int) $n['calc_s'] > 0 && (int) $n['dauer_s'] >= 0.9 * (int) $n['calc_s']);
+    $sk[$best]['cnc'] = (int) $n['cnc_id'];
+    $sk[$best]['stav'] = $prer ? 'preruseno' : 'vyfrezovano';
+    if (!$prer) $sk[$best]['ok'] = true;
+  }
+  $up = $pdo->prepare("UPDATE frez_calc SET kontrola = IF(cnc_id <=> ?, kontrola, NULL), cnc_id = ?, stav = ? WHERE id = ? AND NOT (cnc_id <=> ? AND stav = ?)");
   $k = 0;
-  foreach ($q->fetchAll() as $r) if ($r['cnc']) { $up->execute([(int) $r['cnc'], (int) $r['id']]); $k++; }
-  /* obrábění, které se po přerušení dokončilo později, má jiný řádek – stav se bere z posledního */
-  return $k;
+  foreach ($sk as $g) {
+    if ($g['cnc'] === null && $g['puv'] === null) continue;
+    foreach ($g['ids'] as $id) { $up->execute([$g['cnc'], $g['cnc'], $g['stav'], $id, $g['cnc'], $g['stav']]); }   // kontrola se nuluje dřív, než se cnc_id přepíše
+    if ($g['cnc'] !== null) $k += count($g['ids']);
+  }
+  return $k;   // počet spárovaných objektů v okně 60 dní
 }
 
 /* kontrola DID: balení existuje, není ukončené, skupina sedí s materiálem, výška s komentářem */
