@@ -32,7 +32,7 @@ function frez_cfg(): array {
     $c['tech'] = ($c['tech'] ?? false) === true;
     $c['frez'] = ($c['frez'] ?? false) === true;
     $c['sber'] = ($c['sber'] ?? false) === true || $c['frez'];   // příjem ze sběrače; zapnutá fréza ho zahrnuje
-    $c['cdid'] = in_array($c['cdid'] ?? false, ['stin'], true) ? $c['cdid'] : false;   // CDID: zatím jen nanečisto
+    $c['cdid'] = in_array($c['cdid'] ?? false, ['stin', 'ostre'], true) ? $c['cdid'] : false;   // CDID: stin = nanečisto, ostre = nasazení + prohlášení
   }
   return $c;
 }
@@ -40,6 +40,7 @@ function tech_on(): bool { return frez_cfg()['tech']; }
 function frez_on(): bool { return frez_cfg()['frez']; }      // zelený rámeček ve formuláři
 function frez_sber_on(): bool { return frez_cfg()['sber']; }  // jen příjem dat (zkušební sběr)
 function frez_cdid_on(): bool { return frez_cfg()['cdid'] !== false; }
+function frez_cdid_ostre(): bool { return frez_cfg()['cdid'] === 'ostre'; }
 function frez_log(string $kdo, string $co, string $vysl): void {
   @file_put_contents(FREZ_LOG, date('c') . "\t" . $kdo . "\t" . $co . "\t" . $vysl . "\n", FILE_APPEND | LOCK_EX);
 }
@@ -191,7 +192,7 @@ function frez_prijem(array $calc, array $cnc): array {
   $n['sparovano'] = frez_sparuj();
   frez_kontrola();
   if (frez_cdid_on()) {                // nanečisto: chyba CDID nesmí zastavit příjem dat
-    try { $n['cdid'] = frez_cdid(); } catch (Throwable $e) { frez_log('cdid', 'stin', 'CHYBA ' . substr($e->getMessage(), 0, 200)); }
+    try { $n['cdid'] = frez_cdid(); if (frez_cdid_ostre()) $n['nasazeno'] = frez_cdid_nasad(); } catch (Throwable $e) { frez_log('cdid', 'stin', 'CHYBA ' . substr($e->getMessage(), 0, 200)); }
   }
   return $n;
 }
@@ -279,11 +280,14 @@ function frez_zakazka(string $tag): array {
    Výsledek na (tag, DID) – jen dojeté frézování (stav vyfrezovano):
      cdid     balení je nasazené a sedí materiál, odstín i výška → přebíjí ruční DID disku
      nasadit  totéž, ale balení je jen ZALOŽENO → při ostrém běhu se nasadí
-              (datum = start prvního dojetého frézování, nasadil FRÉZA)
+              (datum = start prvního dojetého frézování, nasadil FREZ)
      hlasit   DID neplatný nebo nesedí kontrola → jen hlášení technikovi
    Překlep v DID se opraví podle čísla puku v DentalCAM (BID), když pod stejným
    BID je v okně jediný platný DID. Puk se nikdy neukončuje (jen expirace,
-   technik, inventura). Nic se nezapisuje do EVIDENCE ani do LOT.
+   technik, inventura). Do EVIDENCE se nikdy nezapisuje.
+   Ostrý běh (cdid: "ostre"): balení „nasadit“ nasadí v LOT (Apps Script
+   lotNasadFrez, volá jen server) a prohlášení výrobce bere CDID přednostně
+   před ručně zapsaným pukem stejné skupiny (frez_cdid_baleni).
    --------------------------------------------------------------------- */
 function frez_cdid_odstiny(string $nazev): array {      // A2, B3, BL3, OM1 … jako samostatné slovo
   preg_match_all('/(?<![A-Z0-9])(?:[A-D][1-4](?:\.5)?|BL\d|OM\d)(?![A-Z0-9])/i', $nazev, $m);
@@ -355,4 +359,40 @@ function frez_cdid(): array {
     $pdo->commit();
   } catch (Throwable $e) { $pdo->rollBack(); throw $e; }
   return $out;
+}
+
+/* ostrý běh: nasazení puků, které fréza použila a v LOT jsou jen ZALOŽENO
+   datum nasazení = start prvního dojetého frézování, nasadil FREZ */
+function frez_cdid_nasad(): int {
+  require_once __DIR__ . '/prijem-auth.php';
+  $pdo = mat_pdo(); $n = 0;
+  $rows = $pdo->query("SELECT did, ref, MIN(prvni) AS prvni FROM frez_cdid WHERE vysledek = 'nasadit' AND did IS NOT NULL GROUP BY did, ref")->fetchAll();
+  if (!$rows) return 0;
+  $s = prijem_secret();
+  if (empty($s['key'])) { frez_log('cdid', 'nasazeni', 'CHYBA chybí klíč pro Apps Script'); return 0; }
+  $upB = $pdo->prepare("UPDATE s1_baleni SET status = 'NASAZENO', nasazeno = DATE(?), nasadil = 'FREZ' WHERE did = ? AND status = 'ZALOŽENO'");
+  $upC = $pdo->prepare("UPDATE frez_cdid SET vysledek = 'cdid', duvod = ? WHERE did = ? AND vysledek = 'nasadit'");
+  foreach ($rows as $r) {
+    $c = curl_init(MAT_GAS_URL);
+    curl_setopt_array($c, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 5, CURLOPT_POSTREDIR => 0,
+      CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 60, CURLOPT_HTTPHEADER => ['Content-Type: text/plain;charset=utf-8'],
+      CURLOPT_POSTFIELDS => json_encode(['action' => 'lotNasadFrez', 'key' => $s['key'], 'did' => $r['did'], 'ref' => $r['ref'], 'datum' => $r['prvni']], JSON_UNESCAPED_UNICODE)]);
+    $j = json_decode((string) curl_exec($c), true); curl_close($c);
+    if (!is_array($j) || empty($j['ok'])) { frez_log('cdid', 'nasazeni ' . $r['did'], 'CHYBA ' . substr((string) ($j['error'] ?? 'Apps Script neodpověděl'), 0, 150)); continue; }
+    $upB->execute([$r['prvni'], $r['did']]);
+    $upC->execute(['nasazeno frézou ' . date('j. n.', strtotime($r['prvni'])), $r['did']]);
+    frez_log('cdid', 'nasazeni ' . $r['did'], 'ok ' . ($j['predtim'] ?? ''));
+    $n++;
+  }
+  return $n;
+}
+
+/* prohlášení: puky z frézy k zakázce (jen ostrý běh, jen cdid / nasadit) */
+function frez_cdid_baleni(string $tag): array {
+  if (!frez_cdid_ostre() || !frez_tag_ok($tag)) return [];
+  $st = mat_pdo()->prepare("SELECT f.did, COALESCE(b.ref, f.ref) AS ref, b.lot, b.expirace, m.nazev, m.skupina, f.zuby
+                            FROM frez_cdid f LEFT JOIN s1_baleni b ON b.did = f.did LEFT JOIN mat m ON m.ref = COALESCE(b.ref, f.ref)
+                            WHERE f.tag = ? AND f.vysledek IN ('cdid', 'nasadit') AND f.did IS NOT NULL");
+  $st->execute([$tag]);
+  return $st->fetchAll();
 }

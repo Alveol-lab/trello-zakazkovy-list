@@ -13,7 +13,7 @@ require __DIR__ . '/prijem-auth.php';          // prijem_secret() – klíč pro
 require __DIR__ . '/mat-lib.php';             // krok 5: karty MAT v SQL (přepínač autolab-mat.json)
 require __DIR__ . '/archiv-lib.php';          // krok 31: archiv vydaných prohlášení (přepínač autolab-archiv.json)
 require __DIR__ . '/sestavy-lib.php';
-require __DIR__ . '/frez-lib.php';             // krok F2: technologie výkonu a deník frézy (přepínač autolab-frez.json)         // krok 32: tiskové sestavy ze šablon (přepínač autolab-sestavy.json)
+require_once __DIR__ . '/frez-lib.php';             // krok F2: technologie výkonu a deník frézy (přepínač autolab-frez.json)         // krok 32: tiskové sestavy ze šablon (přepínač autolab-sestavy.json)
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
