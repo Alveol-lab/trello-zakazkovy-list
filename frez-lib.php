@@ -32,12 +32,14 @@ function frez_cfg(): array {
     $c['tech'] = ($c['tech'] ?? false) === true;
     $c['frez'] = ($c['frez'] ?? false) === true;
     $c['sber'] = ($c['sber'] ?? false) === true || $c['frez'];   // příjem ze sběrače; zapnutá fréza ho zahrnuje
+    $c['cdid'] = in_array($c['cdid'] ?? false, ['stin'], true) ? $c['cdid'] : false;   // CDID: zatím jen nanečisto
   }
   return $c;
 }
 function tech_on(): bool { return frez_cfg()['tech']; }
 function frez_on(): bool { return frez_cfg()['frez']; }      // zelený rámeček ve formuláři
 function frez_sber_on(): bool { return frez_cfg()['sber']; }  // jen příjem dat (zkušební sběr)
+function frez_cdid_on(): bool { return frez_cfg()['cdid'] !== false; }
 function frez_log(string $kdo, string $co, string $vysl): void {
   @file_put_contents(FREZ_LOG, date('c') . "\t" . $kdo . "\t" . $co . "\t" . $vysl . "\n", FILE_APPEND | LOCK_EX);
 }
@@ -188,6 +190,9 @@ function frez_prijem(array $calc, array $cnc): array {
   }
   $n['sparovano'] = frez_sparuj();
   frez_kontrola();
+  if (frez_cdid_on()) {                // nanečisto: chyba CDID nesmí zastavit příjem dat
+    try { $n['cdid'] = frez_cdid(); } catch (Throwable $e) { frez_log('cdid', 'stin', 'CHYBA ' . substr($e->getMessage(), 0, 200)); }
+  }
   return $n;
 }
 
@@ -266,4 +271,88 @@ function frez_zakazka(string $tag): array {
                             FROM frez_calc c LEFT JOIN frez_cnc n ON n.cnc_id = c.cnc_id WHERE c.tag = ? ORDER BY c.toc");
   $st->execute([$tag]);
   return $st->fetchAll();
+}
+
+/* ---------------------------------------------------------------------
+   CDID – DID puku doplněný z frézy (C = computing), zatím nanečisto
+   Platí to, co prošlo frézou: barva na kartě zakázky je jen orientační.
+   Výsledek na (tag, DID) – jen dojeté frézování (stav vyfrezovano):
+     cdid     balení je nasazené a sedí materiál, odstín i výška → přebíjí ruční DID disku
+     nasadit  totéž, ale balení je jen ZALOŽENO → při ostrém běhu se nasadí
+              (datum = start prvního dojetého frézování, nasadil FRÉZA)
+     hlasit   DID neplatný nebo nesedí kontrola → jen hlášení technikovi
+   Překlep v DID se opraví podle čísla puku v DentalCAM (BID), když pod stejným
+   BID je v okně jediný platný DID. Puk se nikdy neukončuje (jen expirace,
+   technik, inventura). Nic se nezapisuje do EVIDENCE ani do LOT.
+   --------------------------------------------------------------------- */
+function frez_cdid_odstiny(string $nazev): array {      // A2, B3, BL3, OM1 … jako samostatné slovo
+  preg_match_all('/(?<![A-Z0-9])(?:[A-D][1-4](?:\.5)?|BL\d|OM\d)(?![A-Z0-9])/i', $nazev, $m);
+  return array_values(array_unique(array_map('strtoupper', $m[0])));
+}
+function frez_cdid_vysky(string $nazev): array {        // 98x14, DT-A2-14, 98.5-14, 20mm; průměr 98/98,5 se nepočítá
+  $n = preg_replace('/(?<![\d.,])98(?:[.,]5)?(?![\d.,])/', ' ', $nazev);
+  preg_match_all('/(?<![\d.,])(1\d|2\d|30)(?:[.,]\d)?(?![\d.,])/', $n, $m);
+  return array_values(array_unique(array_map('floatval', $m[1])));
+}
+function frez_cdid(): array {
+  $pdo = mat_pdo();
+  $rows = $pdo->query("SELECT c.tag, c.did, c.bid, c.mat, c.zuby, c.odstin, c.vyska_mm, n.vyska AS vyska_cnc, n.start, n.konec
+                       FROM frez_calc c JOIN frez_cnc n ON n.cnc_id = c.cnc_id
+                       WHERE c.stav = 'vyfrezovano' AND c.toc > NOW() - INTERVAL 60 DAY ORDER BY n.start")->fetchAll();
+  $dids = array_values(array_unique(array_filter(array_column($rows, 'did'))));
+  $bal = [];
+  if ($dids) {
+    $st = $pdo->prepare('SELECT b.did, b.ref, b.status, m.nazev, m.skupina FROM s1_baleni b LEFT JOIN mat m ON m.ref = b.ref
+                         WHERE b.did IN (' . implode(',', array_fill(0, count($dids), '?')) . ')');
+    $st->execute($dids);
+    foreach ($st->fetchAll() as $b) $bal[$b['did']] = $b;
+  }
+  $platny = fn($d) => $d !== null && isset($bal[$d]) && $bal[$d]['status'] !== 'SPOTŘEBOVANÉ';
+  $poBid = [];                                         // BID → platné DID v okně
+  foreach ($rows as $r) if ($r['bid'] !== null && $platny($r['did'])) $poBid[(int) $r['bid']][$r['did']] = true;
+  $sk = [];
+  foreach ($rows as $r) {
+    $did = $r['did']; $opr = null;
+    if (!$platny($did) && $r['bid'] !== null && count($poBid[(int) $r['bid']] ?? []) === 1) {
+      $opr = $did; $did = array_key_first($poBid[(int) $r['bid']]);
+    }
+    $k = ($r['tag'] ?? '') . '|' . ($did ?? '');
+    if (!isset($sk[$k])) $sk[$k] = ['tag' => (string) ($r['tag'] ?? ''), 'did' => $did, 'did_puv' => $opr, 'bid' => $r['bid'], 'mat' => $r['mat'],
+                                    'odstin' => $r['odstin'], 'vyska' => $r['vyska_cnc'] ?? $r['vyska_mm'], 'zuby' => [], 'n' => 0,
+                                    'prvni' => $r['start'], 'posledni' => $r['konec'] ?? $r['start']];
+    $g = &$sk[$k];
+    $g['n']++; if ($r['zuby'] !== null && $r['zuby'] !== '') $g['zuby'][] = $r['zuby'];
+    if ($opr !== null) $g['did_puv'] = $opr;
+    if (($r['konec'] ?? $r['start']) > $g['posledni']) $g['posledni'] = $r['konec'] ?? $r['start'];
+    unset($g);
+  }
+  $out = ['cdid' => 0, 'nasadit' => 0, 'hlasit' => 0];
+  $pdo->beginTransaction();
+  try {
+    $pdo->exec('DELETE FROM frez_cdid');
+    $ins = $pdo->prepare('INSERT INTO frez_cdid (tag, did, did_frez, bid, ref, zuby, objektu, prvni, posledni, vysledek, duvod)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    foreach ($sk as $g) {
+      $v = []; $b = $g['did'] !== null ? ($bal[$g['did']] ?? null) : null;
+      if ($g['did'] === null) $v[] = 'chybí DID';
+      elseif (!$b) $v[] = 'DID ' . $g['did'] . ' není ve skladu';
+      elseif ($b['status'] === 'SPOTŘEBOVANÉ') $v[] = 'balení je ukončené';
+      else {
+        $ocek = null; foreach (FREZ_SKUPINA as $kl => $s) if (stripos((string) $g['mat'], $kl) !== false) { $ocek = $s; break; }
+        if (!$ocek || !in_array($b['skupina'], $ocek, true)) $v[] = 'materiál ' . $g['mat'] . ' × karta ' . ($b['skupina'] ?: '—');
+        $od = frez_cdid_odstiny((string) $b['nazev']);
+        if ($od && $g['odstin'] && !in_array(strtoupper($g['odstin']), $od, true)) $v[] = 'odstín ' . $g['odstin'] . ' × karta ' . implode('/', $od);
+        $vy = frez_cdid_vysky((string) $b['nazev']);
+        if ($vy && $g['vyska'] !== null && !array_filter($vy, fn($x) => abs($x - (float) $g['vyska']) <= 0.5)) $v[] = 'výška ' . (float) $g['vyska'] . ' mm × karta ' . implode('/', $vy);
+        if ($g['bid'] !== null && count($poBid[(int) $g['bid']] ?? []) > 1) $v[] = 'puk ' . $g['bid'] . ' má více DID';
+      }
+      $vys = $v ? 'hlasit' : ($b['status'] === 'ZALOŽENO' ? 'nasadit' : 'cdid');
+      if (!$v && $g['did_puv'] !== null) $v[] = 'DID opraven podle puku z ' . $g['did_puv'];
+      $ins->execute([$g['tag'], $g['did'], $g['did_puv'], $g['bid'], $b['ref'] ?? null, mb_substr(implode(' ', array_unique($g['zuby'])), 0, 120),
+                     $g['n'], $g['prvni'], $g['posledni'], $vys, $v ? mb_substr(implode('; ', $v), 0, 200) : null]);
+      $out[$vys]++;
+    }
+    $pdo->commit();
+  } catch (Throwable $e) { $pdo->rollBack(); throw $e; }
+  return $out;
 }
