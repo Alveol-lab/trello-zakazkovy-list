@@ -214,6 +214,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$d['ok']) { api_log($actor, 'POST nabidkaPdf', $d['error']); api_out($d); }
     try { $pdf = sest_pdf('nabidka', $d['data']); }
     catch (Throwable $e) { api_log($actor, 'POST nabidkaPdf', 'PDF ' . substr($e->getMessage(), 0, 150)); api_out(['ok' => false, 'error' => 'PDF se nepodařilo vytvořit'], 500); }
+    $card = trim((string) ($b['cardId'] ?? ''));
+    if ($card !== '') {                                 // tlačítko „kalkulace“: PDF do přílohy karty přes Apps Script (token Trella je jen tam)
+      if (!preg_match('/^[0-9a-f]{24}$/', $card)) api_out(['ok' => false, 'error' => 'neplatná karta'], 400);
+      $kl = trim((string) ($d['data']['klient'] ?? ''));
+      if ($kl === '') { api_log($actor, 'POST nabidkaPdf ' . $tag, 'bez klienta'); api_out(['ok' => false, 'error' => 'případ ' . $tag . ' nemá v EVIDENCE jméno pacienta']); }
+      $r = arch_gas(['action' => 'nabidkaAttach', 'cardId' => $card, 'tag' => $tag, 'pacient' => $kl, 'pdfServer' => base64_encode($pdf)], 90);
+      api_log($actor, 'POST nabidkaPdf ' . $tag, !empty($r['ok']) ? 'příloha ok' : 'příloha: ' . substr((string) ($r['error'] ?? '?'), 0, 120));
+      api_out(!empty($r['ok']) ? ['ok' => true, 'name' => (string) ($r['name'] ?? ''), 'replaced' => (int) ($r['replaced'] ?? 0)]
+                               : ['ok' => false, 'error' => (string) ($r['error'] ?? 'příloha se nepovedla')]);
+    }
     api_log($actor, 'POST nabidkaPdf', 'ok');
     api_out(['ok' => true, 'nazev' => 'F-NAB ' . $tag . '.pdf', 'pdf' => base64_encode($pdf)]);
   }

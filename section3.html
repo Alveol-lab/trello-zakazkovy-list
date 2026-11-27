@@ -449,10 +449,11 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 .sbtn #inv{width:66rem;background:var(--inv);color:var(--inv-txt)}
 .sbtn #doc{width:66rem;background:var(--doc);color:var(--doc-txt)}
 /* nabídka (krok 33) – provizorní vzhled, grafiku dodá uživatel */
-.sbtn .nabchk{margin-right:auto;display:flex;align-items:center;gap:3rem;font-size:7.1rem;color:var(--txt-dim);cursor:pointer;white-space:nowrap}
+.sbtn .nabchk{display:flex;align-items:center;gap:3rem;font-size:7.1rem;color:var(--txt-dim);cursor:pointer;white-space:nowrap}
 .sbtn .nabchk input{width:9rem;height:9rem;margin:0;accent-color:var(--blue)}
 .sbtn .nabchk.on{color:var(--txt-hi)}
 .sbtn #nabAcc,.sbtn #nabRej{width:56rem}
+.sbtn #nabPdf{width:56rem;margin-right:auto}
 .sbtn .btn.arm{box-shadow:inset 0 0 0 .6rem var(--blue)}
 .dc.nab{color:var(--txt-hi);font-size:6.25rem;letter-spacing:.3rem}
 /* krok 39: AutoDID po skupinách – formulář a lupa */
@@ -708,6 +709,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   </div>
   <div class="sbtn">
     <label class="nabchk" title="nově vložené položky se zapíšou jako nabídka – bez materiálu, cena a odměna 0 do přijetí"><input type="checkbox" id="nabChk"> nabídka</label>
+    <button class="btn" id="nabPdf" title="kalkulace (F-NAB) jako PDF do přílohy karty">kalkulace</button>
     <button class="btn" id="nabAcc" hidden title="nabídkové položky se zapíšou jako výkony v dnešním měsíci">přijmout</button>
     <button class="btn" id="nabRej" hidden title="nabídkové položky se smažou z karty i z EVIDENCE">odmítnout</button>
     <button class="btn" id="inv">fakturace</button>
@@ -2520,6 +2522,25 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       });
     }).catch(function(err){ derr('nedostupné spojení (' + (err && err.message ? err.message : err) + ').'); })
       .then(function(){ docBusy = false; btn.disabled = false; });
+  });
+
+  /* kalkulace (F-NAB, krok 33) – PDF ze šablony na serveru do přílohy karty,
+     stejný průběh jako dokumentace; předchozí verze přílohy se nahradí */
+  var nabPdfBusy = false;
+  function nerr(msg){ wmsg('Kalkulace se nepovedla – ' + msg, 15); }
+  $('nabPdf').addEventListener('click', function(){
+    if (nabPdfBusy) return;
+    var btn = this; nabPdfBusy = true; btn.disabled = true;
+    wmsg('Kalkulace se připravuje…', 10);
+    Promise.all([ tagFromCustomField(), currentCardId() ]).then(function(res){
+      if (!res[0]) { nerr('karta nemá vyplněný kód zakázky.'); return null; }
+      if (!res[1]) { nerr('nepodařilo se zjistit kartu.'); return null; }
+      return postSilent({ action:'nabidkaPdf', tag: res[0], cardId: res[1] }).then(function(d){
+        if (d && d.ok && d.name) wmsg('Kalkulace přiložena: ' + d.name + (d.replaced ? ' (předchozí verze odebrána)' : ''), 8);
+        else nerr((d && d.error) ? d.error : 'server neodpověděl.');
+      });
+    }).catch(function(err){ nerr('nedostupné spojení (' + (err && err.message ? err.message : err) + ').'); })
+      .then(function(){ nabPdfBusy = false; btn.disabled = false; });
   });
 
   /* =================================================================
