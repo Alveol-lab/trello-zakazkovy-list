@@ -488,6 +488,8 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 .lpgo .o i{flex:none;width:9rem;height:9rem;border-radius:2rem;box-shadow:inset 0 0 0 .6rem var(--bd);font-style:normal;font-size:7rem;line-height:9rem;text-align:center}
 .lpgo .o.on i{background:var(--ok);box-shadow:none;color:#fff}
 .lpgo .o .d{flex:none;width:26rem;font-weight:700}
+.lpga{display:flex;justify-content:flex-end;margin-bottom:2rem}
+.lpga .gseg{width:52rem}
 .lpgo .f{width:100%;height:15rem;font-size:7rem;margin-bottom:2rem;background:var(--lp-bg);--c:var(--lp-bg)}
 .lpg .gchip{cursor:pointer}
 .lpg .gchip.vse{cursor:default}
@@ -2995,7 +2997,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       var q = String(lp.gq[og.kod] || '').trim().toLowerCase();
       var list = og.items.filter(function(it){ return !q || [it.did, it.ref, it.nazev, it.lot].join(' ').toLowerCase().indexOf(q) >= 0; });
       list = list.filter(function(it){ return !a.off[it.ref]; }).concat(list.filter(function(it){ return a.off[it.ref]; }));
-      h += '<div class="lpgo">' + (og.items.length > 8 ? '<input class="f" data-lpq="' + esc(og.kod) + '" placeholder="hledat odstín / REF / DID" autocomplete="off" value="' + esc(lp.gq[og.kod] || '') + '">' : '')
+      var onN = og.items.filter(function(it){ return !a.off[it.ref]; }).length;
+      h += '<div class="lpgo">'
+         + '<div class="lpga"><div class="gseg"><button type="button" data-lpall="vse" aria-pressed="' + (onN === og.items.length) + '">vše</button><button type="button" data-lpall="nic" aria-pressed="' + (!onN) + '">nic</button></div></div>'
+         + (og.items.length > 8 ? '<input class="f" data-lpq="' + esc(og.kod) + '" placeholder="hledat odstín / REF / DID" autocomplete="off" value="' + esc(lp.gq[og.kod] || '') + '">' : '')
          + list.map(function(it){ var u = !a.off[it.ref];
              return '<div class="o' + (u ? ' on' : '') + '" data-lpt="' + esc(it.ref) + '" title="' + esc('REF ' + it.ref + (it.lot ? ' · LOT ' + it.lot : '')) + '"><i>' + (u ? '✓' : '') + '</i><span class="d">' + esc(it.did) + '</span>' + esc(it.nazev || it.ref) + '</div>'; }).join('')
          + (q && !list.length ? '<div class="o">nic neodpovídá hledání</div>' : '') + '</div>';
@@ -3008,6 +3013,10 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     var c = e.target.closest('[data-lpc]');
     if (c) { var id = k + '|' + c.getAttribute('data-lpc'), prev = lp.gopen; lp.gopen = prev === id ? '' : id;
              if (prev && prev.split('|')[0] !== k) lpAutoRender(prev.split('|')[0]); lpAutoRender(k); return; }
+    var va = e.target.closest('[data-lpall]');
+    if (va) { var og = lpGroups(a).filter(function(g){ return lp.gopen === k + '|' + g.kod; })[0], vse = va.getAttribute('data-lpall') === 'vse';
+              if (og) og.items.forEach(function(it){ if (vse) delete a.off[it.ref]; else a.off[it.ref] = true; });
+              lpAutoRender(k); return; }
     var t = e.target.closest('[data-lpt]');
     if (t) { var r = t.getAttribute('data-lpt'); if (a.off[r]) delete a.off[r]; else a.off[r] = true; lpAutoRender(k); }
   });
