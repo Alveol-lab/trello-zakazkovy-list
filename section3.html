@@ -452,8 +452,13 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
 .sbtn .nabchk{display:flex;align-items:center;gap:3rem;font-size:7.1rem;color:var(--txt-dim);cursor:pointer;white-space:nowrap}
 .sbtn .nabchk input{width:9rem;height:9rem;margin:0;accent-color:var(--blue)}
 .sbtn .nabchk.on{color:var(--txt-hi)}
-.sbtn #nabAcc,.sbtn #nabRej{width:56rem}
-.sbtn #nabPdf{width:56rem;margin-right:auto}
+.sbtn .nabgrp{display:flex;align-items:center;gap:4rem;margin-right:auto}
+/* volby nabídky jako piktogramy (krok 33b); kresby jsou v NAB_IC */
+.sbtn .ibx{width:20rem;height:20rem;padding:0;display:flex;align-items:center;justify-content:center;position:relative}
+.sbtn .ibx svg{width:11rem;height:11rem;display:block}
+.sbtn .ibx .cnt{position:absolute;top:-3rem;right:-3rem;min-width:8rem;height:8rem;border-radius:4rem;background:var(--blue);color:#fff;font-size:5.2rem;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 1.6rem}
+.sbtn #nabConv{box-shadow:inset 0 0 0 .6rem var(--blue)}
+.sbtn .ibx:disabled{opacity:.5;cursor:default}
 .sbtn .btn.arm{box-shadow:inset 0 0 0 .6rem var(--blue)}
 .dc.nab{color:var(--txt-hi);font-size:6.25rem;letter-spacing:.3rem}
 /* krok 39: AutoDID po skupinách – formulář a lupa */
@@ -708,10 +713,13 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     <div class="scol s4"><div class="box blue" id="sumRating"></div><label>status / rating</label></div>
   </div>
   <div class="sbtn">
-    <label class="nabchk" title="nově vložené položky se zapíšou jako nabídka – bez materiálu, cena a odměna 0 do přijetí"><input type="checkbox" id="nabChk"> nabídka</label>
-    <button class="btn" id="nabPdf" title="kalkulace (F-NAB) jako PDF do přílohy karty">kalkulace</button>
-    <button class="btn" id="nabAcc" hidden title="nabídkové položky se zapíšou jako výkony v dnešním měsíci">přijmout</button>
-    <button class="btn" id="nabRej" hidden title="nabídkové položky se smažou z karty i z EVIDENCE">odmítnout</button>
+    <div class="nabgrp">
+      <label class="nabchk" title="nově vložené položky se zapíšou jako nabídka – bez materiálu, cena a odměna 0 do přijetí"><input type="checkbox" id="nabChk"> nabídka</label>
+      <button class="btn ibx" id="nabPdf" data-ic="calc" title="kalkulace – PDF do přílohy karty"></button>
+      <button class="btn ibx" id="nabConv" data-ic="conv" hidden title="převést zapsané výkony na nabídku"></button>
+      <button class="btn ibx" id="nabAcc" data-ic="ok" hidden title="přijmout nabídku – položky se zapíšou jako výkony v dnešním měsíci"></button>
+      <button class="btn ibx" id="nabRej" data-ic="no" hidden title="odmítnout nabídku – položky se smažou z karty i z EVIDENCE"></button>
+    </div>
     <button class="btn" id="inv">fakturace</button>
     <button class="btn" id="doc">dokumentace</button>
   </div>
@@ -2418,12 +2426,29 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
   }
 
   /* ---- nabídka (krok 33): zaškrtávátko, přijetí a odmítnutí ---- */
+  /* piktogramy voleb nabídky (krok 33b) – kresby se mění jen tady */
+  var NAB_SW = 'fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"';
+  var NAB_IC = {
+    calc: '<svg viewBox="0 0 16 16" ' + NAB_SW + '><rect x="3" y="1.5" width="10" height="13" rx="1.6"/><rect x="5" y="3.5" width="6" height="2.6" rx=".5"/><path d="M5.4 8.8h.01M8 8.8h.01M10.6 8.8h.01M5.4 11.6h.01M8 11.6h.01M10.6 11.6h.01" stroke-width="2"/></svg>',
+    conv: '<svg viewBox="0 0 16 16" ' + NAB_SW + '><path d="M8.6 1.8h4.6a1 1 0 0 1 1 1v4.6l-6.4 6.4a1 1 0 0 1-1.4 0L2.2 9.6a1 1 0 0 1 0-1.4z"/><circle cx="11" cy="5" r=".9" fill="currentColor" stroke="none"/><path d="M5.2 9.4l1.6 1.6 3-3"/></svg>',
+    ok:   '<svg viewBox="0 0 16 16" ' + NAB_SW + ' stroke-width="2"><path d="M3 8.4l3.2 3.2L13 4.6"/></svg>',
+    no:   '<svg viewBox="0 0 16 16" ' + NAB_SW + ' stroke-width="2"><path d="M4 4l8 8M12 4l-8 8"/></svg>'
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('.sbtn [data-ic]'), function(b){
+    b.innerHTML = NAB_IC[b.getAttribute('data-ic')] + (b.id === 'nabConv' ? '<span class="cnt" id="nabConvN"></span>' : '');
+  });
   function nabRows(){ return state.rows.filter(function(r){ return r.nab; }); }
+  /* zapsané běžné výkony karty – kandidáti na převod do nabídky */
+  function convRows(){ return state.rows.filter(function(r){ return r._href && !r.nab; }); }
   function nabSync(){
-    var has = nabRows().length > 0;
+    var has = nabRows().length > 0, conv = state.nab ? convRows() : [];
     $('nabChk').checked = !!state.nab;
     $('nabChk').parentNode.classList.toggle('on', !!state.nab);
-    if ($('nabAcc').hidden === has) { $('nabAcc').hidden = !has; $('nabRej').hidden = !has; resize(); }
+    var ch = false;
+    if ($('nabAcc').hidden === has) { $('nabAcc').hidden = !has; $('nabRej').hidden = !has; ch = true; }
+    if ($('nabConv').hidden === (conv.length > 0)) { $('nabConv').hidden = !conv.length; ch = true; }
+    $('nabConvN').textContent = conv.filter(function(r){ return !isPhase(r); }).length || conv.length;
+    if (ch) resize();
   }
   $('nabChk').addEventListener('change', function(){
     state.nab = this.checked;
@@ -2431,15 +2456,19 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     save(); autoReset(); renderMats(); nabSync();
   });
   /* potvrzení druhým klepnutím do 4 s (Trello nemá vlastní potvrzovací okno) */
+  /* u piktogramu zůstává kresba, rozsvítí se rámeček a bublina / hláška vyzve k potvrzení */
   function arm2(btn, label, fn){
-    if (btn._arm) { clearTimeout(btn._arm); btn._arm = null; btn.classList.remove('arm'); btn.textContent = label; fn(); return; }
-    btn.classList.add('arm'); btn.textContent = 'opravdu?';
-    btn._arm = setTimeout(function(){ btn._arm = null; btn.classList.remove('arm'); btn.textContent = label; }, 4000);
+    var ic = btn.classList.contains('ibx');
+    if (btn._arm) { clearTimeout(btn._arm); btn._arm = null; btn.classList.remove('arm'); if (ic) btn.title = btn._t; else btn.textContent = label; fn(); return; }
+    btn.classList.add('arm');
+    if (ic) { btn._t = btn.title; btn.title = 'klepni znovu pro potvrzení'; wmsg(label + ' – klepni znovu pro potvrzení.', 4); }
+    else btn.textContent = 'opravdu?';
+    btn._arm = setTimeout(function(){ btn._arm = null; btn.classList.remove('arm'); if (ic) btn.title = btn._t; else btn.textContent = label; }, 4000);
   }
   function nabLetter(r){ return r.tid || (r._href ? String(r._href).split('_')[0] : ''); }
   $('nabAcc').addEventListener('click', function(){
     var btn = this;
-    arm2(btn, 'přijmout', function(){
+    arm2(btn, 'Přijmout nabídku', function(){
       if (state.editIndex != null) { wmsg('Dokonči nebo zruš rozpracovanou úpravu řádku.', 8); return; }
       var list = nabRows();
       if (list.some(function(r){ return r._href && !sheetAllowed(nabLetter(r), 'Přijetí'); })) return;
@@ -2457,9 +2486,36 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
       });
     });
   });
+  /* krok 33b: zapsané běžné výkony → nabídka (přepis na místě, bez materiálu) */
+  $('nabConv').addEventListener('click', function(){
+    var btn = this;
+    arm2(btn, 'Převést na nabídku', function(){
+      if (state.editIndex != null) { wmsg('Dokonči nebo zruš rozpracovanou úpravu řádku.', 8); return; }
+      var list = convRows();
+      if (!list.length) return;
+      if (!userOk()) { wrongAccount('Převod'); return; }
+      var m = list.filter(function(r){ return rowDids(r).length || r.lotErr; });
+      if (m.length) { wmsg('Výkon ' + m[0].anid + ' má materiál – nabídka je bez materiálu, nejdřív ho z výkonu odeber.', 12); return; }
+      if (list.some(function(r){ return !sheetAllowed(nabLetter(r), 'Převod'); })) return;
+      wmsg('Převádím na nabídku – ' + list.length + ' řádků…', 6);
+      cardInfo().then(function(card){
+        return postJob(function(){
+          return list.reduce(function(p, r){
+            return p.then(function(){ if (!r.tid) r.tid = nabLetter(r); return postRow({ r:r, same:-1, old:r, target:r, auto:null, nabOn:true }, card); });
+          }, Promise.resolve());
+        });
+      }).then(function(){
+        if (!t) return;
+        return t.card('attachments').then(function(c){
+          if ((c.attachments || []).some(function(a){ return /prohlášení o shodě/i.test(a.name || ''); }))
+            wmsg('Na kartě je prohlášení o shodě – obsahuje výkony, které jsou teď nabídka.', 12);
+        }).catch(function(){});
+      });
+    });
+  });
   $('nabRej').addEventListener('click', function(){
     var btn = this;
-    arm2(btn, 'odmítnout', function(){
+    arm2(btn, 'Odmítnout nabídku', function(){
       if (state.editIndex != null) { wmsg('Dokonči nebo zruš rozpracovanou úpravu řádku.', 8); return; }
       var list = nabRows();
       if (list.some(function(r){ return r._href && !sheetAllowed(nabLetter(r), 'Výmaz'); })) return;
@@ -2662,11 +2718,12 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
          (server ponechá Z cílového řádku); ukončení balení jen jednou      */
       autoDids: (c.auto && c.same < 0) ? c.auto.dids : undefined,
       autoEnd: (c.auto && c.auto.end.length) ? c.auto.end : undefined,
-      nab: c.nabOff ? false : (r.nab ? true : undefined)
-    }, c.nabOff ? 'Přijato do ' : 'Zapsáno do ', 'Zápis').then(function(resp){
+      nab: c.nabOff ? false : ((r.nab || c.nabOn) ? true : undefined)
+    }, c.nabOff ? 'Přijato do ' : (c.nabOn ? 'Převedeno na nabídku v ' : 'Zapsáno do '), 'Zápis').then(function(resp){
       if (pid && zapisBezi[pid]) { delete zapisBezi[pid]; if (!resp || !resp.ok) renderRows(); }
       if (!resp) return;
       if (resp.ok && c.nabOff && c.target) { delete c.target.nab; save(); renderRows(); }
+      if (resp.ok && c.nabOn && c.target) { c.target.nab = 1; delete c.target.za; save(); renderRows(); }
       if (resp.ok && c.auto) c.auto.end = [];
       if (resp.autoEndErr && resp.autoEndErr.length) wmsg('Balení se nepodařilo ukončit: ' + resp.autoEndErr.join(', '), 15);
       if (resp.ok && resp.odm && r.tid === myLetter) odmShow(resp.odm);
