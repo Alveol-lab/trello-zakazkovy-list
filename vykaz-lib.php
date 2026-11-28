@@ -119,7 +119,7 @@ function vyk_bilance(array $raw, string $kdo, int $rok): array {
   }
   $zam = vyk_zamestnanec($kdo, $rok);
   $banka = vyk_sparuj($m, $kdo, $rok);
-  /* ABX – licence za SW upgrade (H): kusy celé laboratoře s ročníkem ceníku (EXP L) = rok × CEN!CR, jako METRIKA/ABX */
+  /* Bonus ABX – Addon Benefit Extra (H, licence za SW upgrade): kusy celé laboratoře s ročníkem ceníku (EXP L) = rok × CEN!CR, jako METRIKA/ABX */
   $abx = array_fill(1, 12, ['ks' => 0.0, 'castka' => 0.0]);
   $A = $raw['abx'] ?? null;
   if (is_array($A) && ($A['kdo'] ?? '') === $kdo) foreach ($rows as $r) {
@@ -196,7 +196,7 @@ function vyk_pdf(array $b, int $mes, bool $uzavreno, string $kdoUzavrel = ''): s
   $h .= '<div class="sec" style="margin-top:4mm">Bilance</div><table style="width:110mm;margin-top:1mm">';
   if ($x['srazka'] > 0) $h .= $r('Odměna podle evidence', sest_kc($x['q'])) . $r('srážka ' . round($x['srazkaPct'] * 100) . ' %', '− ' . sest_kc($x['srazka']));
   $h .= $r('Vyděláno (výměr)', sest_kc($x['vymer']), 'font-weight:bold');
-  foreach ($x['bonus'] as $bo) $h .= $r(($bo['typ'] ?? '') === 'abx' ? '+ ABX – licence za SW upgrade (' . round($bo['ks']) . ' ks)' : '+ mentorský bonus ' . round($bo['pct'] * 100) . ' % z výměru ' . $bo['z'], sest_kc($bo['castka']), 'color:#7a3fb5');
+  foreach ($x['bonus'] as $bo) $h .= $r(($bo['typ'] ?? '') === 'abx' ? '+ Bonus ABX (Addon Benefit Extra, ' . round($bo['ks']) . ' ks)' : '+ mentorský bonus ' . round($bo['pct'] * 100) . ' % z výměru ' . $bo['z'], sest_kc($bo['castka']), 'color:#7a3fb5');
   $h .= $r('= nárok', sest_kc($x['narok']), 'font-weight:bold;border-top:0.3mm solid #000');
   $h .= $r('Uhrazeno od Dentea', sest_kc($x['uhrDenteo']));
   if ($x['uhrLekari'] > 0) $h .= $r('Uhrazeno přímo lékaři (vlastní faktury)', sest_kc($x['uhrLekari']));
