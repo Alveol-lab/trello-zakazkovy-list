@@ -118,6 +118,7 @@ function vyk_bilance(array $raw, string $kdo, int $rok): array {
     $m[(int) $mes]['platby'][] = ['castka' => (float) $cast, 'kdy' => $uhr, 'zpusob' => $zp, 'vs' => $vs, 'pozn' => $pozn, 'lekar' => $lek];
   }
   $zam = vyk_zamestnanec($kdo, $rok);
+  $banka = vyk_sparuj($m, $kdo, $rok);
   /* ABX – licence za SW upgrade (H): kusy celé laboratoře s ročníkem ceníku (EXP L) = rok × CEN!CR, jako METRIKA/ABX */
   $abx = array_fill(1, 12, ['ks' => 0.0, 'castka' => 0.0]);
   $A = $raw['abx'] ?? null;
@@ -145,7 +146,7 @@ function vyk_bilance(array $raw, string $kdo, int $rok): array {
     $out[$i] = ['mesic' => $i, 'q' => round($x['q']), 'srazka' => round($x['q'] * $sr), 'srazkaPct' => $sr, 'vymer' => $vym, 'bonus' => $bon, 'bonusSum' => $bs,
       'narok' => $nar, 'obrat' => round($x['obrat']), 'n' => $x['n'], 'uhrDenteo' => round($x['uhrDenteo']), 'uhrLekari' => round($x['uhrLekari']),
       'uhrazeno' => round($uhr), 'zbyva' => $zam ? null : round($nar - $uhr), 'saldo' => $zam ? null : $saldo, 'ord' => $x['ord'], 'obl' => array_map('round', $x['obl']),
-      'lab' => array_map('round', $x['lab']) + ['G' => round($labG)], 'vykony' => $x['vykony'], 'platby' => $x['platby'],
+      'lab' => array_map('round', $x['lab']) + ['G' => round($labG)], 'vykony' => $x['vykony'], 'platby' => $x['platby'], 'bankaNavic' => $x['bankaNavic'] ?? [],
       'loni' => ['narok' => round($prev[$i]['narok']), 'obrat' => round($prev[$i]['obrat'])],
       'prispevek' => in_array($kdo, VYK_PRISP_KDO, true) ? array_map(fn($p) => round($nar * $p), VYK_PRISP) + ['celkem' => round($nar * array_sum(VYK_PRISP))] : null];
     foreach (['q', 'srazka', 'vymer', 'narok', 'obrat', 'uhrazeno', 'n'] as $k) $sum[$k] += $out[$i][$k];
@@ -170,7 +171,7 @@ function vyk_bilance(array $raw, string $kdo, int $rok): array {
   $sum['prispevek'] = in_array($kdo, VYK_PRISP_KDO, true) ? array_map(fn($p) => round($sum['narok'] * $p), VYK_PRISP) + ['celkem' => round($sum['narok'] * array_sum(VYK_PRISP))] : null;
   return ['kdo' => $kdo, 'jmeno' => (string) ($raw['jmena'][$kdo] ?? $kdo), 'rok' => $rok, 'zamestnanec' => $zam,
           'mesice' => array_values($out), 'soucet' => $sum, 'jmenaOrd' => array_filter($raw['jmena'] ?? [], fn($k) => strlen((string) $k) === 3, ARRAY_FILTER_USE_KEY),
-          'cas' => $raw['cas'] ?? '', 'zastarale' => !empty($raw['zastarale']), 'archiv' => vyk_archiv_seznam($kdo, $rok)];
+          'cas' => $raw['cas'] ?? '', 'zastarale' => !empty($raw['zastarale']), 'archiv' => vyk_archiv_seznam($kdo, $rok), 'banka' => $banka];
 }
 
 /* ---------- archiv uzavřených měsíců ---------- */
@@ -248,4 +249,99 @@ function vyk_nazvy(array $kody): array {
     }
     return $out;
   } catch (Throwable $e) { return []; }
+}
+
+/* ---------- párování plateb MZDY s bankou Fio (krok 43) ----------
+   Účty lidí jsou jen na serveru v autolab-fio-osoby.json (repozitář je veřejný):
+   {"H": {"ucty": ["číslo/kód"], "text": []}, "U": {"ucty": [...], "text": ["Urbánek"]}, ...}
+   Nic nezapisuje – jen označí platby v okně výkazu.                                    */
+const VYK_FIO_OSOBY = __DIR__ . '/../../autolab-fio-osoby.json';
+
+function vyk_bank_pohyby(string $kdo): array {
+  if (!is_file(VYK_FIO_OSOBY)) return ['tx' => [], 'od' => null, 'do' => null];
+  require_once __DIR__ . '/fio-lib.php';
+  $os = json_decode((string) file_get_contents(VYK_FIO_OSOBY), true)[$kdo] ?? null;
+  if (!$os) return ['tx' => [], 'od' => null, 'do' => null];
+  $ucty = array_map('strval', $os['ucty'] ?? []); $txt = $os['text'] ?? [];
+  $tx = []; $od = null; $do = null;
+  foreach (glob(FIO_DATA . '/*.json') ?: [] as $f) {
+    $d = json_decode((string) file_get_contents($f), true); if (!is_array($d)) continue;
+    if (!empty($d['od']) && count($d['pohyby'] ?? []) > 20) { $od = $od === null ? $d['od'] : min($od, $d['od']); $do = $do === null ? $d['do'] : max($do, $d['do']); }
+    foreach ($d['pohyby'] ?? [] as $p) {
+      if ($p['castka'] >= 0) continue;
+      $zp = trim($p['zprava'] === $p['ident'] ? $p['zprava'] : $p['zprava'] . ' ' . $p['ident']);
+      $moje = in_array($p['protiucet'], $ucty, true);
+      foreach ($txt as $t) if ($t !== '' && mb_stripos($zp, $t) !== false) $moje = true;
+      if (!$moje) continue;
+      if (preg_match('~z[aá]loh~iu', $zp) && in_array($kdo, VYK_PRISP_KDO, true)) continue;   // zálohy SP/ZP společníků nejsou mzda
+      $tag = preg_match('~\b(\d{1,2})\s*/\s*(?:20)?(\d{2})\b~', $zp, $mm) ? [(int) $mm[2], (int) $mm[1]] : null;
+      $tx[] = ['id' => $p['id'], 'datum' => $p['datum'], 'castka' => round(-$p['castka'], 2), 'zprava' => $zp, 'tag' => $tag, 'ucet' => (string) ($d['ucet'] ?? '')];
+    }
+  }
+  usort($tx, fn($a, $b) => strcmp($a['datum'], $b['datum']));
+  return ['tx' => $tx, 'od' => $od, 'do' => $do];
+}
+function vyk_dat(string $s): ?string { return preg_match('~^(\d{1,2})\.(\d{1,2})\.(\d{4})$~', trim($s), $m) ? sprintf('%04d-%02d-%02d', $m[3], $m[2], $m[1]) : null; }
+
+/* $m = měsíce výkazu (s 'platby'); doplní ke každé platbě 'banka' a k měsíci 'bankaNavic' */
+function vyk_sparuj(array &$m, string $kdo, int $rok): array {
+  $B = vyk_bank_pohyby($kdo);
+  if (!$B['od']) return ['zapnuto' => false];
+  $tx = $B['tx']; $pouzite = [];
+  $den = fn($a, $b) => abs((strtotime($a) - strtotime($b)) / 86400);
+  $kand = [];
+  foreach ($m as $i => &$x) foreach ($x['platby'] as $j => &$p) {
+    $kdy = vyk_dat((string) $p['kdy']);
+    $odhad = $kdy ?? sprintf('20%02d-%02d-28', $i === 12 ? $rok + 1 : $rok, $i === 12 ? 1 : $i + 1);
+    if ($p['lekar']) { $p['banka'] = ['stav' => 'lekar']; continue; }
+    if (mb_stripos((string) $p['zpusob'], 'hotov') !== false) { $p['banka'] = ['stav' => 'hotovost']; continue; }
+    if ($odhad < $B['od']) { $p['banka'] = ['stav' => 'mimo']; continue; }
+    $p['banka'] = ['stav' => 'nesparovano'];
+    $kand[] = [$i, $j, $kdy, $odhad];
+  }
+  unset($x, $p);
+  /* průchody od nejjistějšího: stejná částka + měsíc ve zprávě + datum, … , pak součet více plateb téhož měsíce */
+  $pruchody = [
+    fn($t, $i, $kdy) => $t['tag'] === [$rok, $i] && $kdy !== null && abs(strtotime($t['datum']) - strtotime($kdy)) <= 10 * 86400,
+    fn($t, $i, $kdy) => $t['tag'] === [$rok, $i],
+    fn($t, $i, $kdy, $odh) => $t['tag'] === null && abs(strtotime($t['datum']) - strtotime($odh)) <= 20 * 86400,
+  ];
+  foreach ($pruchody as $ok) foreach ($kand as $k => [$i, $j, $kdy, $odh]) {
+    $p = &$m[$i]['platby'][$j];
+    if ($p['banka']['stav'] !== 'nesparovano') { unset($p); continue; }
+    $best = null;
+    foreach ($tx as $n => $t) {
+      if (isset($pouzite[$n]) || abs($t['castka'] - $p['castka']) > 0.5 || !$ok($t, $i, $kdy, $odh)) continue;
+      if ($best === null || $den($t['datum'], $odh) < $den($tx[$best]['datum'], $odh)) $best = $n;
+    }
+    if ($best !== null) { $pouzite[$best] = 1; $t = $tx[$best]; $p['banka'] = ['stav' => 'banka', 'datum' => $t['datum'], 'zprava' => $t['zprava'], 'ucet' => $t['ucet']]; }
+    unset($p);
+  }
+  /* součet: např. mzda + FÚ + VZP + OSSZ zaměstnance za stejný měsíc */
+  foreach ($kand as [$i, $j]) {
+    $p = &$m[$i]['platby'][$j];
+    if ($p['banka']['stav'] === 'nesparovano') {
+      $sk = []; $sum = 0.0;
+      foreach ($tx as $n => $t) if (!isset($pouzite[$n]) && $t['tag'] === [$rok, $i]) { $sk[] = $n; $sum += $t['castka']; }
+      if (count($sk) > 1 && abs($sum - $p['castka']) <= 0.5) {
+        foreach ($sk as $n) $pouzite[$n] = 1;
+        $p['banka'] = ['stav' => 'banka', 'datum' => $tx[end($sk)]['datum'], 'zprava' => count($sk) . ' platby: ' . implode(' + ', array_map(fn($n) => $tx[$n]['zprava'], $sk)), 'ucet' => $tx[$sk[0]]['ucet']];
+      }
+    }
+    unset($p);
+  }
+  /* bez data a z měsíce, který začal před napojením banky → nelze ověřit */
+  foreach ($kand as [$i, $j, $kdy]) {
+    $p = &$m[$i]['platby'][$j];
+    if ($p['banka']['stav'] === 'nesparovano' && $kdy === null && sprintf('20%02d-%02d-01', $rok, $i) < $B['od']) $p['banka'] = ['stav' => 'mimo'];
+    unset($p);
+  }
+  /* bankovní platby, které v MZDY chybí – k měsíci ze zprávy, jinak k měsíci před datem platby */
+  foreach ($tx as $n => $t) {
+    if (isset($pouzite[$n])) continue;
+    if ($t['tag']) { [$ry, $mi] = $t['tag']; } else { $ts = strtotime($t['datum'] . ' -1 month'); $ry = (int) date('y', $ts); $mi = (int) date('n', $ts); }
+    if ($ry !== $rok || $mi < 1 || $mi > 12) continue;
+    $m[$mi]['bankaNavic'][] = ['datum' => $t['datum'], 'castka' => $t['castka'], 'zprava' => $t['zprava'], 'odhad' => !$t['tag']];
+  }
+  return ['zapnuto' => true, 'od' => $B['od'], 'do' => $B['do']];
 }

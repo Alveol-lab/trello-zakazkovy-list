@@ -84,6 +84,8 @@ footer{padding:6px 14px;border-top:1px solid var(--bd);color:var(--txt-dim);font
 #ziskVse{margin-top:8px}
 tr.pri td{border-top:1px solid var(--bd-soft);padding-top:8px}
 .fio-add{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap} .fio-add input,#fQ{background:var(--bg);color:var(--txt);border:1px solid var(--bd);border-radius:4px;padding:5px 8px;font:inherit} #fTok{min-width:420px}
+.bk{font-size:11px;border:1px solid currentColor;border-radius:3px;padding:0 4px;white-space:nowrap;margin-left:4px} .bk.ok{color:var(--good)} .bk.bad{color:var(--bad)} .bk.warn{color:var(--warn)} .bk.dim{color:var(--txt-dim)}
+.bzp{color:var(--txt-dim);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -141,7 +143,7 @@ tr.pri td{border-top:1px solid var(--bd-soft);padding-top:8px}
       }
       $('rok').innerHTML = d.roky.map(function(r){ return '<option value="' + r + '"' + (r === d.rok ? ' selected' : '') + '>20' + r + '</option>'; }).join('');
       $('who').textContent = d.jmeno + ' (' + d.kdo + ')';
-      $('tabBanka').hidden = !d.banka;
+      $('tabBanka').hidden = !d.bankaTab;
       $('info').textContent = 'data z EVIDENCE k ' + d.cas + (d.zastarale ? ' · EVIDENCE neodpověděla, starší data' : '');
       render();
     }).catch(function(e){ $('main').innerHTML = '<div class="msg err">Spojení selhalo: ' + esc(e && e.message ? e.message : e) + '</div>'; });
@@ -221,8 +223,13 @@ tr.pri td{border-top:1px solid var(--bd-soft);padding-top:8px}
     if (x.prispevek) h += '<tr class="pri"><td>Příspěvek na daně a pojištění <span style="color:var(--txt-dim)">(mimo nárok)</span></td><td class="n">' + kc(x.prispevek.celkem) + '</td></tr>'
       + '<tr class="dim"><td colspan="2">sociální ' + kc(x.prispevek.soc) + ' · zdravotní ' + kc(x.prispevek.zdr) + ' · daň ' + kc(x.prispevek.dan) + ' <span style="color:var(--txt-dim)">(39,25 % z nároku, hlídá rovný díl společníků)</span></td></tr>';
     h += '</table><div class="note">' + x.n + ' výkonů · obrat ' + kc(x.obrat) + (x.loni.narok ? ' · loni ve stejném měsíci nárok ' + kc(x.loni.narok) : '') + '</div>';
-    if (x.platby.length) h += '<details><summary>Platby (' + x.platby.length + ')</summary><table class="t"><tr><th>VS</th><th>od koho</th><th>uhrazeno</th><th class="n">částka</th></tr>'
-      + x.platby.map(function(p){ return '<tr><td>' + esc(p.vs) + '</td><td>' + esc(p.pozn || (p.lekar ? 'lékař' : 'Denteo')) + '</td><td>' + esc(p.kdy) + '</td><td class="n">' + kc(p.castka) + '</td></tr>'; }).join('') + '</table></details>';
+    var BST = { banka: ['ok', 'v bance'], hotovost: ['dim', 'hotovost'], lekar: ['dim', 'platí lékař'], mimo: ['dim', 'před napojením banky'], nesparovano: ['bad', 'nespárováno'] };
+    var bz = d.banka && d.banka.zapnuto, nb = { banka: 0, nesparovano: 0 };
+    x.platby.forEach(function(p){ if (p.banka && nb[p.banka.stav] != null) nb[p.banka.stav]++; });
+    if (x.platby.length || (x.bankaNavic || []).length) h += '<details' + (bz && (nb.nesparovano || (x.bankaNavic || []).length) ? ' open' : '') + '><summary>Platby (' + x.platby.length + ')' + (bz ? ' <span class="bk ok">' + nb.banka + ' v bance</span>' + (nb.nesparovano ? ' <span class="bk bad">' + nb.nesparovano + ' nespárováno</span>' : '') + ((x.bankaNavic || []).length ? ' <span class="bk warn">' + x.bankaNavic.length + ' chybí v MZDY</span>' : '') : '') + '</summary><table class="t"><tr><th>VS</th><th>od koho</th><th>uhrazeno</th><th class="n">částka</th>' + (bz ? '<th>banka</th>' : '') + '</tr>'
+      + x.platby.map(function(p){ var b = p.banka || {}, st = BST[b.stav] || ['dim', '']; return '<tr><td>' + esc(p.vs) + '</td><td>' + esc(p.pozn || (p.lekar ? 'lékař' : 'Denteo')) + '</td><td>' + esc(p.kdy) + '</td><td class="n">' + kc(p.castka) + '</td>' + (bz ? '<td><span class="bk ' + st[0] + '"' + (b.zprava ? ' title="' + esc(b.datum + ' · ' + b.zprava) + '"' : '') + '>' + st[1] + (b.datum ? ' ' + esc(b.datum.slice(8, 10) + '.' + b.datum.slice(5, 7) + '.') : '') + '</span></td>' : '') + '</tr>'; }).join('')
+      + (x.bankaNavic || []).map(function(t){ return '<tr><td></td><td class="bzp" title="' + esc(t.zprava) + '">' + esc(t.zprava) + '</td><td>' + esc(+t.datum.slice(8, 10) + '.' + (+t.datum.slice(5, 7)) + '.' + t.datum.slice(0, 4)) + '</td><td class="n">' + kc(t.castka) + '</td><td><span class="bk warn"' + (t.odhad ? ' title="měsíc odhadem podle data platby"' : '') + '>chybí v MZDY' + (t.odhad ? '?' : '') + '</span></td></tr>'; }).join('')
+      + '</table></details>';
     h += '</div><div class="card"><h3>Podle ordinací</h3><table class="t"><tr><th>ordinace</th><th class="n">výkonů</th><th class="n">obrat</th><th class="n">výměr</th></tr>';
     var ks = Object.keys(x.ord);
     ks.forEach(function(k){ var o = x.ord[k]; h += '<tr><td>' + esc(k) + ' <span style="color:var(--txt-dim)">' + esc(d.jmenaOrd[k] || '') + '</span></td><td class="n">' + o.n + '</td><td class="n">' + kc(o.obrat) + '</td><td class="n">' + kc(o.vymer) + '</td></tr>'; });
