@@ -14,15 +14,15 @@
 :root{
   --bg:#242528; --panel:#393B44; --head:#1A1A1A; --btn:#3D4451;
   --txt:#C8C9CC; --txt-dim:#939497; --txt-strong:#FFFFFF;
-  --bd:#575E6E; --bd-soft:#3A3C42; --act:#CC9E13; --act-txt:#1A1A1A;
-  --good:#3FA36B; --warn:#E0A526; --bad:#E2686B; --bon:#A779E9; --loni:#6E6F72;
+  --bd:#575E6E; --bd-soft:#3A3C42; --act:#00A794; --act-txt:#0C343D;
+  --good:#5CE4AB; --pay:#B1FFE9; --warn:#E0A526; --bad:#E2686B; --bon:#A779E9; --loni:#6E6F72;
   color-scheme:dark;
 }
 html[data-theme="light"]{
   --bg:#FFFFFF; --panel:#F0F1F3; --head:#DCDFE4; --btn:#DCDFE4;
   --txt:#172B4D; --txt-dim:#626F86; --txt-strong:#091E42;
-  --bd:#C1C7D0; --bd-soft:#EBECF0; --act:#CC9E13; --act-txt:#1A1A1A;
-  --good:#1F845A; --warn:#A54800; --bad:#C9372C; --bon:#7A3FB5; --loni:#A5ADBA;
+  --bd:#C1C7D0; --bd-soft:#EBECF0; --act:#046E62; --act-txt:#FFFFFF;
+  --good:#1F845A; --pay:#12D785; --warn:#A54800; --bad:#C9372C; --bon:#7A3FB5; --loni:#A5ADBA;
   color-scheme:light;
 }
 *{box-sizing:border-box}
@@ -190,9 +190,9 @@ footer{padding:6px 14px;border-top:1px solid var(--bd);color:var(--txt-dim);font
       if (x.uhrazeno) pts.push([cx, H - B - x.uhrazeno * sc, x.uhrazeno]);
       s += '<text x="' + cx + '" y="' + (H - 8) + '" text-anchor="middle" font-size="11" fill="var(--txt-dim)">' + MESK[i + 1] + '</text>';
     });
-    pts.forEach(function(p){ s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="4" fill="var(--good)"><title>uhrazeno ' + kc(p[2]) + '</title></circle>'; });
+    pts.forEach(function(p){ s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="4.5" fill="var(--pay)" stroke="var(--head)" stroke-width="1.5"><title>uhrazeno ' + kc(p[2]) + '</title></circle>'; });
     s += '</svg>';
-    var h = '<div class="card"><h3>Rok 20' + d.rok + '</h3><div class="leg"><span><i style="background:var(--act)"></i>výměr</span><span><i style="background:var(--bon)"></i>mentorský bonus</span><span><i style="background:var(--good);border-radius:50%"></i>uhrazeno</span><span><i style="border:1px dashed var(--loni)"></i>loni (nárok)</span></div>' + s + '</div>';
+    var h = '<div class="card"><h3>Rok 20' + d.rok + '</h3><div class="leg"><span><i style="background:var(--act)"></i>výměr</span><span><i style="background:var(--bon)"></i>mentorský bonus</span><span><i style="background:var(--pay);border-radius:50%"></i>uhrazeno</span><span><i style="border:1px dashed var(--loni)"></i>loni (nárok)</span></div>' + s + '</div>';
     h += '<div class="card" style="margin-top:14px"><table class="t"><tr><th>měsíc</th><th class="n">výkonů</th><th class="n">výměr</th><th class="n">bonus</th><th class="n">nárok</th><th class="n">uhrazeno</th><th class="n">' + (d.zamestnanec ? '' : 'rozdíl') + '</th><th class="n">loni</th><th class="n">rozdíl k loňsku</th></tr>';
     var run = 0, ln = 0, lx = 0;
     ms.forEach(function(x, i){
