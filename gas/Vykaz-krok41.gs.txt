@@ -2,7 +2,7 @@
 /* =====================================================================
    krok 41 – VÝKAZ: data přehledu práce a odměn technika (denteo.space)
    Volá jen server (klíč PRIJEM_KEY) přes sestavaData({typ:'vykaz', rok}).
-   Vrací řádky EXP sledovaného a předchozího roku (bez nabídek) a MZDY.
+   Vrací řádky EXP sledovaného a předchozího roku (bez nabídek), MZDY a ceny ABX (v90).
    Nic nezapisuje. Výpočty (srážky, bonusy, podíly) dělá server.
    ===================================================================== */
 function vykazData_(V, D, S, body) {
@@ -14,7 +14,7 @@ function vykazData_(V, D, S, body) {
     var r = V[i], k = Number(r[10]), m = Number(r[9]);
     if (!roky[k] || !(m >= 1 && m <= 12) || String(r[2]).trim() === '' || sestNab_(r[12])) continue;
     rows.push([String(r[2]).trim(), m, k, String(r[8]).trim(), D[i][6], sestNum_(r[7]),
-               sestNum_(r[15]), sestNum_(r[16]), String(r[1]).trim(), String(r[0]), D[i][5], D[i][4], String(r[3])]);
+               sestNum_(r[15]), sestNum_(r[16]), String(r[1]).trim(), String(r[0]), D[i][5], D[i][4], String(r[3]), String(r[11]).trim()]);
   }
   var mz = [], sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('MZDY');
   if (sh && sh.getLastRow() > 2) {
@@ -25,8 +25,16 @@ function vykazData_(V, D, S, body) {
       mz.push([String(mv[j][0]).trim(), sestNum_(mv[j][1]), mm, y, md[j][4], md[j][5], md[j][6], md[j][7]]);
     }
   }
+  /* ABX (licence za SW upgrade): kódy z listu ABX (A3:A), komu = ABX!B1, cena/ks = CEN!CR (první shoda jako XLOOKUP) */
+  var abx = null, ss = SpreadsheetApp.getActiveSpreadsheet(), ax = ss.getSheetByName('ABX'), cen = ss.getSheetByName('CEN');
+  if (ax && cen && ax.getLastRow() >= 3) {
+    var kody = ax.getRange(3, 1, ax.getLastRow() - 2, 1).getDisplayValues().map(function (x) { return String(x[0]).trim(); }).filter(String);
+    var lc = cen.getLastRow(), ca = cen.getRange(1, 1, lc, 1).getDisplayValues(), cr = cen.getRange(1, 96, lc, 1).getValues(), ceny = {};
+    kody.forEach(function (k) { for (var c = 0; c < lc; c++) if (String(ca[c][0]).trim() === k) { ceny[k] = sestNum_(cr[c][0]); break; } });
+    abx = { kdo: String(ax.getRange(1, 2).getDisplayValue()).trim(), ceny: ceny };
+  }
   var jm = {};
   Object.keys(S).forEach(function (k) { if (k.length <= 3) jm[k] = S[k].jmeno || ''; });
-  return { ok: true, typ: 'vykaz', data: { rok: rok, rows: rows, mzdy: mz, jmena: jm,
+  return { ok: true, typ: 'vykaz', data: { rok: rok, rows: rows, mzdy: mz, jmena: jm, abx: abx,
            cas: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'd. M. yyyy H:mm') } };
 }
