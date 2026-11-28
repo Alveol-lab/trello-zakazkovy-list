@@ -82,6 +82,7 @@ footer{padding:6px 14px;border-top:1px solid var(--bd);color:var(--txt-dim);font
 .zb2 .zv{position:absolute;left:0;top:0;bottom:0;background:var(--act);border-radius:3px}
 .zc{text-align:right;font-variant-numeric:tabular-nums;font-size:13px} .zc small{display:inline-block;width:40px;color:var(--txt-dim);margin-left:4px}
 #ziskVse{margin-top:8px}
+tr.pri td{border-top:1px solid var(--bd-soft);padding-top:8px}
 </style>
 </head>
 <body>
@@ -213,6 +214,8 @@ footer{padding:6px 14px;border-top:1px solid var(--bd);color:var(--txt-dim);font
       h += '<tr class="zb"><td>' + (x.zbyva >= 0 ? 'Zbývá doplatit za měsíc' : 'Přeplaceno za měsíc') + '</td><td class="n ' + (x.zbyva > 0 ? 'zbp' : 'zbm') + '">' + kc(Math.abs(x.zbyva)) + '</td></tr>';
       if (x.zbyva > 0) h += '<tr><td>' + (x.vyrovnal ? 'Stav po platbách roku' : 'Po všech platbách roku zbývá') + '</td><td class="n ' + (x.vyrovnal ? 'zbm' : 'zbp') + '">' + (x.vyrovnal ? (x.vyrovnal === x.mesic ? 'vyrovnáno dřívějším přeplatkem' : 'vyrovnáno v ' + MES6[x.vyrovnal]) : kc(x.otevreno)) + '</td></tr>';
     }
+    if (x.prispevek) h += '<tr class="pri"><td>Příspěvek na daně a pojištění <span style="color:var(--txt-dim)">(mimo nárok)</span></td><td class="n">' + kc(x.prispevek.celkem) + '</td></tr>'
+      + '<tr class="dim"><td colspan="2">sociální ' + kc(x.prispevek.soc) + ' · zdravotní ' + kc(x.prispevek.zdr) + ' · daň ' + kc(x.prispevek.dan) + ' <span style="color:var(--txt-dim)">(39,25 % z nároku, hlídá rovný díl společníků)</span></td></tr>';
     h += '</table><div class="note">' + x.n + ' výkonů · obrat ' + kc(x.obrat) + (x.loni.narok ? ' · loni ve stejném měsíci nárok ' + kc(x.loni.narok) : '') + '</div>';
     if (x.platby.length) h += '<details><summary>Platby (' + x.platby.length + ')</summary><table class="t"><tr><th>VS</th><th>od koho</th><th>uhrazeno</th><th class="n">částka</th></tr>'
       + x.platby.map(function(p){ return '<tr><td>' + esc(p.vs) + '</td><td>' + esc(p.pozn || (p.lekar ? 'lékař' : 'Denteo')) + '</td><td>' + esc(p.kdy) + '</td><td class="n">' + kc(p.castka) + '</td></tr>'; }).join('') + '</table></details>';
@@ -254,17 +257,17 @@ footer{padding:6px 14px;border-top:1px solid var(--bd);color:var(--txt-dim);font
     pts.forEach(function(p){ s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="4.5" fill="var(--pay)" stroke="var(--head)" stroke-width="1.5"><title>uhrazeno ' + kc(p[2]) + '</title></circle>'; });
     s += '</svg>';
     var h = '<div class="card"><h3>Rok 20' + d.rok + '</h3><div class="leg"><span><i style="background:var(--act)"></i>výměr</span><span><i style="background:var(--bon)"></i>' + (ms.some(function(x){ return x.bonus.some(function(b){ return b.typ === 'abx'; }); }) ? 'ABX' : 'mentorský bonus') + '</span><span><i style="background:var(--pay);border-radius:50%"></i>uhrazeno</span><span><i style="border:1px dashed var(--loni)"></i>loni (nárok)</span></div>' + s + '</div>';
-    h += '<div class="card" style="margin-top:14px"><table class="t"><tr><th>měsíc</th><th class="n">výkonů</th><th class="n">výměr</th><th class="n">bonus</th><th class="n">nárok</th><th class="n">uhrazeno</th><th class="n">' + (d.zamestnanec ? '' : 'rozdíl') + '</th><th class="n">' + (d.zamestnanec ? '' : 'saldo od ledna') + '</th><th class="n">loni</th><th class="n">rozdíl k loňsku</th></tr>';
+    h += '<div class="card" style="margin-top:14px"><table class="t"><tr><th>měsíc</th><th class="n">výkonů</th><th class="n">výměr</th><th class="n">bonus</th><th class="n">nárok</th><th class="n">uhrazeno</th><th class="n">' + (d.zamestnanec ? '' : 'rozdíl') + '</th><th class="n">' + (d.zamestnanec ? '' : 'saldo od ledna') + '</th>' + (d.soucet.prispevek ? '<th class="n">příspěvek na daně</th>' : '') + '<th class="n">loni</th><th class="n">rozdíl k loňsku</th></tr>';
     var run = 0, ln = 0, lx = 0;
     ms.forEach(function(x, i){
       if (!x.n && !x.uhrazeno && !x.loni.narok) return;
       run += x.narok; lx += x.loni.narok;
       var dif = x.loni.narok ? pcs(pct(x.narok - x.loni.narok, x.loni.narok)) : '';
       h += '<tr><td>' + MES[i + 1] + (uzavreno(i + 1) ? ' ✓' : '') + '</td><td class="n">' + x.n + '</td><td class="n">' + kc(x.vymer) + '</td><td class="n b">' + (x.bonusSum ? kc(x.bonusSum) : '') + '</td><td class="n">' + kc(x.narok) + '</td><td class="n">' + kc(x.uhrazeno) + '</td>'
-        + '<td class="n">' + (x.zbyva === null ? '' : '<span class="' + (x.zbyva > 0 ? 'zbp' : 'zbm') + '">' + kc(x.zbyva) + '</span>') + '</td><td class="n">' + (x.saldo === null || x.saldo === undefined ? '' : '<span class="' + (x.saldo > 0 ? 'zbp' : 'zbm') + '">' + kc(x.saldo) + '</span>') + '</td><td class="n">' + (x.loni.narok ? kc(x.loni.narok) : '') + '</td><td class="n">' + (dif ? (x.narok >= x.loni.narok ? '+' : '') + dif : '') + '</td></tr>';
+        + '<td class="n">' + (x.zbyva === null ? '' : '<span class="' + (x.zbyva > 0 ? 'zbp' : 'zbm') + '">' + kc(x.zbyva) + '</span>') + '</td><td class="n">' + (x.saldo === null || x.saldo === undefined ? '' : '<span class="' + (x.saldo > 0 ? 'zbp' : 'zbm') + '">' + kc(x.saldo) + '</span>') + '</td>' + (x.prispevek ? '<td class="n">' + kc(x.prispevek.celkem) + '</td>' : '') + '<td class="n">' + (x.loni.narok ? kc(x.loni.narok) : '') + '</td><td class="n">' + (dif ? (x.narok >= x.loni.narok ? '+' : '') + dif : '') + '</td></tr>';
     });
     var s0 = d.soucet;
-    h += '<tr class="tot"><td>celkem</td><td class="n">' + s0.n + '</td><td class="n">' + kc(s0.vymer) + '</td><td class="n b">' + (s0.bonus ? kc(s0.bonus) : '') + '</td><td class="n">' + kc(s0.narok) + '</td><td class="n">' + kc(s0.uhrazeno) + '</td><td class="n">' + (s0.zbyva === null ? '' : kc(s0.zbyva)) + '</td><td></td><td class="n">' + kc(lx) + '</td><td></td></tr></table>'
+    h += '<tr class="tot"><td>celkem</td><td class="n">' + s0.n + '</td><td class="n">' + kc(s0.vymer) + '</td><td class="n b">' + (s0.bonus ? kc(s0.bonus) : '') + '</td><td class="n">' + kc(s0.narok) + '</td><td class="n">' + kc(s0.uhrazeno) + '</td><td class="n">' + (s0.zbyva === null ? '' : kc(s0.zbyva)) + '</td><td></td>' + (s0.prispevek ? '<td class="n">' + kc(s0.prispevek.celkem) + '</td>' : '') + '<td class="n">' + kc(lx) + '</td><td></td></tr></table>'
       + '<div class="note">Loňské srovnání je za stejné měsíce. Rozdíl = nárok − uhrazeno za měsíc (kladný = zbývá doplatit). Saldo od ledna sčítá rozdíly všech měsíců roku, takže doplatek v pozdějším měsíci vyrovná starší nedoplatek.</div></div>';
     $('main').innerHTML = h;
   }

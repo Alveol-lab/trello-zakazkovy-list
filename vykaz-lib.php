@@ -33,6 +33,9 @@ const VYK_BONUS = [
   ['komu' => 'P', 'z' => 'U', 'pct' => 0.05, 'od' => 2601, 'do' => 9912],
   ['komu' => 'Z', 'z' => 'U', 'pct' => 0.05, 'od' => 2601, 'do' => 2610],   // Zdeněk ukončil v říjnu 2026
 ];
+/* příspěvek na daně a pojištění společníků (mimo nárok, jen kontrola rovného dílu) – sazby z METRIKY B3:D3 */
+const VYK_PRISP_KDO = ['H', 'J'];
+const VYK_PRISP = ['soc' => 0.35 / 2, 'zdr' => 0.135 / 2, 'dan' => 0.15];
 /* zaměstnanec – výplata čistou mzdou, „zbývá doplatit“ se nepočítá */
 function vyk_zamestnanec(string $kdo, int $rok): bool { return $kdo === 'U' && $rok <= 26; }
 
@@ -143,7 +146,8 @@ function vyk_bilance(array $raw, string $kdo, int $rok): array {
       'narok' => $nar, 'obrat' => round($x['obrat']), 'n' => $x['n'], 'uhrDenteo' => round($x['uhrDenteo']), 'uhrLekari' => round($x['uhrLekari']),
       'uhrazeno' => round($uhr), 'zbyva' => $zam ? null : round($nar - $uhr), 'saldo' => $zam ? null : $saldo, 'ord' => $x['ord'], 'obl' => array_map('round', $x['obl']),
       'lab' => array_map('round', $x['lab']) + ['G' => round($labG)], 'vykony' => $x['vykony'], 'platby' => $x['platby'],
-      'loni' => ['narok' => round($prev[$i]['narok']), 'obrat' => round($prev[$i]['obrat'])]];
+      'loni' => ['narok' => round($prev[$i]['narok']), 'obrat' => round($prev[$i]['obrat'])],
+      'prispevek' => in_array($kdo, VYK_PRISP_KDO, true) ? array_map(fn($p) => round($nar * $p), VYK_PRISP) + ['celkem' => round($nar * array_sum(VYK_PRISP))] : null];
     foreach (['q', 'srazka', 'vymer', 'narok', 'obrat', 'uhrazeno', 'n'] as $k) $sum[$k] += $out[$i][$k];
     $sum['bonus'] += $bs;
   }
@@ -163,6 +167,7 @@ function vyk_bilance(array $raw, string $kdo, int $rok): array {
     foreach ($fronta as $f) $out[$f[0]]['otevreno'] = $f[1];
   }
   $sum['zbyva'] = $zam ? null : $sum['narok'] - $sum['uhrazeno'];
+  $sum['prispevek'] = in_array($kdo, VYK_PRISP_KDO, true) ? array_map(fn($p) => round($sum['narok'] * $p), VYK_PRISP) + ['celkem' => round($sum['narok'] * array_sum(VYK_PRISP))] : null;
   return ['kdo' => $kdo, 'jmeno' => (string) ($raw['jmena'][$kdo] ?? $kdo), 'rok' => $rok, 'zamestnanec' => $zam,
           'mesice' => array_values($out), 'soucet' => $sum, 'jmenaOrd' => array_filter($raw['jmena'] ?? [], fn($k) => strlen((string) $k) === 3, ARRAY_FILTER_USE_KEY),
           'cas' => $raw['cas'] ?? '', 'zastarale' => !empty($raw['zastarale']), 'archiv' => vyk_archiv_seznam($kdo, $rok)];
@@ -200,6 +205,11 @@ function vyk_pdf(array $b, int $mes, bool $uzavreno, string $kdoUzavrel = ''): s
     if ($x['zbyva'] > 0) $h .= $r(!empty($x['vyrovnal']) ? ($x['vyrovnal'] === $x['mesic'] ? 'Vyrovnáno dřívějším přeplatkem' : 'Vyrovnáno pozdější platbou (' . $MESx[$x['vyrovnal']] . ')') : 'Po všech platbách roku zbývá', !empty($x['vyrovnal']) ? '0 Kč' : sest_kc($x['otevreno']));
   }
   else $h .= $r('Zaměstnanec – výplata mzdou, doplatek se nepočítá', '');
+  if (!empty($x['prispevek'])) {
+    $pp = $x['prispevek'];
+    $h .= $r('Příspěvek na daně a pojištění (mimo nárok)', sest_kc($pp['celkem']), 'border-top:0.3mm solid #999');
+    $h .= $r('  sociální 17,5 % · zdravotní 6,75 % · daň 15 % z nároku', sest_kc($pp['soc']) . ' · ' . sest_kc($pp['zdr']) . ' · ' . sest_kc($pp['dan']), 'color:#666;font-size:7.5pt');
+  }
   $h .= '</table>';
   $h .= '<div class="sec" style="margin-top:4mm">Podle ordinací</div><table style="width:100%;margin-top:1mm"><tr class="gh"><td>ordinace</td><td class="r">výkonů</td><td class="r">obrat</td><td class="r">výměr</td></tr>';
   foreach ($x['ord'] as $o => $v) $h .= '<tr class="it"><td>' . $e($o) . ' ' . $e($b['jmenaOrd'][$o] ?? '') . '</td><td class="r">' . $v['n'] . '</td><td class="r">' . sest_kc($v['obrat']) . '</td><td class="r">' . sest_kc($v['vymer']) . '</td></tr>';
