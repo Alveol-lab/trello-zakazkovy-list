@@ -919,7 +919,7 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     /* kód zakázky jde s výmazem – backend ověří, že řádek patří této zakázce */
     return queued(function(){
       return tagFromCustomField().catch(function(){ return ''; }).then(function(tag){
-        return postToScript({ action:'clearEvidence', memberId: MEMBERS[letter], ref: ref, tag: tag || '' }, 'Vymazáno z ', 'Výmaz');
+        return postToScript({ action:'clearEvidence', memberId: MEMBERS[letter], ref: ref, tag: tag || '', kodPred: row.anid || undefined }, 'Vymazáno z ', 'Výmaz');
       });
     });
   }
@@ -2709,8 +2709,13 @@ html[data-theme="light"] .seg button[aria-pressed="true"]{background:#0C66E4;col
     if (pid && !c.target._href) { zapisBezi[pid] = 1; renderRows(); }
     if (c.same >= 0 && c.target && c.target._href) r = c.target;
     var ref = refOver || ((c.same >= 0) ? (c.target ? c.target._href || null : null) : (c.old ? c.old._href : null));
+    /* pojistka (krok 40): kód výkonu, který má řádek v listu podle karty.
+       Server odmítne přepis, když je v řádku jiný výkon – odkaz karty pak
+       ukazuje na cizí řádek (posun řádků, zkopírovaná karta).            */
+    var kodPred = !ref ? undefined
+      : (refOver ? r.anid : ((c.same >= 0) ? (c.target && c.target.anid) : (c.old && c.old.anid)));
     return postToScript({
-      memberId: MEMBERS[r.tid], ref: ref,
+      memberId: MEMBERS[r.tid], ref: ref, kodPred: kodPred || undefined,
       tag: card[1], patient: card[0], anid: r.anid, qa: r.qa,
       i: isPhase(r) ? r.outs : r.ord,
       ceny: r.ceny, lot: matLotText(r.mats), mat: matPayload(r.mats), due: card[2],
