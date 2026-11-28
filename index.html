@@ -13,7 +13,10 @@ window.TrelloPowerUp.initialize({
      Tlačítko vidí všichni na nástěnce, data pustí server jen technikům,
      recepci a Brigit (ověřený Trello JWT v tabulky-api.php).            */
   'board-buttons': function (t) {
-    return [{
+    /* VÝKAZ je ve zkušebním provozu jen pro H a Brigit (krok 41) */
+    var VYKAZ_TEST = ['588fa9e7e5db691bfe653bce', '6b00d5c2c5be2a396f89949e'], me = '';
+    try { me = (t.getContext() || {}).member || ''; } catch (e) {}
+    var b = [{
       icon: {
         /* dark = tmavý režim Trella → světlá ikona; light = světlý režim → tmavá */
         dark:  'https://www.denteo.space/zakazkovy-list/ikona-katalog-kniha-svetla.svg',
@@ -33,7 +36,25 @@ window.TrelloPowerUp.initialize({
           title: 'Katalog AutoLAB – materiál, výrobky a sklad'
         });
       }
+    }, {
+      /* VÝKAZ (krok 41): práce a odměny technika. Technik vidí jen sebe,
+         H, Jana, Marie a Brigit všechny. Přístup hlídá vykaz-api.php.  */
+      icon: {
+        dark:  'https://www.denteo.space/zakazkovy-list/ikona-metrika-graf-svetla.svg',
+        light: 'https://www.denteo.space/zakazkovy-list/ikona-metrika-graf-tmava.svg'
+      },
+      text: 'VÝKAZ',
+      callback: function (t) {
+        var theme = 'dark';
+        try { var ctx = t.getContext(); if (ctx && ctx.theme) theme = ctx.theme; } catch (e) {}
+        return t.modal({
+          url: t.signUrl('./vykaz.html', { theme: theme }),
+          fullscreen: true,
+          title: 'VÝKAZ – práce a odměny'
+        });
+      }
     }];
+    return VYKAZ_TEST.indexOf(me) !== -1 ? b : b.slice(0, 1);
   },
   'card-back-section': function (t) {
     var theme = 'dark', member = '', board = '';

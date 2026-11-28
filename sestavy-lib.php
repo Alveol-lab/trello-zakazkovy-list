@@ -17,7 +17,7 @@ const SEST_FONTS = __DIR__ . '/../../vendor/fonts-sestavy';      // Liberation S
 const SEST_IMG   = __DIR__ . '/sestavy-img';
 const SEST_SROVNANI = __DIR__ . '/../../sestavy-srovnani';       // PDF ze šablony vedle PDF ze Sheets (jen režim srovnani)
 const SEST_LOG   = __DIR__ . '/../../autolab-sestavy.log';
-const SEST_VERZE = ['prohlaseni' => 'prohlaseni-2', 'nabidka' => 'nabidka-1', 'mzd' => 'mzd-1', 'pvf' => 'pvf-1'];
+const SEST_VERZE = ['prohlaseni' => 'prohlaseni-2', 'nabidka' => 'nabidka-1', 'mzd' => 'mzd-1', 'pvf' => 'pvf-1', 'vykaz' => 'vykaz-1'];
 const SEST_FIRMA = 'Denteo v.o.s. | Koželská 209 / U Prádelny 851, 584 01 Ledeč nad Sázavou | IČ:06149928 | +420 721 066 100';
 
 function sest_cfg(): array { static $c = null; if ($c === null) { $c = is_file(SEST_CFG) ? (json_decode((string) file_get_contents(SEST_CFG), true) ?: []) : []; } return $c; }
