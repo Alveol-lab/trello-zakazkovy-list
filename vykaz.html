@@ -83,6 +83,7 @@ footer{padding:6px 14px;border-top:1px solid var(--bd);color:var(--txt-dim);font
 .zc{text-align:right;font-variant-numeric:tabular-nums;font-size:13px} .zc small{display:inline-block;width:40px;color:var(--txt-dim);margin-left:4px}
 #ziskVse{margin-top:8px}
 tr.pri td{border-top:1px solid var(--bd-soft);padding-top:8px}
+.fio-add{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap} .fio-add input,#fQ{background:var(--bg);color:var(--txt);border:1px solid var(--bd);border-radius:4px;padding:5px 8px;font:inherit} #fTok{min-width:420px}
 </style>
 </head>
 <body>
@@ -92,6 +93,7 @@ tr.pri td{border-top:1px solid var(--bd-soft);padding-top:8px}
     <button class="tab" data-tab="rok" aria-selected="false">Rok</button>
     <button class="tab" data-tab="podil" aria-selected="false">Podíl</button>
     <button class="tab" data-tab="archiv" aria-selected="false">Archiv PDF</button>
+    <button class="tab" data-tab="banka" aria-selected="false" id="tabBanka" hidden>Banka</button>
   </div>
   <select id="kdo" hidden title="technik"></select>
   <select id="rok" title="rok"></select>
@@ -118,7 +120,8 @@ tr.pri td{border-top:1px solid var(--bd-soft);padding-top:8px}
   function pct(a, b){ return b > 0 ? (100 * a / b) : 0; }
   function pcs(v){ return v.toLocaleString('cs-CZ', { maximumFractionDigits: v < 10 ? 1 : 0 }) + '\u00a0%'; }
 
-  function call(params, post){
+  function call(params, post, url){
+    var API = url || 'vykaz-api.php';
     return t.jwt().then(function(j){
       var o = { headers: { 'X-Trello-JWT': j }, cache: 'no-store', credentials: 'same-origin' };
       if (post) { o.method = 'POST'; o.headers['Content-Type'] = 'text/plain;charset=utf-8'; o.body = JSON.stringify(params); return fetch(API, o); }
@@ -138,6 +141,7 @@ tr.pri td{border-top:1px solid var(--bd-soft);padding-top:8px}
       }
       $('rok').innerHTML = d.roky.map(function(r){ return '<option value="' + r + '"' + (r === d.rok ? ' selected' : '') + '>20' + r + '</option>'; }).join('');
       $('who').textContent = d.jmeno + ' (' + d.kdo + ')';
+      $('tabBanka').hidden = !d.banka;
       $('info').textContent = 'data z EVIDENCE k ' + d.cas + (d.zastarale ? ' · EVIDENCE neodpověděla, starší data' : '');
       render();
     }).catch(function(e){ $('main').innerHTML = '<div class="msg err">Spojení selhalo: ' + esc(e && e.message ? e.message : e) + '</div>'; });
@@ -329,10 +333,60 @@ tr.pri td{border-top:1px solid var(--bd-soft);padding-top:8px}
     }).catch(function(e){ alert('Spojení selhalo: ' + (e && e.message ? e.message : e)); btn.disabled = false; });
   }
 
+  /* ---------- Banka Fio (krok 42, jen H a Brigit) ---------- */
+  var B = { ucty: null, sel: '', pohyby: null, smer: 'out', q: '', msg: '' };
+  function fio(p, post){ return call(p, post, 'fio-api.php'); }
+  function vBanka(){
+    if (!B.ucty) { $('main').innerHTML = '<div class="msg">Načítám banku…</div>'; fio({ akce: 'stav', auto: 1 }).then(function(r){ if (!r.ok) { $('main').innerHTML = '<div class="msg err">' + esc(r.error) + '</div>'; return; } B.ucty = r.ucty; B.smi = r.smi_pridat; if (!B.sel && r.ucty.length) B.sel = r.ucty[0].id; B.pohyby = null; vBanka(); }); return; }
+    var h = '<div class="card"><h3>Účty Fio – jen čtení pohybů</h3>';
+    if (B.msg) h += '<div class="note" style="color:var(--warn)">' + esc(B.msg) + '</div>';
+    h += '<table class="t"><tr><th>účet</th><th>název</th><th class="n">pohybů</th><th>období</th><th>staženo</th><th class="n">zůstatek</th><th></th></tr>';
+    B.ucty.forEach(function(u){
+      h += '<tr' + (u.id === B.sel ? ' style="background:var(--bd-soft)"' : '') + '><td><a href="#" data-sel="' + esc(u.id) + '">' + esc(u.ucet) + '</a></td><td>' + esc(u.nazev) + '</td><td class="n">' + u.pohybu + '</td><td>' + esc((u.od || '') + ' – ' + (u.do || '')) + '</td><td>' + esc(u.stazeno ? u.stazeno.replace('T', ' ').slice(0, 16) : '') + (u.chyba ? ' <span style="color:var(--bad)">' + esc(u.chyba) + '</span>' : '') + '</td><td class="n">' + (u.zustatek == null ? '' : kc(u.zustatek)) + '</td>'
+        + '<td class="n"><button class="btn" data-st="' + esc(u.id) + '">stáhnout nové</button> <button class="btn" data-rok="' + esc(u.id) + '" title="nejdřív v internetbankingu Fio odemkni historii u tokenu (platí 10 minut)">celý rok</button>' + (B.smi ? ' <button class="btn" data-del="' + esc(u.id) + '">odebrat token</button>' : '') + '</td></tr>';
+    });
+    if (!B.ucty.length) h += '<tr><td colspan="7" style="color:var(--txt-dim)">Zatím není uložený žádný token.</td></tr>';
+    h += '</table>';
+    if (B.smi) h += '<div class="fio-add"><input id="fNazev" placeholder="název účtu (např. Denteo provozní)" maxlength="60"><input id="fTok" type="password" placeholder="token Fio (64 znaků, Pouze sledovat účet)" autocomplete="off" spellcheck="false"><button class="btn prim" id="fUloz">uložit token</button></div>'
+      + '<div class="note">Token se uloží jen na server mimo web a už se nikdy nezobrazí. Fio pouští jeden dotaz za 30 s, starší data než 90 dní jen 10 minut po odemčení historie.</div>';
+    h += '</div>';
+    if (B.sel) {
+      h += '<div class="card" style="margin-top:12px"><div class="zh"><h3>Pohyby 20' + S.rok + '</h3><div class="seg"><button class="btn tab" id="fOut" aria-selected="' + (B.smer === 'out') + '">odchozí</button><button class="btn tab" id="fIn" aria-selected="' + (B.smer === 'in') + '">příchozí</button><button class="btn tab" id="fAll" aria-selected="' + (B.smer === 'all') + '">vše</button></div><input id="fQ" placeholder="hledat (název, VS, zpráva, částka)" value="' + esc(B.q) + '" style="min-width:260px"></div><div id="fList"><div class="msg">Načítám pohyby…</div></div></div>';
+    }
+    $('main').innerHTML = h;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-sel]'), function(a){ a.onclick = function(e){ e.preventDefault(); B.sel = a.getAttribute('data-sel'); B.pohyby = null; vBanka(); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-st],[data-rok]'), function(b){ b.onclick = function(){
+      var id = b.getAttribute('data-st') || b.getAttribute('data-rok'), p = { akce: 'stahnout', id: id };
+      if (b.hasAttribute('data-rok')) p.od = '20' + S.rok + '-01-01';
+      b.disabled = true; fio(p, true).then(function(r){ B.msg = r.ok ? ('Staženo, nových pohybů: ' + r.nove) : r.error; if (r.ucty) B.ucty = r.ucty; B.sel = id; B.pohyby = null; vBanka(); });
+    }; });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-del]'), function(b){ b.onclick = function(){
+      if (!confirm('Odebrat token tohoto účtu? Stažené pohyby zůstanou.')) return;
+      fio({ akce: 'odebrat', id: b.getAttribute('data-del') }, true).then(function(r){ B.msg = r.ok ? 'Token odebrán.' : r.error; if (r.ucty) B.ucty = r.ucty; vBanka(); });
+    }; });
+    if ($('fUloz')) $('fUloz').onclick = function(){
+      var tok = $('fTok').value.trim(); if (!tok) return;
+      this.disabled = true;
+      fio({ akce: 'pridat', nazev: $('fNazev').value, token: tok }, true).then(function(r){ $('fTok').value = ''; B.msg = r.ok ? 'Token ověřen a uložen.' : r.error; if (r.ucty) B.ucty = r.ucty; if (r.ok) { B.sel = r.id; B.pohyby = null; } vBanka(); });
+    };
+    if (!B.sel) return;
+    ['fOut', 'fIn', 'fAll'].forEach(function(k, i){ $(k).onclick = function(){ B.smer = ['out', 'in', 'all'][i]; vBanka(); }; });
+    $('fQ').oninput = function(){ B.q = this.value; seznam(); };
+    function seznam(){
+      var q = B.q.trim().toLowerCase();
+      var r = B.pohyby.filter(function(p){ return (B.smer === 'all' || (B.smer === 'out' ? p.castka < 0 : p.castka > 0)) && (!q || [p.nazev, p.vs, p.zprava, p.ident, p.protiucet, p.komentar, String(Math.abs(p.castka))].join(' ').toLowerCase().indexOf(q) >= 0); });
+      var sum = r.reduce(function(a, p){ return a + p.castka; }, 0);
+      $('fList').innerHTML = '<div class="note">' + r.length + ' pohybů · součet ' + kc(sum) + '</div><table class="t"><tr><th>datum</th><th class="n">částka</th><th>protiúčet</th><th>název</th><th>VS</th><th>zpráva / identifikace</th><th>typ</th></tr>'
+        + r.slice(0, 500).map(function(p){ return '<tr><td>' + esc(p.datum) + '</td><td class="n" style="color:' + (p.castka < 0 ? 'var(--txt)' : 'var(--good)') + '">' + kc(p.castka) + '</td><td>' + esc(p.protiucet) + '</td><td>' + esc(p.nazev) + '</td><td>' + esc(p.vs) + '</td><td>' + esc([p.zprava, p.ident, p.komentar].filter(Boolean).join(' · ')) + '</td><td style="color:var(--txt-dim)">' + esc(p.typ) + '</td></tr>'; }).join('') + '</table>';
+    }
+    if (B.pohyby) seznam();
+    else fio({ akce: 'pohyby', id: B.sel, od: '20' + S.rok + '-01-01', do: '20' + S.rok + '-12-31' }).then(function(r){ if (!r.ok) { $('fList').innerHTML = '<div class="msg err">' + esc(r.error) + '</div>'; return; } B.pohyby = r.pohyby; seznam(); });
+  }
+
   function render(){
     if (!S.d) return;
     if (S.mes > aktualni()) S.mes = aktualni();
-    ({ mesic: vMesic, rok: vRok, podil: vPodil, archiv: vArchiv })[S.tab]();
+    ({ mesic: vMesic, rok: vRok, podil: vPodil, archiv: vArchiv, banka: vBanka })[S.tab]();
   }
   Array.prototype.forEach.call(document.querySelectorAll('.tabs .tab'), function(b){
     b.onclick = function(){
