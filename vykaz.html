@@ -9,20 +9,30 @@
 /* =========================================================
    VÝKAZ (krok 41) – přehled práce a odměn technika
    Paleta jako Zakázkový list 3.1 a Katalog (tmavá / světlá).
-   Mentorský bonus je vždy fialový (rozhodnuto 28. 11. 2026).
+   Barvy podle významu peněz – viz STYLY.md (rozhodnuto 28. 11. 2026):
+   mzdy fialové (více tónů), bonus lila, obrat modrý (tmavší obecně,
+   světlejší čistý), náklady červené, zbývá doplatit oranžová,
+   zisk Dentea tyrkysový, investice limetková, zelená jen ovládání
+   a „v pořádku“.
    ========================================================= */
 :root{
   --bg:#242528; --panel:#393B44; --head:#1A1A1A; --btn:#3D4451;
   --txt:#C8C9CC; --txt-dim:#939497; --txt-strong:#FFFFFF;
   --bd:#575E6E; --bd-soft:#3A3C42; --act:#00A794; --act-txt:#0C343D;
-  --good:#5CE4AB; --pay:#B1FFE9; --warn:#E0A526; --bad:#E2686B; --bon:#A779E9; --loni:#6E6F72;
+  --good:#5CE4AB; --bad:#E2686B; --loni:#6E6F72;
+  --mzda:#8B6CF0; --mzda-l:#C2B2FF; --mzda-d:#5E43C2; --bon:#E3A6EE;
+  --obrat:#2F6BD8; --obrat-l:#7DB4FF; --naklad:#E2686B; --naklad-l:#F2A3A5; --warn:#F28C38;
+  --pay:var(--mzda-l); --zisk:#1FC7B6; --zisk-l:#7FE8DC; --investice:#C8E64A;
   color-scheme:dark;
 }
 html[data-theme="light"]{
   --bg:#FFFFFF; --panel:#F0F1F3; --head:#DCDFE4; --btn:#DCDFE4;
   --txt:#172B4D; --txt-dim:#626F86; --txt-strong:#091E42;
   --bd:#C1C7D0; --bd-soft:#EBECF0; --act:#046E62; --act-txt:#FFFFFF;
-  --good:#1F845A; --pay:#12D785; --warn:#A54800; --bad:#C9372C; --bon:#7A3FB5; --loni:#A5ADBA;
+  --good:#1F845A; --bad:#C9372C; --loni:#A5ADBA;
+  --mzda:#6E4FD8; --mzda-l:#A48DF2; --mzda-d:#4A2FA8; --bon:#B256B8;
+  --obrat:#1C4FA8; --obrat-l:#4C8DEB; --naklad:#C9372C; --naklad-l:#E07A73; --warn:#C25100;
+  --pay:var(--mzda-l); --zisk:#00897B; --zisk-l:#26B3A3; --investice:#7FA00E;
   color-scheme:light;
 }
 *{box-sizing:border-box}
@@ -55,6 +65,7 @@ main{flex:1;overflow:auto;padding:14px}
 .bil tr.sum td{font-weight:700;color:var(--txt-strong);border-top:1px solid var(--bd);font-size:15px}
 .bil tr.bon td{color:var(--bon)}
 .bil tr.dim td{color:var(--txt-dim);font-size:12px}
+.bil td.mz,.bil tr.sum td.mz,td.mz{color:var(--mzda-l)} .bil tr.dim td.nk{color:var(--naklad-l)} td.ob{color:var(--obrat-l)}
 .bil tr.zb td{font-weight:700;font-size:15px}
 .zbp{color:var(--warn)} .zbm{color:var(--good)}
 table.t{border-collapse:collapse;width:100%}
@@ -69,7 +80,7 @@ details summary{cursor:pointer;color:var(--txt-strong);font-weight:600;margin:12
 .leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 .pod{display:grid;grid-template-columns:110px 1fr 70px;gap:6px 10px;align-items:center}
 .pod .bar{height:16px;background:var(--bd-soft);border-radius:3px;overflow:hidden}
-.pod .bar span{display:block;height:100%;background:var(--act)}
+.pod .bar span{display:block;height:100%;background:var(--obrat)}
 .pod .pc{text-align:right;font-weight:600;color:var(--txt-strong);font-variant-numeric:tabular-nums}
 .pod .lb small{display:block;color:var(--txt-dim);font-size:11px}
 .note{color:var(--txt-dim);font-size:12px;margin-top:8px}
@@ -79,7 +90,7 @@ footer{padding:6px 14px;border-top:1px solid var(--bd);color:var(--txt-dim);font
 .zg{display:grid;grid-template-columns:minmax(180px,32%) 1fr 110px;gap:5px 12px;align-items:center}
 .zl{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .zl small{color:var(--txt-dim)}
 .zb2{position:relative;height:14px;background:var(--bd-soft);border-radius:3px;overflow:hidden}
-.zb2 .zv{position:absolute;left:0;top:0;bottom:0;background:var(--act);border-radius:3px}
+.zb2 .zv{position:absolute;left:0;top:0;bottom:0;background:var(--mzda);border-radius:3px} .zb2 .zv.ob{background:var(--obrat)}
 .zc{text-align:right;font-variant-numeric:tabular-nums;font-size:13px} .zc small{display:inline-block;width:40px;color:var(--txt-dim);margin-left:4px}
 #ziskVse{margin-top:8px}
 tr.pri td{border-top:1px solid var(--bd-soft);padding-top:8px}
@@ -175,7 +186,7 @@ tr.pri td{border-top:1px solid var(--bd-soft);padding-top:8px}
         ? esc(o.k) + ' <small>' + esc(Object.keys(o.kody).join(', ')) + ' · ' + o.ks + ' ks</small>'
         : esc(o.k) + ' <small>' + esc(d.jmenaOrd[o.k] || '') + ' · ' + o.n + '×</small>';
       h += '<div class="zl" title="příjem ' + kc(o.vymer) + ' · obrat ' + kc(o.obrat) + '">' + lb + '</div>'
-        + '<div class="zb2"><span class="zv" style="width:' + (o[f] / max * 100).toFixed(1) + '%"></span></div>'
+        + '<div class="zb2"><span class="zv' + (f === 'obrat' ? ' ob' : '') + '" style="width:' + (o[f] / max * 100).toFixed(1) + '%"></span></div>'
         + '<div class="zc">' + kc(o[f]) + '<small>' + (sum ? Math.round(o[f] / sum * 100) : 0) + ' %</small></div>';
     });
     h += '</div>';
@@ -210,10 +221,10 @@ tr.pri td{border-top:1px solid var(--bd-soft);padding-top:8px}
       + '<span class="sp"></span>' + (d.globalni ? '' : '<button class="btn prim" id="pdf">PDF výkazu</button>')
       + (d.admin && !d.globalni && !a && (d.rok * 100 + S.mes) < (now.getFullYear() % 100) * 100 + now.getMonth() + 1 ? '<button class="btn" id="uzav">uzavřít měsíc</button>' : '') + '</div>';
     h += '<div class="grid"><div class="card"><h3>Bilance</h3><table class="bil">';
-    if (x.srazka > 0) h += '<tr class="dim"><td>Odměna podle evidence</td><td class="n">' + kc(x.q) + '</td></tr><tr class="dim"><td>' + (x.srazkaPct ? 'srážka ' + Math.round(x.srazkaPct * 100) + ' %' : 'srážky zaměstnance') + '</td><td class="n">− ' + kc(x.srazka) + '</td></tr>';
-    h += '<tr><td><b>Vyděláno (výměr)</b></td><td class="n"><b>' + kc(x.vymer) + '</b></td></tr>';
+    if (x.srazka > 0) h += '<tr class="dim"><td>Odměna podle evidence</td><td class="n">' + kc(x.q) + '</td></tr><tr class="dim"><td>' + (x.srazkaPct ? 'srážka ' + Math.round(x.srazkaPct * 100) + ' %' : 'srážky zaměstnance') + '</td><td class="n nk">− ' + kc(x.srazka) + '</td></tr>';
+    h += '<tr><td><b>Vyděláno (výměr)</b></td><td class="n mz"><b>' + kc(x.vymer) + '</b></td></tr>';
     x.bonus.forEach(function(b){ h += '<tr class="bon"><td>' + (b.text ? '+ ' + esc(b.text) : b.typ === 'abx' ? '+ Bonus ABX <span style="color:var(--txt-dim)">(Addon Benefit Extra, ' + Math.round(b.ks) + ' ks)</span>' : '+ mentorský bonus ' + Math.round(b.pct * 100) + ' % z výměru ' + esc(b.z)) + '</td><td class="n">' + kc(b.castka) + '</td></tr>'; });
-    h += '<tr class="sum"><td>= nárok</td><td class="n">' + kc(x.narok) + '</td></tr>';
+    h += '<tr class="sum"><td>= nárok</td><td class="n mz">' + kc(x.narok) + '</td></tr>';
     if (d.globalni) h += '<tr class="dim"><td colspan="2">Zbývá a saldo jsou bez Honzy Urbánka (zaměstnanec, výplata mzdou).</td></tr>';
     h += '<tr><td>Uhrazeno od Dentea</td><td class="n">' + kc(x.uhrDenteo) + '</td></tr>';
     if (x.uhrLekari) h += '<tr><td>Uhrazeno přímo lékaři</td><td class="n">' + kc(x.uhrLekari) + '</td></tr>';
@@ -242,7 +253,7 @@ tr.pri td{border-top:1px solid var(--bd-soft);padding-top:8px}
     h += '</div></div>';
     if (d.globalni) {
       h += '<div class="card" style="margin-top:12px"><h3>Podle techniků – ' + MES[S.mes] + '</h3><table class="t"><tr><th>technik</th><th class="n">výkonů</th><th class="n">obrat</th><th class="n">výměr</th><th class="n">bonus</th><th class="n">nárok</th><th class="n">uhrazeno</th><th class="n">rozdíl</th></tr>'
-        + x.technici.map(function(t){ return '<tr><td>' + esc(t.kdo) + ' <span style="color:var(--txt-dim)">' + esc(t.jmeno) + '</span></td><td class="n">' + t.n + '</td><td class="n">' + kc(t.obrat) + '</td><td class="n">' + kc(t.vymer) + '</td><td class="n b">' + (t.bonus ? kc(t.bonus) : '') + '</td><td class="n">' + kc(t.narok) + '</td><td class="n">' + kc(t.uhrazeno) + '</td><td class="n">' + (t.zbyva === null ? '<span style="color:var(--txt-dim)">mzda</span>' : '<span class="' + (t.zbyva > 0 ? 'zbp' : 'zbm') + '">' + kc(t.zbyva) + '</span>') + '</td></tr>'; }).join('')
+        + x.technici.map(function(t){ return '<tr><td>' + esc(t.kdo) + ' <span style="color:var(--txt-dim)">' + esc(t.jmeno) + '</span></td><td class="n">' + t.n + '</td><td class="n ob">' + kc(t.obrat) + '</td><td class="n mz">' + kc(t.vymer) + '</td><td class="n b">' + (t.bonus ? kc(t.bonus) : '') + '</td><td class="n">' + kc(t.narok) + '</td><td class="n">' + kc(t.uhrazeno) + '</td><td class="n">' + (t.zbyva === null ? '<span style="color:var(--txt-dim)">mzda</span>' : '<span class="' + (t.zbyva > 0 ? 'zbp' : 'zbm') + '">' + kc(t.zbyva) + '</span>') + '</td></tr>'; }).join('')
         + '<tr class="tot"><td>celkem</td><td class="n">' + x.n + '</td><td class="n">' + kc(x.obrat) + '</td><td class="n">' + kc(x.vymer) + '</td><td class="n b">' + (x.bonusSum ? kc(x.bonusSum) : '') + '</td><td class="n">' + kc(x.narok) + '</td><td class="n">' + kc(x.uhrazeno) + '</td><td class="n">' + kc(x.zbyva) + '</td></tr></table></div>';
     }
     h += ziskKarta(x);
@@ -268,14 +279,14 @@ tr.pri td{border-top:1px solid var(--bd-soft);padding-top:8px}
       var cx = L + cw * i + cw / 2, x0 = cx - bw / 2;
       if (x.loni.narok) s += '<rect x="' + (x0 - 4) + '" y="' + (H - B - x.loni.narok * sc) + '" width="' + (bw + 8) + '" height="' + (x.loni.narok * sc) + '" fill="none" stroke="var(--loni)" stroke-dasharray="3 2"><title>loni ' + kc(x.loni.narok) + '</title></rect>';
       var yv = H - B - x.vymer * sc;
-      s += '<rect x="' + x0 + '" y="' + yv + '" width="' + bw + '" height="' + (x.vymer * sc) + '" fill="var(--act)"><title>výměr ' + kc(x.vymer) + '</title></rect>';
+      s += '<rect x="' + x0 + '" y="' + yv + '" width="' + bw + '" height="' + (x.vymer * sc) + '" fill="var(--mzda)"><title>výměr ' + kc(x.vymer) + '</title></rect>';
       if (x.bonusSum) s += '<rect x="' + x0 + '" y="' + (yv - x.bonusSum * sc) + '" width="' + bw + '" height="' + (x.bonusSum * sc) + '" fill="var(--bon)"><title>bonus ' + kc(x.bonusSum) + '</title></rect>';
       if (x.uhrazeno) pts.push([cx, H - B - x.uhrazeno * sc, x.uhrazeno]);
       s += '<text x="' + cx + '" y="' + (H - 8) + '" text-anchor="middle" font-size="11" fill="var(--txt-dim)">' + MESK[i + 1] + '</text>';
     });
-    pts.forEach(function(p){ s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="4.5" fill="var(--pay)" stroke="var(--head)" stroke-width="1.5"><title>uhrazeno ' + kc(p[2]) + '</title></circle>'; });
+    pts.forEach(function(p){ s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="4.5" fill="var(--mzda-d)" stroke="var(--mzda-l)" stroke-width="1.5"><title>uhrazeno ' + kc(p[2]) + '</title></circle>'; });
     s += '</svg>';
-    var h = '<div class="card"><h3>Rok 20' + d.rok + '</h3><div class="leg"><span><i style="background:var(--act)"></i>výměr</span><span><i style="background:var(--bon)"></i>' + (ms.some(function(x){ return x.bonus.some(function(b){ return b.typ === 'abx'; }); }) ? 'Bonus ABX' : 'mentorský bonus') + '</span><span><i style="background:var(--pay);border-radius:50%"></i>uhrazeno</span><span><i style="border:1px dashed var(--loni)"></i>loni (nárok)</span></div>' + s + '</div>';
+    var h = '<div class="card"><h3>Rok 20' + d.rok + '</h3><div class="leg"><span><i style="background:var(--mzda)"></i>výměr</span><span><i style="background:var(--bon)"></i>' + (ms.some(function(x){ return x.bonus.some(function(b){ return b.typ === 'abx'; }); }) ? 'Bonus ABX' : 'mentorský bonus') + '</span><span><i style="background:var(--mzda-d);border:1px solid var(--mzda-l);border-radius:50%"></i>uhrazeno</span><span><i style="border:1px dashed var(--loni)"></i>loni (nárok)</span></div>' + s + '</div>';
     h += '<div class="card" style="margin-top:14px"><table class="t"><tr><th>měsíc</th><th class="n">výkonů</th><th class="n">výměr</th><th class="n">bonus</th><th class="n">nárok</th><th class="n">uhrazeno</th><th class="n">' + (d.zamestnanec ? '' : 'rozdíl') + '</th><th class="n">' + (d.zamestnanec ? '' : 'saldo od ledna') + '</th>' + (d.soucet.prispevek ? '<th class="n">příspěvek na daně</th>' : '') + '<th class="n">loni</th><th class="n">rozdíl k loňsku</th></tr>';
     var run = 0, ln = 0, lx = 0;
     ms.forEach(function(x, i){
@@ -296,7 +307,7 @@ tr.pri td{border-top:1px solid var(--bd-soft);padding-top:8px}
     var h = '<div class="card"><h3>' + nazev + '</h3><div class="pod">';
     OBL.forEach(function(o){
       var a = o[0] === 'G' ? (my.F + my.R + my.O + my.U) : my[o[0]], b = lab[o[0]] || 0, p = pct(a, b);
-      h += '<div class="lb">' + o[1] + '<small>' + kc(a) + '</small></div><div class="bar"><span style="width:' + Math.min(100, p) + '%' + (o[0] === 'G' ? ';background:var(--good)' : '') + '"></span></div><div class="pc">' + (b ? pcs(p) : '–') + '</div>';
+      h += '<div class="lb">' + o[1] + '<small>' + kc(a) + '</small></div><div class="bar"><span style="width:' + Math.min(100, p) + '%' + (o[0] === 'G' ? ';background:var(--obrat-l)' : '') + '"></span></div><div class="pc">' + (b ? pcs(p) : '–') + '</div>';
     });
     return h + '</div></div>';
   }
