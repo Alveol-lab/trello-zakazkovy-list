@@ -1,0 +1,32 @@
+
+/* =====================================================================
+   krok 41 – VÝKAZ: data přehledu práce a odměn technika (denteo.space)
+   Volá jen server (klíč PRIJEM_KEY) přes sestavaData({typ:'vykaz', rok}).
+   Vrací řádky EXP sledovaného a předchozího roku (bez nabídek) a MZDY.
+   Nic nezapisuje. Výpočty (srážky, bonusy, podíly) dělá server.
+   ===================================================================== */
+function vykazData_(V, D, S, body) {
+  var rok = Number(body.rok);
+  if (!rok) return { ok: false, error: 'chybí rok' };
+  var roky = {}; roky[rok] = 1; roky[rok - 1] = 1;
+  var rows = [];
+  for (var i = 0; i < V.length; i++) {
+    var r = V[i], k = Number(r[10]), m = Number(r[9]);
+    if (!roky[k] || !(m >= 1 && m <= 12) || String(r[2]).trim() === '' || sestNab_(r[12])) continue;
+    rows.push([String(r[2]).trim(), m, k, String(r[8]).trim(), D[i][6], sestNum_(r[7]),
+               sestNum_(r[15]), sestNum_(r[16]), String(r[1]).trim(), String(r[0]), D[i][5], D[i][4], String(r[3])]);
+  }
+  var mz = [], sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('MZDY');
+  if (sh && sh.getLastRow() > 2) {
+    var mv = sh.getRange(3, 1, sh.getLastRow() - 2, 8).getValues(), md = sh.getRange(3, 1, sh.getLastRow() - 2, 8).getDisplayValues();
+    for (var j = 0; j < mv.length; j++) {
+      var y = Number(mv[j][3]), mm = Number(mv[j][2]);
+      if (!roky[y] || !(mm >= 1 && mm <= 12) || String(mv[j][0]).trim() === '') continue;
+      mz.push([String(mv[j][0]).trim(), sestNum_(mv[j][1]), mm, y, md[j][4], md[j][5], md[j][6], md[j][7]]);
+    }
+  }
+  var jm = {};
+  Object.keys(S).forEach(function (k) { if (k.length <= 3) jm[k] = S[k].jmeno || ''; });
+  return { ok: true, typ: 'vykaz', data: { rok: rok, rows: rows, mzdy: mz, jmena: jm,
+           cas: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'd. M. yyyy H:mm') } };
+}
