@@ -74,7 +74,7 @@ details summary{cursor:pointer;color:var(--txt-strong);font-weight:600;margin:12
 .pod .lb small{display:block;color:var(--txt-dim);font-size:11px}
 .note{color:var(--txt-dim);font-size:12px;margin-top:8px}
 footer{padding:6px 14px;border-top:1px solid var(--bd);color:var(--txt-dim);font-size:12px;display:flex;gap:12px}
-.zh{display:flex;align-items:center;gap:12px;margin-bottom:8px} .zh h3{margin:0}
+.zh{display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap} .zh h3{margin:0}
 .seg{display:flex;gap:4px} .seg .tab{padding:4px 10px;font-size:12px}
 .zg{display:grid;grid-template-columns:minmax(180px,32%) 1fr 110px;gap:5px 12px;align-items:center}
 .zl{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .zl small{color:var(--txt-dim)}
@@ -145,47 +145,52 @@ footer{padding:6px 14px;border-top:1px solid var(--bd);color:var(--txt-dim);font
   function uzavreno(i){ return S.d.archiv && S.d.archiv[String(i)]; }
 
   /* ---------- Měsíc ---------- */
-  /* Zisk technika (výměr) v měsíci – podle ordinací / podle zakázek */
+  /* Výnos v měsíci – podle ordinací / podle typu práce (výrobku); metrika příjem technika nebo obrat */
   function ziskRady(x, pohled){
-    var m = {}, r = [];
+    var m = {}, r = [], nz = S.d.nazvy || {};
     x.vykony.forEach(function(v){
-      var k = pohled === 'zak' ? (v.tag || v.ref) : (v.ord || '?');
-      if (!m[k]) { m[k] = { k: k, vymer: 0, obrat: 0, n: 0, pac: v.pac, ord: v.ord }; r.push(m[k]); }
-      m[k].vymer += v.odm; m[k].obrat += v.obrat; m[k].n++;
+      var k = pohled === 'typ' ? (nz[v.kod] || v.kod || '?') : (v.ord || '?');
+      if (!m[k]) { m[k] = { k: k, vymer: 0, obrat: 0, n: 0, ks: 0, kody: {} }; r.push(m[k]); }
+      m[k].vymer += v.odm; m[k].obrat += v.obrat; m[k].n++; m[k].ks += Number(v.q) || 0; m[k].kody[v.kod] = 1;
     });
-    return r.sort(function(a, b){ return b.vymer - a.vymer; });
+    var f = S.zMet === 'obrat' ? 'obrat' : 'vymer';
+    return r.sort(function(a, b){ return b[f] - a[f]; });
   }
   function ziskGraf(x){
-    var pohled = S.zisk || 'ord', r = ziskRady(x, pohled), all = S.ziskVse, d = S.d;
+    var pohled = S.zisk || 'ord', f = S.zMet === 'obrat' ? 'obrat' : 'vymer', r = ziskRady(x, pohled), all = S.ziskVse, d = S.d;
     if (!r.length) return '<div class="note">V tomto měsíci nejsou zapsané výkony.</div>';
-    var max = r[0].vymer || 1, sum = r.reduce(function(a, b){ return a + b.vymer; }, 0), lim = 15;
+    var max = r[0][f] || 1, sum = r.reduce(function(a, b){ return a + b[f]; }, 0), lim = 15;
     var rows = (all || r.length <= lim + 3) ? r : r.slice(0, lim);
     var h = '<div class="zg">';
     rows.forEach(function(o){
-      var lb = pohled === 'zak'
-        ? esc(o.pac || o.k) + ' <small>' + esc(o.ord || '') + ' · ' + esc(o.k) + ' · ' + o.n + '×</small>'
+      var lb = pohled === 'typ'
+        ? esc(o.k) + ' <small>' + esc(Object.keys(o.kody).join(', ')) + ' · ' + o.ks + ' ks</small>'
         : esc(o.k) + ' <small>' + esc(d.jmenaOrd[o.k] || '') + ' · ' + o.n + '×</small>';
-      h += '<div class="zl" title="obrat ' + kc(o.obrat) + '">' + lb + '</div>'
-        + '<div class="zb2"><span class="zv" style="width:' + (o.vymer / max * 100).toFixed(1) + '%"></span></div>'
-        + '<div class="zc">' + kc(o.vymer) + '<small>' + (sum ? Math.round(o.vymer / sum * 100) : 0) + ' %</small></div>';
+      h += '<div class="zl" title="příjem ' + kc(o.vymer) + ' · obrat ' + kc(o.obrat) + '">' + lb + '</div>'
+        + '<div class="zb2"><span class="zv" style="width:' + (o[f] / max * 100).toFixed(1) + '%"></span></div>'
+        + '<div class="zc">' + kc(o[f]) + '<small>' + (sum ? Math.round(o[f] / sum * 100) : 0) + ' %</small></div>';
     });
     h += '</div>';
     if (rows.length < r.length) h += '<button class="btn" id="ziskVse">zobrazit všech ' + r.length + '</button>';
     return h;
   }
   function ziskKarta(x){
-    var p = S.zisk || 'ord';
-    return '<div class="card" style="margin-top:12px"><div class="zh"><h3>Zisk v měsíci – ' + MES[S.mes] + '</h3>'
+    var p = S.zisk || 'ord', f = S.zMet || 'vymer';
+    return '<div class="card" style="margin-top:12px"><div class="zh"><h3>Výnos v měsíci – ' + MES[S.mes] + '</h3>'
       + '<div class="seg"><button class="btn tab" id="zOrd" aria-selected="' + (p === 'ord') + '">podle ordinací</button>'
-      + '<button class="btn tab" id="zZak" aria-selected="' + (p === 'zak') + '">podle zakázek</button></div></div>'
+      + '<button class="btn tab" id="zTyp" aria-selected="' + (p === 'typ') + '">podle typu práce</button></div>'
+      + '<div class="seg"><button class="btn tab" id="zVym" aria-selected="' + (f === 'vymer') + '">tvůj příjem</button>'
+      + '<button class="btn tab" id="zObr" aria-selected="' + (f === 'obrat') + '">obrat</button></div></div>'
       + '<div id="zg">' + ziskGraf(x) + '</div>'
-      + '<div class="note">Zisk = tvůj výměr (odměna po srážce, bez bonusu). Procento = podíl na výměru měsíce. Obrat ordinace/zakázky je v bublině po najetí myší.</div></div>';
+      + '<div class="note">Tvůj příjem = výměr (odměna po srážce, bez bonusu), obrat = cena pro lékaře. Procento = podíl na celku měsíce. Typ práce se určuje podle názvu výrobku v Katalogu.</div></div>';
   }
   function zapojZisk(x){
-    function set(p){ S.zisk = p; S.ziskVse = false; $('zOrd').setAttribute('aria-selected', p === 'ord'); $('zZak').setAttribute('aria-selected', p === 'zak'); kresli(); }
-    function kresli(){ $('zg').innerHTML = ziskGraf(x); var b = $('ziskVse'); if (b) b.onclick = function(){ S.ziskVse = true; kresli(); }; }
-    $('zOrd').onclick = function(){ set('ord'); };
-    $('zZak').onclick = function(){ set('zak'); };
+    function sel(){ [['zOrd', S.zisk !== 'typ'], ['zTyp', S.zisk === 'typ'], ['zVym', S.zMet !== 'obrat'], ['zObr', S.zMet === 'obrat']].forEach(function(z){ $(z[0]).setAttribute('aria-selected', z[1]); }); }
+    function kresli(){ sel(); $('zg').innerHTML = ziskGraf(x); var b = $('ziskVse'); if (b) b.onclick = function(){ S.ziskVse = true; kresli(); }; }
+    $('zOrd').onclick = function(){ S.zisk = 'ord'; S.ziskVse = false; kresli(); };
+    $('zTyp').onclick = function(){ S.zisk = 'typ'; S.ziskVse = false; kresli(); };
+    $('zVym').onclick = function(){ S.zMet = 'vymer'; kresli(); };
+    $('zObr').onclick = function(){ S.zMet = 'obrat'; kresli(); };
     kresli();
   }
   function vMesic(){

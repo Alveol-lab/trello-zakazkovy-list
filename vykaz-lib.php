@@ -184,3 +184,28 @@ function vyk_pdf(array $b, int $mes, bool $uzavreno, string $kdoUzavrel = ''): s
   $p->WriteHTML($h, \Mpdf\HTMLParserMode::HTML_BODY);
   return $p->Output('', 'S');
 }
+
+/* Názvy výrobků z SQL (t2p_produkt) pro rozpad podle typu práce.
+   Kód se zkusí přesně, jinak bez koncového písmenného přípony (110411D → 110411).
+   Při nedostupném SQL vrátí prázdné pole – okno pak ukáže kódy.            */
+function vyk_nazvy(array $kody): array {
+  $kody = array_values(array_unique(array_filter(array_map('strval', $kody), 'strlen')));
+  if (!$kody) return [];
+  try {
+    require_once __DIR__ . '/mat-lib.php';
+    $zk = $kody;
+    foreach ($kody as $k) { $z = preg_replace('~[A-Za-z/]+$~', '', $k); if ($z !== '' && $z !== $k) $zk[] = $z; }
+    $zk = array_values(array_unique($zk));
+    $st = mat_pdo()->prepare('SELECT kod, nazev FROM t2p_produkt WHERE kod IN (' . implode(',', array_fill(0, count($zk), '?')) . ')');
+    $st->execute($zk);
+    $m = [];
+    foreach ($st->fetchAll(PDO::FETCH_NUM) as $r) $m[mb_strtoupper((string) $r[0])] = trim((string) $r[1]);
+    $out = [];
+    foreach ($kody as $k) {
+      $u = mb_strtoupper($k); $z = preg_replace('~[A-Z/]+$~', '', $u);
+      if (isset($m[$u])) $out[$k] = $m[$u];
+      elseif ($z !== '' && isset($m[$z])) $out[$k] = $m[$z];
+    }
+    return $out;
+  } catch (Throwable $e) { return []; }
+}

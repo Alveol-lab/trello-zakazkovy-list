@@ -116,6 +116,9 @@ try {
   $b['ok'] = true; $b['admin'] = $admin; $b['ja'] = $ja;
   $b['technici'] = $admin ? array_map(fn($k) => ['kdo' => $k, 'jmeno' => (string) ($raw['jmena'][$k] ?? $k)], VYK_KDO) : [];
   $b['roky'] = range(25, $rokNow);
+  $kd = [];
+  foreach ($b['mesice'] as $mm) foreach ($mm['vykony'] as $v) $kd[] = $v['kod'];
+  $b['nazvy'] = (object) vyk_nazvy($kd);
   vyk_log($actor, 'data ' . $kdo . ' ' . $rok, 'ok');
   va_out($b);
 } catch (Throwable $e) {
