@@ -204,7 +204,7 @@ footer{padding:6px 14px;border-top:1px solid var(--bd);color:var(--txt-dim);font
     h += '<div class="grid"><div class="card"><h3>Bilance</h3><table class="bil">';
     if (x.srazka > 0) h += '<tr class="dim"><td>Odměna podle evidence</td><td class="n">' + kc(x.q) + '</td></tr><tr class="dim"><td>srážka ' + Math.round(x.srazkaPct * 100) + ' %</td><td class="n">− ' + kc(x.srazka) + '</td></tr>';
     h += '<tr><td><b>Vyděláno (výměr)</b></td><td class="n"><b>' + kc(x.vymer) + '</b></td></tr>';
-    x.bonus.forEach(function(b){ h += '<tr class="bon"><td>+ mentorský bonus ' + Math.round(b.pct * 100) + ' % z výměru ' + esc(b.z) + '</td><td class="n">' + kc(b.castka) + '</td></tr>'; });
+    x.bonus.forEach(function(b){ h += '<tr class="bon"><td>' + (b.typ === 'abx' ? '+ ABX – licence za SW upgrade <span style="color:var(--txt-dim)">(' + Math.round(b.ks) + ' ks)</span>' : '+ mentorský bonus ' + Math.round(b.pct * 100) + ' % z výměru ' + esc(b.z)) + '</td><td class="n">' + kc(b.castka) + '</td></tr>'; });
     h += '<tr class="sum"><td>= nárok</td><td class="n">' + kc(x.narok) + '</td></tr>';
     h += '<tr><td>Uhrazeno od Dentea</td><td class="n">' + kc(x.uhrDenteo) + '</td></tr>';
     if (x.uhrLekari) h += '<tr><td>Uhrazeno přímo lékaři</td><td class="n">' + kc(x.uhrLekari) + '</td></tr>';
@@ -253,7 +253,7 @@ footer{padding:6px 14px;border-top:1px solid var(--bd);color:var(--txt-dim);font
     });
     pts.forEach(function(p){ s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="4.5" fill="var(--pay)" stroke="var(--head)" stroke-width="1.5"><title>uhrazeno ' + kc(p[2]) + '</title></circle>'; });
     s += '</svg>';
-    var h = '<div class="card"><h3>Rok 20' + d.rok + '</h3><div class="leg"><span><i style="background:var(--act)"></i>výměr</span><span><i style="background:var(--bon)"></i>mentorský bonus</span><span><i style="background:var(--pay);border-radius:50%"></i>uhrazeno</span><span><i style="border:1px dashed var(--loni)"></i>loni (nárok)</span></div>' + s + '</div>';
+    var h = '<div class="card"><h3>Rok 20' + d.rok + '</h3><div class="leg"><span><i style="background:var(--act)"></i>výměr</span><span><i style="background:var(--bon)"></i>' + (ms.some(function(x){ return x.bonus.some(function(b){ return b.typ === 'abx'; }); }) ? 'ABX' : 'mentorský bonus') + '</span><span><i style="background:var(--pay);border-radius:50%"></i>uhrazeno</span><span><i style="border:1px dashed var(--loni)"></i>loni (nárok)</span></div>' + s + '</div>';
     h += '<div class="card" style="margin-top:14px"><table class="t"><tr><th>měsíc</th><th class="n">výkonů</th><th class="n">výměr</th><th class="n">bonus</th><th class="n">nárok</th><th class="n">uhrazeno</th><th class="n">' + (d.zamestnanec ? '' : 'rozdíl') + '</th><th class="n">' + (d.zamestnanec ? '' : 'saldo od ledna') + '</th><th class="n">loni</th><th class="n">rozdíl k loňsku</th></tr>';
     var run = 0, ln = 0, lx = 0;
     ms.forEach(function(x, i){

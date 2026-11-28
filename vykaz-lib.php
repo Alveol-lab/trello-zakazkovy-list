@@ -115,6 +115,15 @@ function vyk_bilance(array $raw, string $kdo, int $rok): array {
     $m[(int) $mes]['platby'][] = ['castka' => (float) $cast, 'kdy' => $uhr, 'zpusob' => $zp, 'vs' => $vs, 'pozn' => $pozn, 'lekar' => $lek];
   }
   $zam = vyk_zamestnanec($kdo, $rok);
+  /* ABX – licence za SW upgrade (H): kusy celé laboratoře s ročníkem ceníku (EXP L) = rok × CEN!CR, jako METRIKA/ABX */
+  $abx = array_fill(1, 12, ['ks' => 0.0, 'castka' => 0.0]);
+  $A = $raw['abx'] ?? null;
+  if (is_array($A) && ($A['kdo'] ?? '') === $kdo) foreach ($rows as $r) {
+    $kod = (string) $r[4];
+    if ((string) ($r[13] ?? '') !== (string) $rok || !isset($A['ceny'][$kod])) continue;
+    $k = (int) $r[2]; $mm = $k === $rok ? (int) $r[1] : ($k < $rok ? 1 : 12);
+    $abx[$mm]['ks'] += (float) $r[5]; $abx[$mm]['castka'] += (float) $r[5] * (float) $A['ceny'][$kod];
+  }
   $out = []; $sum = ['q' => 0, 'srazka' => 0, 'vymer' => 0, 'bonus' => 0, 'narok' => 0, 'obrat' => 0, 'uhrazeno' => 0, 'n' => 0];
   $saldo = 0;
   foreach ($m as $i => $x) {
@@ -125,6 +134,7 @@ function vyk_bilance(array $raw, string $kdo, int $rok): array {
     }
     if ($rok - 1 >= 26) foreach (VYK_BONUS as $b) if ($b['komu'] === $kdo && ($rok - 1) * 100 + $i >= $b['od'] && ($rok - 1) * 100 + $i <= $b['do'])
       $prev[$i]['narok'] += round(($Qp[$b['z']][$i] ?? 0) * (1 - vyk_srazka($b['z'], $rok - 1, $i)) * $b['pct']);
+    if ($abx[$i]['ks'] > 0) $bon[] = ['typ' => 'abx', 'z' => 'ABX', 'pct' => 0, 'ks' => $abx[$i]['ks'], 'zaklad' => 0, 'castka' => round($abx[$i]['castka'])];
     $sr = vyk_srazka($kdo, $rok, $i); $vym = round($x['q'] * (1 - $sr)); $bs = array_sum(array_column($bon, 'castka'));
     $uhr = $x['uhrDenteo'] + $x['uhrLekari']; $nar = $vym + $bs; $saldo += round($nar - $uhr);
     uasort($x['ord'], fn($a, $b) => $b['obrat'] <=> $a['obrat']);
@@ -180,7 +190,7 @@ function vyk_pdf(array $b, int $mes, bool $uzavreno, string $kdoUzavrel = ''): s
   $h .= '<div class="sec" style="margin-top:4mm">Bilance</div><table style="width:110mm;margin-top:1mm">';
   if ($x['srazka'] > 0) $h .= $r('Odměna podle evidence', sest_kc($x['q'])) . $r('srážka ' . round($x['srazkaPct'] * 100) . ' %', '− ' . sest_kc($x['srazka']));
   $h .= $r('Vyděláno (výměr)', sest_kc($x['vymer']), 'font-weight:bold');
-  foreach ($x['bonus'] as $bo) $h .= $r('+ mentorský bonus ' . round($bo['pct'] * 100) . ' % z výměru ' . $bo['z'], sest_kc($bo['castka']), 'color:#7a3fb5');
+  foreach ($x['bonus'] as $bo) $h .= $r(($bo['typ'] ?? '') === 'abx' ? '+ ABX – licence za SW upgrade (' . round($bo['ks']) . ' ks)' : '+ mentorský bonus ' . round($bo['pct'] * 100) . ' % z výměru ' . $bo['z'], sest_kc($bo['castka']), 'color:#7a3fb5');
   $h .= $r('= nárok', sest_kc($x['narok']), 'font-weight:bold;border-top:0.3mm solid #000');
   $h .= $r('Uhrazeno od Dentea', sest_kc($x['uhrDenteo']));
   if ($x['uhrLekari'] > 0) $h .= $r('Uhrazeno přímo lékaři (vlastní faktury)', sest_kc($x['uhrLekari']));
