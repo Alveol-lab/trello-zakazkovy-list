@@ -253,14 +253,17 @@ function vyk_nazvy(array $kody): array {
 
 /* ---------- párování plateb MZDY s bankou Fio (krok 43) ----------
    Účty lidí jsou jen na serveru v autolab-fio-osoby.json (repozitář je veřejný):
-   {"H": {"ucty": ["číslo/kód"], "text": []}, "U": {"ucty": [...], "text": ["Urbánek"]}, ...}
+   {"H": {"ucty": ["číslo/kód"], "text": []}, "U": {"ucty": [...], "text": ["Urbánek"]}, ...,
+    "_vyradit": [{"id": "<ID pohybu>", "duvod": "…"}]}   ← pohyby vyřazené z párování
    Nic nezapisuje – jen označí platby v okně výkazu.                                    */
 const VYK_FIO_OSOBY = __DIR__ . '/../../autolab-fio-osoby.json';
 
 function vyk_bank_pohyby(string $kdo): array {
   if (!is_file(VYK_FIO_OSOBY)) return ['tx' => [], 'od' => null, 'do' => null];
   require_once __DIR__ . '/fio-lib.php';
-  $os = json_decode((string) file_get_contents(VYK_FIO_OSOBY), true)[$kdo] ?? null;
+  $cfgO = json_decode((string) file_get_contents(VYK_FIO_OSOBY), true) ?: [];
+  $os = $cfgO[$kdo] ?? null;
+  $vyrad = array_map(fn($v) => (string) $v['id'], $cfgO['_vyradit'] ?? []);   // pohyby, které nejsou mzda (např. proplacený nákup)
   if (!$os) return ['tx' => [], 'od' => null, 'do' => null];
   $ucty = array_map('strval', $os['ucty'] ?? []); $txt = $os['text'] ?? [];
   $tx = []; $od = null; $do = null;
@@ -268,7 +271,7 @@ function vyk_bank_pohyby(string $kdo): array {
     $d = json_decode((string) file_get_contents($f), true); if (!is_array($d)) continue;
     if (!empty($d['od']) && count($d['pohyby'] ?? []) > 20) { $od = $od === null ? $d['od'] : min($od, $d['od']); $do = $do === null ? $d['do'] : max($do, $d['do']); }
     foreach ($d['pohyby'] ?? [] as $p) {
-      if ($p['castka'] >= 0) continue;
+      if ($p['castka'] >= 0 || in_array((string) $p['id'], $vyrad, true)) continue;
       $zp = trim($p['zprava'] === $p['ident'] ? $p['zprava'] : $p['zprava'] . ' ' . $p['ident']);
       $moje = in_array($p['protiucet'], $ucty, true);
       foreach ($txt as $t) if ($t !== '' && mb_stripos($zp, $t) !== false) $moje = true;
