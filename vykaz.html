@@ -74,6 +74,14 @@ details summary{cursor:pointer;color:var(--txt-strong);font-weight:600;margin:12
 .pod .lb small{display:block;color:var(--txt-dim);font-size:11px}
 .note{color:var(--txt-dim);font-size:12px;margin-top:8px}
 footer{padding:6px 14px;border-top:1px solid var(--bd);color:var(--txt-dim);font-size:12px;display:flex;gap:12px}
+.zh{display:flex;align-items:center;gap:12px;margin-bottom:8px} .zh h3{margin:0}
+.seg{display:flex;gap:4px} .seg .tab{padding:4px 10px;font-size:12px}
+.zg{display:grid;grid-template-columns:minmax(180px,32%) 1fr 110px;gap:5px 12px;align-items:center}
+.zl{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .zl small{color:var(--txt-dim)}
+.zb2{position:relative;height:14px;background:var(--bd-soft);border-radius:3px;overflow:hidden}
+.zb2 .zv{position:absolute;left:0;top:0;bottom:0;background:var(--act);border-radius:3px}
+.zc{text-align:right;font-variant-numeric:tabular-nums;font-size:13px} .zc small{display:inline-block;width:40px;color:var(--txt-dim);margin-left:4px}
+#ziskVse{margin-top:8px}
 </style>
 </head>
 <body>
@@ -137,6 +145,49 @@ footer{padding:6px 14px;border-top:1px solid var(--bd);color:var(--txt-dim);font
   function uzavreno(i){ return S.d.archiv && S.d.archiv[String(i)]; }
 
   /* ---------- Měsíc ---------- */
+  /* Zisk technika (výměr) v měsíci – podle ordinací / podle zakázek */
+  function ziskRady(x, pohled){
+    var m = {}, r = [];
+    x.vykony.forEach(function(v){
+      var k = pohled === 'zak' ? (v.tag || v.ref) : (v.ord || '?');
+      if (!m[k]) { m[k] = { k: k, vymer: 0, obrat: 0, n: 0, pac: v.pac, ord: v.ord }; r.push(m[k]); }
+      m[k].vymer += v.odm; m[k].obrat += v.obrat; m[k].n++;
+    });
+    return r.sort(function(a, b){ return b.vymer - a.vymer; });
+  }
+  function ziskGraf(x){
+    var pohled = S.zisk || 'ord', r = ziskRady(x, pohled), all = S.ziskVse, d = S.d;
+    if (!r.length) return '<div class="note">V tomto měsíci nejsou zapsané výkony.</div>';
+    var max = r[0].vymer || 1, sum = r.reduce(function(a, b){ return a + b.vymer; }, 0), lim = 15;
+    var rows = (all || r.length <= lim + 3) ? r : r.slice(0, lim);
+    var h = '<div class="zg">';
+    rows.forEach(function(o){
+      var lb = pohled === 'zak'
+        ? esc(o.pac || o.k) + ' <small>' + esc(o.ord || '') + ' · ' + esc(o.k) + ' · ' + o.n + '×</small>'
+        : esc(o.k) + ' <small>' + esc(d.jmenaOrd[o.k] || '') + ' · ' + o.n + '×</small>';
+      h += '<div class="zl" title="obrat ' + kc(o.obrat) + '">' + lb + '</div>'
+        + '<div class="zb2"><span class="zv" style="width:' + (o.vymer / max * 100).toFixed(1) + '%"></span></div>'
+        + '<div class="zc">' + kc(o.vymer) + '<small>' + (sum ? Math.round(o.vymer / sum * 100) : 0) + ' %</small></div>';
+    });
+    h += '</div>';
+    if (rows.length < r.length) h += '<button class="btn" id="ziskVse">zobrazit všech ' + r.length + '</button>';
+    return h;
+  }
+  function ziskKarta(x){
+    var p = S.zisk || 'ord';
+    return '<div class="card" style="margin-top:12px"><div class="zh"><h3>Zisk v měsíci – ' + MES[S.mes] + '</h3>'
+      + '<div class="seg"><button class="btn tab" id="zOrd" aria-selected="' + (p === 'ord') + '">podle ordinací</button>'
+      + '<button class="btn tab" id="zZak" aria-selected="' + (p === 'zak') + '">podle zakázek</button></div></div>'
+      + '<div id="zg">' + ziskGraf(x) + '</div>'
+      + '<div class="note">Zisk = tvůj výměr (odměna po srážce, bez bonusu). Procento = podíl na výměru měsíce. Obrat ordinace/zakázky je v bublině po najetí myší.</div></div>';
+  }
+  function zapojZisk(x){
+    function set(p){ S.zisk = p; S.ziskVse = false; $('zOrd').setAttribute('aria-selected', p === 'ord'); $('zZak').setAttribute('aria-selected', p === 'zak'); kresli(); }
+    function kresli(){ $('zg').innerHTML = ziskGraf(x); var b = $('ziskVse'); if (b) b.onclick = function(){ S.ziskVse = true; kresli(); }; }
+    $('zOrd').onclick = function(){ set('ord'); };
+    $('zZak').onclick = function(){ set('zak'); };
+    kresli();
+  }
   function vMesic(){
     var x = M(), d = S.d, a = uzavreno(S.mes), max = aktualni();
     var h = '<div class="mnav"><button class="btn" id="prev"' + (S.mes <= 1 ? ' disabled' : '') + '>◀</button><span class="mn">' + MES[S.mes] + ' 20' + d.rok + '</span>'
@@ -163,8 +214,9 @@ footer{padding:6px 14px;border-top:1px solid var(--bd);color:var(--txt-dim);font
     h += '</table>';
     if (x.vykony.length) h += '<details><summary>Výkony (' + x.vykony.length + ')</summary><table class="t"><tr><th>datum</th><th>zakázka</th><th>pacient</th><th>kód</th><th>ord.</th><th class="n">Q</th><th class="n">obrat</th><th class="n">odměna</th></tr>'
       + x.vykony.map(function(v){ return '<tr><td>' + esc(v.dat) + '</td><td>' + esc(v.tag) + '</td><td>' + esc(v.pac) + '</td><td>' + esc(v.kod) + '</td><td>' + esc(v.ord) + '</td><td class="n">' + esc(v.q) + '</td><td class="n">' + kc(v.obrat) + '</td><td class="n">' + kc(v.odm) + '</td></tr>'; }).join('') + '</table></details>';
-    h += '</div></div>';
+    h += '</div></div>' + ziskKarta(x);
     $('main').innerHTML = h;
+    zapojZisk(x);
     $('prev').onclick = function(){ S.mes--; render(); };
     $('next').onclick = function(){ S.mes++; render(); };
     $('pdf').onclick = function(){ pdf(S.mes, this); };
@@ -270,10 +322,10 @@ footer{padding:6px 14px;border-top:1px solid var(--bd);color:var(--txt-dim);font
     if (S.mes > aktualni()) S.mes = aktualni();
     ({ mesic: vMesic, rok: vRok, podil: vPodil, archiv: vArchiv })[S.tab]();
   }
-  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(b){
+  Array.prototype.forEach.call(document.querySelectorAll('.tabs .tab'), function(b){
     b.onclick = function(){
       S.tab = b.getAttribute('data-tab');
-      Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(x){ x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
+      Array.prototype.forEach.call(document.querySelectorAll('.tabs .tab'), function(x){ x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
       render();
     };
   });
