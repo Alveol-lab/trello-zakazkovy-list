@@ -363,3 +363,48 @@ function vyk_skryj_abx(array $b): array {
   if ($celkem) { $b['soucet']['vymer'] += $celkem; $b['soucet']['bonus'] -= $celkem; }
   return $b;
 }
+
+/* ---------- globální pohled: všichni technici dohromady (jen H a Brigit) ---------- */
+function vyk_globalni(array $raw, int $rok): array {
+  $kdo = VYK_KDO;
+  foreach ($raw['rows'] ?? [] as $r) if ((int) $r[2] === $rok && $r[0] !== '' && strlen((string) $r[0]) <= 2 && !in_array($r[0], $kdo, true)) $kdo[] = $r[0];   // např. K
+  $B = []; foreach ($kdo as $k) $B[$k] = vyk_bilance($raw, $k, $rok);
+  $num = ['q', 'srazka', 'vymer', 'bonusSum', 'narok', 'obrat', 'n', 'uhrDenteo', 'uhrLekari', 'uhrazeno'];
+  $mes = [];
+  for ($i = 0; $i < 12; $i++) {
+    $g = array_fill_keys($num, 0) + ['mesic' => $i + 1, 'srazkaPct' => 0, 'bonus' => [], 'zbyva' => 0, 'saldo' => 0, 'otevreno' => 0, 'vyrovnal' => null,
+         'ord' => [], 'obl' => ['F' => 0, 'R' => 0, 'O' => 0, 'U' => 0], 'lab' => null, 'vykony' => [], 'platby' => [], 'bankaNavic' => [],
+         'loni' => ['narok' => 0, 'obrat' => 0], 'prispevek' => null, 'technici' => []];
+    $bon = ['abx' => [0, 0], 'mentor' => [0, 0]];
+    foreach ($B as $k => $b) {
+      $x = $b['mesice'][$i];
+      foreach ($num as $f) $g[$f] += $x[$f];
+      if ($x['zbyva'] !== null) { $g['zbyva'] += $x['zbyva']; $g['saldo'] += $x['saldo'] ?? 0; $g['otevreno'] += $x['otevreno'] ?? 0; }
+      foreach ($x['bonus'] as $bo) { $t = ($bo['typ'] ?? '') === 'abx' ? 'abx' : 'mentor'; $bon[$t][0] += $bo['castka']; $bon[$t][1] += $bo['ks'] ?? 0; }
+      foreach ($x['ord'] as $o => $v) { $g['ord'][$o] = $g['ord'][$o] ?? ['n' => 0, 'obrat' => 0.0, 'vymer' => 0.0]; foreach ($v as $f => $z) $g['ord'][$o][$f] += $z; }
+      foreach ($x['obl'] as $o => $z) $g['obl'][$o] += $z;
+      $g['lab'] = $x['lab'];
+      foreach ($x['vykony'] as $v) $g['vykony'][] = $v + ['tech' => $k];
+      foreach ($x['platby'] as $p) $g['platby'][] = $p + ['osoba' => $k];
+      foreach ($x['bankaNavic'] ?? [] as $p) $g['bankaNavic'][] = $p + ['osoba' => $k];
+      $g['loni']['narok'] += $x['loni']['narok']; $g['loni']['obrat'] += $x['loni']['obrat'];
+      if ($x['prispevek']) { $g['prispevek'] = $g['prispevek'] ?? ['soc' => 0, 'zdr' => 0, 'dan' => 0, 'celkem' => 0]; foreach ($x['prispevek'] as $f => $z) $g['prispevek'][$f] += $z; }
+      if ($x['n'] || $x['uhrazeno'] || $x['narok']) $g['technici'][] = ['kdo' => $k, 'jmeno' => $b['jmeno'], 'n' => $x['n'], 'obrat' => $x['obrat'], 'vymer' => $x['vymer'],
+        'bonus' => $x['bonusSum'], 'narok' => $x['narok'], 'uhrazeno' => $x['uhrazeno'], 'zbyva' => $x['zbyva'], 'obl' => $x['obl']];
+    }
+    if ($bon['mentor'][0]) $g['bonus'][] = ['typ' => 'mentor', 'text' => 'mentorské bonusy', 'castka' => $bon['mentor'][0]];
+    if ($bon['abx'][0]) $g['bonus'][] = ['typ' => 'abx', 'ks' => $bon['abx'][1], 'castka' => $bon['abx'][0]];
+    uasort($g['ord'], fn($a, $b) => $b['obrat'] <=> $a['obrat']);
+    usort($g['vykony'], fn($a, $b) => strcmp((string) $a['ref'], (string) $b['ref']));
+    $mes[] = $g;
+  }
+  $sum = ['q' => 0, 'srazka' => 0, 'vymer' => 0, 'bonus' => 0, 'narok' => 0, 'obrat' => 0, 'uhrazeno' => 0, 'n' => 0, 'zbyva' => 0, 'prispevek' => null];
+  foreach ($B as $b) {
+    foreach (['q', 'srazka', 'vymer', 'bonus', 'narok', 'obrat', 'uhrazeno', 'n'] as $f) $sum[$f] += $b['soucet'][$f];
+    if ($b['soucet']['zbyva'] !== null) $sum['zbyva'] += $b['soucet']['zbyva'];
+    if ($b['soucet']['prispevek']) { $sum['prispevek'] = $sum['prispevek'] ?? ['soc' => 0, 'zdr' => 0, 'dan' => 0, 'celkem' => 0]; foreach ($b['soucet']['prispevek'] as $f => $z) $sum['prispevek'][$f] += $z; }
+  }
+  $f = reset($B);
+  return ['kdo' => 'G', 'jmeno' => 'Všichni technici', 'globalni' => true, 'rok' => $rok, 'zamestnanec' => false, 'mesice' => $mes, 'soucet' => $sum,
+          'jmenaOrd' => $f['jmenaOrd'], 'cas' => $f['cas'], 'zastarale' => $f['zastarale'], 'archiv' => [], 'banka' => $f['banka'], 'kdoVse' => $kdo];
+}
