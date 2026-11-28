@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ikona tlačítka „VÝKAZ“ v nabídce Vylepšení (board-button).
+     Piktogram listu papíru s ohnutým rohem a řádky textu,
+     šedá #8993A4 jako ostatní ikony. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <g fill="none" stroke="#8993A4" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M3.5 1.5h6l3 3v10h-9z" stroke-width="1.4"/>
+    <path d="M9.5 1.5v3h3" stroke-width="1.2"/>
+    <path d="M5.5 7.5h5M5.5 9.7h5M5.5 11.9h3.2" stroke-width="1"/>
+  </g>
+</svg>
