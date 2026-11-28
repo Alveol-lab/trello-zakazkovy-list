@@ -2,7 +2,7 @@
 /* =========================================================
    BANKA FIO (krok 42) – API záložky „Banka“ ve vykaz.html
    - Ověřený Trello JWT. Tokeny přidává a odebírá jen H.
-     H a Brigit vidí pohyby. Nikdo jiný nemá přístup.
+     Pohyby vidí H, Jana, Marie a Brigit. Technici nemají přístup.
    - Token se do odpovědi nikdy nevrací.
    CLI (na serveru):  php fio-api.php akce=stav
                       php fio-api.php akce=stahnout id=<účet> od=2026-01-01
@@ -32,8 +32,10 @@ if (PHP_SAPI === 'cli') {
   $post = $_SERVER['REQUEST_METHOD'] === 'POST';
   $par = $post ? (json_decode((string) file_get_contents('php://input'), true) ?: []) : $_GET;
 }
-if ($actor !== FA_H && $actor !== FA_BRIGIT) { fio_log($actor, 'přístup', 'odmítnuto'); fa_out(['ok' => false, 'error' => 'banka je jen pro H'], 403); }
-$kdo = $actor === FA_H ? 'H' : 'Brigit';
+/* náhled banky: H, Jana, Marie, Brigit; tokeny přidává a odebírá jen H */
+const FA_VIDI = [FA_H => 'H', FA_BRIGIT => 'Brigit', '611cc39d9beb8e6028ba3ae4' => 'J', '655329144f809c15a1896437' => 'Marie'];
+if (!isset(FA_VIDI[$actor])) { fio_log($actor, 'přístup', 'odmítnuto'); fa_out(['ok' => false, 'error' => 'banku vidí jen H, Jana a Marie'], 403); }
+$kdo = FA_VIDI[$actor];
 $akce = (string) ($par['akce'] ?? 'stav');
 $dat = fn($s, $def) => preg_match('~^\d{4}-\d{2}-\d{2}$~', (string) $s) ? (string) $s : $def;
 

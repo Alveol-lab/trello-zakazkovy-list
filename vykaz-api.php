@@ -71,7 +71,8 @@ $rokNow = (int) date('y');
 $par = $_SERVER['REQUEST_METHOD'] === 'POST' ? (json_decode((string) file_get_contents('php://input'), true) ?: []) : $_GET;
 $kdo = strtoupper(trim((string) ($par['kdo'] ?? $ja)));
 if ($kdo === '') $kdo = 'H';
-if (!in_array($kdo, VYK_KDO, true)) va_out(['ok' => false, 'error' => 'neznámý technik'], 400);
+$glob = in_array($actor, VYK_ABX_VIDI, true);                 // globální pohled „všichni technici“ jen H a Brigit
+if (!in_array($kdo, VYK_KDO, true) && !($kdo === 'G' && $glob)) va_out(['ok' => false, 'error' => 'neznámý technik'], 400);
 if (!$admin && $kdo !== $ja) va_out(['ok' => false, 'error' => 'vidíš jen svůj výkaz'], 403);
 $rok = (int) ($par['rok'] ?? $rokNow);
 if ($rok < 25 || $rok > $rokNow) va_out(['ok' => false, 'error' => 'neplatný rok'], 400);
@@ -79,6 +80,7 @@ $mes = (int) ($par['mesic'] ?? 0);
 
 try {
   /* uzavření měsíce: PDF se zamkne do archivu (jen H, Jana, Marie, Brigit) */
+  if ($kdo === 'G' && ($_SERVER['REQUEST_METHOD'] === 'POST' || isset($par['pdf']))) va_out(['ok' => false, 'error' => 'globální pohled nemá PDF ani uzavření'], 400);
   if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (($par['action'] ?? '') !== 'uzavrit') va_out(['ok' => false, 'error' => 'nepovolená akce'], 400);
     if (!$admin) va_out(['ok' => false, 'error' => 'měsíc uzavírá H, Jana nebo Marie'], 403);
@@ -114,12 +116,13 @@ try {
 
   /* data okna */
   $raw = vyk_raw($rok, !empty($par['obnovit']));
-  $b = vyk_bilance($raw, $kdo, $rok);
+  $b = $kdo === 'G' ? vyk_globalni($raw, $rok) : vyk_bilance($raw, $kdo, $rok);
   if (!in_array($actor, VYK_ABX_VIDI, true)) $b = vyk_skryj_abx($b);
   $b['ok'] = true; $b['admin'] = $admin; $b['ja'] = $ja;
   $b['technici'] = $admin ? array_map(fn($k) => ['kdo' => $k, 'jmeno' => (string) ($raw['jmena'][$k] ?? $k)], VYK_KDO) : [];
+  if ($admin && $glob) array_unshift($b['technici'], ['kdo' => 'G', 'jmeno' => 'všichni technici (globální)']);
   $b['roky'] = range(25, $rokNow);
-  $b['bankaTab'] = in_array($actor, ['588fa9e7e5db691bfe653bce', '6b00d5c2c5be2a396f89949e'], true);   // záložka Banka (krok 42)
+  $b['bankaTab'] = in_array($actor, VYK_ADMIN, true);   // záložka Banka: H, Jana, Marie, Brigit (tokeny spravuje jen H)
   $kd = [];
   foreach ($b['mesice'] as $mm) foreach ($mm['vykony'] as $v) $kd[] = $v['kod'];
   $b['nazvy'] = (object) vyk_nazvy($kd);
