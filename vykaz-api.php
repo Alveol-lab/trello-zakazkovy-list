@@ -116,6 +116,7 @@ try {
   $b['ok'] = true; $b['admin'] = $admin; $b['ja'] = $ja;
   $b['technici'] = $admin ? array_map(fn($k) => ['kdo' => $k, 'jmeno' => (string) ($raw['jmena'][$k] ?? $k)], VYK_KDO) : [];
   $b['roky'] = range(25, $rokNow);
+  $b['banka'] = in_array($actor, ['588fa9e7e5db691bfe653bce', '6b00d5c2c5be2a396f89949e'], true);   // záložka Banka (krok 42)
   $kd = [];
   foreach ($b['mesice'] as $mm) foreach ($mm['vykony'] as $v) $kd[] = $v['kod'];
   $b['nazvy'] = (object) vyk_nazvy($kd);
