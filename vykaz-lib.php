@@ -348,3 +348,18 @@ function vyk_sparuj(array &$m, string $kdo, int $rok): array {
   }
   return ['zapnuto' => true, 'od' => $B['od'], 'do' => $B['do']];
 }
+
+/* Bonus ABX zobrazuje rozepsaný jen H a Brigit. Ostatním (Jana, Marie) se přičte do výměru,
+   nárok i saldo zůstávají stejné. Uzavřené PDF v archivu je vždy v této sloučené podobě.  */
+const VYK_ABX_VIDI = ['588fa9e7e5db691bfe653bce', '6b00d5c2c5be2a396f89949e'];
+function vyk_skryj_abx(array $b): array {
+  $celkem = 0;
+  foreach ($b['mesice'] as &$x) {
+    $a = 0;
+    $x['bonus'] = array_values(array_filter($x['bonus'], function ($bo) use (&$a) { if (($bo['typ'] ?? '') === 'abx') { $a += $bo['castka']; return false; } return true; }));
+    if ($a) { $x['vymer'] += $a; $x['bonusSum'] -= $a; $celkem += $a; }
+  }
+  unset($x);
+  if ($celkem) { $b['soucet']['vymer'] += $celkem; $b['soucet']['bonus'] -= $celkem; }
+  return $b;
+}

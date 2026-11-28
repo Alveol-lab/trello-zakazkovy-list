@@ -52,6 +52,7 @@ function va_jwt(string $tok, ?string &$why): ?array {
 if (PHP_SAPI === 'cli') {                                 // test na serveru: php vykaz-api.php kdo=P rok=26
   $actor = '6b00d5c2c5be2a396f89949e';
   parse_str(implode('&', array_slice($argv, 1)), $_GET);
+  if (!empty($_GET['jako'])) $actor = (string) $_GET['jako'];   // test pohledu jiného účtu (jen CLI)
   $_SERVER['REQUEST_METHOD'] = 'GET';
 } else {
   $why = '';
@@ -85,7 +86,7 @@ try {
     if ($rok * 100 + $mes >= (int) date('ym')) va_out(['ok' => false, 'error' => 'běžící měsíc ještě nejde uzavřít'], 400);
     $cesta = vyk_archiv_cesta($kdo, $rok, $mes);
     if (is_file($cesta . '.pdf')) va_out(['ok' => false, 'error' => 'měsíc už je uzavřený'], 409);
-    $b = vyk_bilance(vyk_raw($rok, true), $kdo, $rok);
+    $b = vyk_skryj_abx(vyk_bilance(vyk_raw($rok, true), $kdo, $rok));   // archiv vždy bez rozpisu ABX
     $pdf = vyk_pdf($b, $mes, true, $jaJm);
     if (!is_dir(dirname($cesta))) @mkdir(dirname($cesta), 0750, true);
     file_put_contents($cesta . '.pdf', $pdf, LOCK_EX);
@@ -105,6 +106,7 @@ try {
     $nazev = 'VYKAZ ' . $kdo . ' 20' . $rok . '-' . $MES[$mes] . '.pdf';
     if (is_file($cesta)) { vyk_log($actor, 'pdf archiv ' . $kdo . ' ' . $mes . '/' . $rok, 'ok'); va_out(['ok' => true, 'nazev' => $nazev, 'uzavreno' => true, 'pdf' => base64_encode((string) file_get_contents($cesta))]); }
     $b = vyk_bilance(vyk_raw($rok), $kdo, $rok);
+    if (!in_array($actor, VYK_ABX_VIDI, true)) $b = vyk_skryj_abx($b);
     $pdf = vyk_pdf($b, $mes, false);
     vyk_log($actor, 'pdf ' . $kdo . ' ' . $mes . '/' . $rok, 'ok');
     va_out(['ok' => true, 'nazev' => str_replace('.pdf', ' prubezny.pdf', $nazev), 'uzavreno' => false, 'pdf' => base64_encode($pdf)]);
@@ -113,6 +115,7 @@ try {
   /* data okna */
   $raw = vyk_raw($rok, !empty($par['obnovit']));
   $b = vyk_bilance($raw, $kdo, $rok);
+  if (!in_array($actor, VYK_ABX_VIDI, true)) $b = vyk_skryj_abx($b);
   $b['ok'] = true; $b['admin'] = $admin; $b['ja'] = $ja;
   $b['technici'] = $admin ? array_map(fn($k) => ['kdo' => $k, 'jmeno' => (string) ($raw['jmena'][$k] ?? $k)], VYK_KDO) : [];
   $b['roky'] = range(25, $rokNow);
