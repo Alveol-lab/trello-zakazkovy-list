@@ -116,6 +116,7 @@ function vyk_bilance(array $raw, string $kdo, int $rok): array {
   }
   $zam = vyk_zamestnanec($kdo, $rok);
   $out = []; $sum = ['q' => 0, 'srazka' => 0, 'vymer' => 0, 'bonus' => 0, 'narok' => 0, 'obrat' => 0, 'uhrazeno' => 0, 'n' => 0];
+  $saldo = 0;
   foreach ($m as $i => $x) {
     $yymm = $rok * 100 + $i; $bon = [];
     foreach (VYK_BONUS as $b) if ($b['komu'] === $kdo && $yymm >= $b['od'] && $yymm <= $b['do']) {
@@ -125,16 +126,31 @@ function vyk_bilance(array $raw, string $kdo, int $rok): array {
     if ($rok - 1 >= 26) foreach (VYK_BONUS as $b) if ($b['komu'] === $kdo && ($rok - 1) * 100 + $i >= $b['od'] && ($rok - 1) * 100 + $i <= $b['do'])
       $prev[$i]['narok'] += round(($Qp[$b['z']][$i] ?? 0) * (1 - vyk_srazka($b['z'], $rok - 1, $i)) * $b['pct']);
     $sr = vyk_srazka($kdo, $rok, $i); $vym = round($x['q'] * (1 - $sr)); $bs = array_sum(array_column($bon, 'castka'));
-    $uhr = $x['uhrDenteo'] + $x['uhrLekari']; $nar = $vym + $bs;
+    $uhr = $x['uhrDenteo'] + $x['uhrLekari']; $nar = $vym + $bs; $saldo += round($nar - $uhr);
     uasort($x['ord'], fn($a, $b) => $b['obrat'] <=> $a['obrat']);
     $labG = array_sum($x['lab']);
     $out[$i] = ['mesic' => $i, 'q' => round($x['q']), 'srazka' => round($x['q'] * $sr), 'srazkaPct' => $sr, 'vymer' => $vym, 'bonus' => $bon, 'bonusSum' => $bs,
       'narok' => $nar, 'obrat' => round($x['obrat']), 'n' => $x['n'], 'uhrDenteo' => round($x['uhrDenteo']), 'uhrLekari' => round($x['uhrLekari']),
-      'uhrazeno' => round($uhr), 'zbyva' => $zam ? null : round($nar - $uhr), 'ord' => $x['ord'], 'obl' => array_map('round', $x['obl']),
+      'uhrazeno' => round($uhr), 'zbyva' => $zam ? null : round($nar - $uhr), 'saldo' => $zam ? null : $saldo, 'ord' => $x['ord'], 'obl' => array_map('round', $x['obl']),
       'lab' => array_map('round', $x['lab']) + ['G' => round($labG)], 'vykony' => $x['vykony'], 'platby' => $x['platby'],
       'loni' => ['narok' => round($prev[$i]['narok']), 'obrat' => round($prev[$i]['obrat'])]];
     foreach (['q', 'srazka', 'vymer', 'narok', 'obrat', 'uhrazeno', 'n'] as $k) $sum[$k] += $out[$i][$k];
     $sum['bonus'] += $bs;
+  }
+  /* nedoplatky měsíců se vyrovnávají pozdějšími přeplatky (nejstarší první) */
+  if (!$zam) {
+    $fronta = []; $kredit = 0;
+    foreach ($out as $i => &$o) {
+      $o['otevreno'] = 0; $o['vyrovnal'] = null; $z = (int) $o['zbyva'];
+      if ($z > 0) { $u = min($kredit, $z); $kredit -= $u; $z -= $u; if ($z > 0) $fronta[] = [$i, $z]; elseif ($u > 0) $o['vyrovnal'] = $i; }
+      elseif ($z < 0) {
+        $k = -$z;
+        while ($k > 0 && $fronta) { $u = min($k, $fronta[0][1]); $k -= $u; $fronta[0][1] -= $u; if ($fronta[0][1] <= 0) { $out[$fronta[0][0]]['vyrovnal'] = $i; array_shift($fronta); } }
+        $kredit += $k;
+      }
+    }
+    unset($o);
+    foreach ($fronta as $f) $out[$f[0]]['otevreno'] = $f[1];
   }
   $sum['zbyva'] = $zam ? null : $sum['narok'] - $sum['uhrazeno'];
   return ['kdo' => $kdo, 'jmeno' => (string) ($raw['jmena'][$kdo] ?? $kdo), 'rok' => $rok, 'zamestnanec' => $zam,
@@ -168,7 +184,11 @@ function vyk_pdf(array $b, int $mes, bool $uzavreno, string $kdoUzavrel = ''): s
   $h .= $r('= nárok', sest_kc($x['narok']), 'font-weight:bold;border-top:0.3mm solid #000');
   $h .= $r('Uhrazeno od Dentea', sest_kc($x['uhrDenteo']));
   if ($x['uhrLekari'] > 0) $h .= $r('Uhrazeno přímo lékaři (vlastní faktury)', sest_kc($x['uhrLekari']));
-  if ($x['zbyva'] !== null) $h .= $r($x['zbyva'] >= 0 ? 'Zbývá doplatit' : 'Přeplaceno', sest_kc(abs($x['zbyva'])), 'font-weight:bold');
+  if ($x['zbyva'] !== null) {
+    $h .= $r($x['zbyva'] >= 0 ? 'Zbývá doplatit za měsíc' : 'Přeplaceno za měsíc', sest_kc(abs($x['zbyva'])), 'font-weight:bold');
+    $MESx = ['', 'leden', 'únor', 'březen', 'duben', 'květen', 'červen', 'červenec', 'srpen', 'září', 'říjen', 'listopad', 'prosinec'];
+    if ($x['zbyva'] > 0) $h .= $r(!empty($x['vyrovnal']) ? ($x['vyrovnal'] === $x['mesic'] ? 'Vyrovnáno dřívějším přeplatkem' : 'Vyrovnáno pozdější platbou (' . $MESx[$x['vyrovnal']] . ')') : 'Po všech platbách roku zbývá', !empty($x['vyrovnal']) ? '0 Kč' : sest_kc($x['otevreno']));
+  }
   else $h .= $r('Zaměstnanec – výplata mzdou, doplatek se nepočítá', '');
   $h .= '</table>';
   $h .= '<div class="sec" style="margin-top:4mm">Podle ordinací</div><table style="width:100%;margin-top:1mm"><tr class="gh"><td>ordinace</td><td class="r">výkonů</td><td class="r">obrat</td><td class="r">výměr</td></tr>';
